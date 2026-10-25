@@ -6,6 +6,8 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   base: '/thegameshow/',
   plugins: [react()],
+  // Keep fonts as same-origin files (CSP font-src 'self', GS-CA18).
+  build: { assetsInlineLimit: (file) => (/\.woff2?$/.test(file) ? false : undefined) },
   test: {
     environment: 'node',
     include: ['src/**/*.test.{ts,tsx}', 'tools/**/*.test.ts'],
