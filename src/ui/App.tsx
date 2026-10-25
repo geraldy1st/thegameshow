@@ -106,10 +106,11 @@ function InvestmentCard({ store, id }: { store: Store; id: InvestmentId }) {
           type="button"
           className="btn btn-primary num"
           aria-disabled={disabled}
-          aria-label={t('buyLabel', { name, n: cost })}
           onClick={onBuy}
         >
+          {/* Accessible name starts with the visible text (WCAG 2.5.3). */}
           {t('buy', { n: formatYen(cost) })}
+          <span className="visually-hidden">{t('buyLabelSuffix', { name })}</span>
         </button>
         {!affordable && <span className="meta">{t('notEnough')}</span>}
       </div>
@@ -374,13 +375,13 @@ export function App({ store }: { store: Store }) {
   return (
     <div className="app">
       <TopBar store={store} />
-      <h1 className="visually-hidden">{t('appTitle')}</h1>
       {status === 'readonly' && (
         <p className="banner" role="alert">
           {t('readonlyBanner')}
         </p>
       )}
       <main>
+        <h1 className="visually-hidden">{t('appTitle')}</h1>
         <Play store={store} />
         <Invest store={store} />
         <SaveMenu store={store} />

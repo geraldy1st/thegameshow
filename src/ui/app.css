@@ -132,8 +132,9 @@ section > h2 {
   color: var(--cream);
 }
 .btn-danger {
-  background: var(--coral);
-  color: var(--ink);
+  /* coral-ink + cream text: 6.09:1 (axe color-contrast) */
+  background: var(--coral-ink);
+  color: var(--cream);
 }
 .aoi {
   width: 220px;

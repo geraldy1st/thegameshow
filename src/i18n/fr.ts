@@ -13,7 +13,7 @@ export const fr = {
   level: 'Niveau {n}',
   perSecond: '+{n} ¥/s par niveau',
   buy: 'Acheter {n} ¥',
-  buyLabel: 'Acheter un niveau de {name} pour {n} yens',
+  buyLabelSuffix: ' : un niveau de {name}',
   notEnough: 'Pas assez de yens',
   bought: '{name} : niveau {n}',
   save: 'Épargne',
