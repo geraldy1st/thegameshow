@@ -279,3 +279,318 @@ dialog .meta {
     padding-inline: var(--s-5);
   }
 }
+
+/* ---- Lot 2: tabs, draw, quests, friends (mobile first, 360 px) ---- */
+.app {
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
+}
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  max-width: 430px;
+  margin: 0 auto;
+  padding: var(--s-1) var(--s-2) calc(var(--s-1) + env(safe-area-inset-bottom));
+  background: var(--bg-deep);
+  border-top: 1px solid var(--line);
+}
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.tab.on {
+  color: var(--fg);
+  background: var(--surface-2);
+  box-shadow: inset 0 -3px 0 var(--gold);
+}
+.quests-btn {
+  min-height: var(--tap);
+  font-size: var(--fs-sm);
+  background: var(--surface-2);
+  color: var(--fg);
+  border: 1.5px solid var(--line);
+}
+.badge {
+  display: block;
+  font-size: 13px;
+  color: var(--fg);
+}
+main section {
+  margin-top: var(--s-4);
+}
+.sub {
+  margin: var(--s-4) 0 var(--s-2);
+  font-size: var(--fs-lg);
+}
+.pity.card {
+  padding: var(--s-3) var(--s-4);
+  margin-top: var(--s-3);
+}
+.card .pity-main {
+  margin: 0 0 var(--s-2);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-xl);
+  color: var(--ink);
+}
+progress {
+  width: 100%;
+  height: 12px;
+  accent-color: var(--gold);
+}
+.draw-row {
+  display: grid;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+}
+.draw {
+  width: 100%;
+  min-height: 56px;
+  font-size: var(--fs-lg);
+}
+.btn[aria-disabled='true'] {
+  opacity: 0.55;
+}
+.grid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-2);
+}
+.card.acard {
+  padding: var(--s-2);
+  text-align: center;
+  font-size: 13px;
+}
+.card.acard p {
+  margin: 2px 0;
+}
+.card .acard-name {
+  font-weight: 700;
+  font-size: var(--fs-sm);
+}
+.card .acard-bonus {
+  color: var(--muted-ink);
+}
+.card.acard.lock img {
+  filter: grayscale(1) brightness(0.6);
+}
+.card.r2 {
+  box-shadow:
+    0 0 0 2px var(--navy),
+    var(--sh-2);
+}
+.card.r3 {
+  box-shadow: var(--glow-gold);
+}
+.portrait img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: var(--r-md);
+}
+.portrait.small img {
+  width: 56px;
+  border-radius: var(--r-pill);
+  aspect-ratio: 1;
+}
+dialog .rates {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-md);
+  color: var(--ink);
+}
+dialog .rates caption {
+  text-align: left;
+  font-weight: 700;
+  padding-bottom: var(--s-1);
+}
+dialog .rates th,
+dialog .rates td {
+  padding: var(--s-2) var(--s-1);
+  border-top: 1px solid var(--line-ink);
+  text-align: left;
+  vertical-align: top;
+}
+dialog .rates td:nth-child(2) {
+  font-weight: 700;
+  font-size: var(--fs-lg);
+  white-space: nowrap;
+}
+dialog .meta {
+  color: var(--muted-ink);
+  font-size: var(--fs-sm);
+}
+dialog .rates-nobuy {
+  font-weight: 700;
+  color: var(--gold-ink);
+}
+dialog .reveal {
+  text-align: center;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+dialog .card-back {
+  margin: var(--s-4) auto;
+  width: 140px;
+  height: 190px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-lg);
+  background: var(--navy);
+  font-size: 48px;
+  animation: tgs-flip 2.3s ease-in-out both;
+}
+dialog .reveal.r3 .card-back {
+  box-shadow: var(--glow-gold);
+}
+dialog .reveal.done {
+  animation: tgs-fade 0.35s ease-out both;
+}
+dialog .reveal.reduced .card-back {
+  animation: none;
+}
+dialog .reveal.reduced.done {
+  animation: tgs-fade 0.18s linear both;
+}
+dialog .reveal .portrait img {
+  width: 160px;
+  margin: var(--s-2) auto;
+}
+dialog .stars-line {
+  font-size: 28px;
+  color: var(--gold-ink);
+  margin: 0;
+}
+dialog .result {
+  font-weight: 700;
+  font-size: var(--fs-lg);
+}
+dialog .lesson {
+  font-style: italic;
+}
+dialog .pity-result {
+  font-weight: 700;
+}
+@keyframes tgs-flip {
+  0% {
+    transform: scale(0.85) rotateY(0);
+  }
+  60% {
+    transform: scale(1) rotateY(540deg);
+  }
+  100% {
+    transform: scale(1.05) rotateY(720deg);
+  }
+}
+@keyframes tgs-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  dialog .card-back,
+  dialog .reveal.done {
+    animation: tgs-fade 0.18s linear both;
+  }
+}
+:root[data-motion='reduce'] dialog .card-back,
+:root[data-motion='reduce'] dialog .reveal.done {
+  animation: tgs-fade 0.18s linear both;
+}
+dialog .quests,
+.friends {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--s-2);
+}
+.card.quest {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+  padding: var(--s-3);
+  box-shadow: 0 0 0 1px var(--line-ink);
+}
+.card .quest-text {
+  flex: 1;
+}
+.card .quest-name {
+  margin: 0;
+  font-weight: 700;
+}
+.card .claimed {
+  color: var(--gold-ink);
+  font-weight: 700;
+}
+dialog .quiz-head {
+  display: flex;
+  gap: var(--s-3);
+  align-items: center;
+}
+dialog .quiz-q {
+  font-weight: 700;
+  font-size: var(--fs-lg);
+}
+dialog .quiz-choices {
+  display: grid;
+  gap: var(--s-2);
+}
+dialog .quiz-choices .btn {
+  text-align: left;
+  min-height: var(--tap);
+  height: auto;
+  padding: var(--s-2) var(--s-3);
+}
+dialog .quiz-choices .right {
+  border-width: 3px;
+  font-weight: 700;
+}
+dialog .quiz-choices .wrong {
+  text-decoration: line-through;
+}
+dialog .quiz-why {
+  margin-top: var(--s-3);
+}
+.card.friend {
+  display: flex;
+  gap: var(--s-3);
+  padding: var(--s-3);
+}
+.card.friend .portrait {
+  flex: 0 0 96px;
+}
+.card .friend-body {
+  flex: 1;
+  display: grid;
+  gap: var(--s-1);
+}
+.card .friend-body p {
+  margin: 0;
+}
+dialog .dialogue {
+  font-size: var(--fs-lg);
+  min-height: 4.5em;
+}

@@ -1,4 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Modal } from './common';
+import { download, claimableCount } from './helpers';
+import { Partners } from './Partners';
+import { Friends } from './Friends';
+import { Quests } from './Quests';
 import { useStore, type StoreApi } from 'zustand';
 import { INVESTMENT_IDS, INVESTMENTS, type InvestmentId } from '../data/balance';
 import { canBuy, clickValueYen, incomeCentsPerSecond, nextCostYen } from '../core/economy';
@@ -9,34 +14,8 @@ import { formatDuration, formatRate, formatYen, formatYenLong } from './format';
 
 type Store = StoreApi<GameStoreState>;
 
-/** Modal built on <dialog>: native focus trap, Escape closes, focus returns to the opener. */
-function Modal(props: {
-  open: boolean;
-  onClose: () => void;
-  labelId: string;
-  children: ReactNode;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const opener = useRef<Element | null>(null);
-  useEffect(() => {
-    const d = ref.current;
-    if (!d) return;
-    if (props.open && !d.open) {
-      opener.current = document.activeElement;
-      d.showModal();
-    } else if (!props.open && d.open) {
-      d.close();
-      if (opener.current instanceof HTMLElement) opener.current.focus();
-    }
-  }, [props.open]);
-  return (
-    <dialog ref={ref} aria-labelledby={props.labelId} onClose={props.onClose}>
-      {props.children}
-    </dialog>
-  );
-}
-
-function TopBar({ store }: { store: Store }) {
+function TopBar({ store, onQuests }: { store: Store; onQuests: () => void }) {
+  const ready = useStore(store, (s) => claimableCount(s.game));
   const yen = useStore(store, (s) => centsToYen(s.game?.yenCents ?? 0));
   const tickets = useStore(store, (s) => s.game?.tickets ?? 0);
   return (
@@ -53,6 +32,10 @@ function TopBar({ store }: { store: Store }) {
         <span aria-hidden="true">🎟</span>
         <span>{tickets}</span>
       </p>
+      <button type="button" className="btn btn-secondary quests-btn" onClick={onQuests}>
+        {t('questsOpen')}
+        {ready > 0 && <span className="badge num">{t('questsReady', { n: ready })}</span>}
+      </button>
     </header>
   );
 }
@@ -127,15 +110,6 @@ function Invest({ store }: { store: Store }) {
       ))}
     </section>
   );
-}
-
-function download(text: string, prefix = 'thegameshow') {
-  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${prefix}-${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 function ImportButton({ store }: { store: Store }) {
@@ -325,10 +299,98 @@ function Recovery({ store }: { store: Store }) {
   );
 }
 
+/** Restore the `backup-before-reset` slot (lot 2 scope e), with confirmation. */
+function ResetBackup({ store }: { store: Store }) {
+  const created = useStore(store, (s) => s.game?.createdAt ?? 0);
+  const readonly = useStore(store, (s) => s.status !== 'ready');
+  const [kind, setKind] = useState<'none' | 'unreadable' | 'ok'>('none');
+  const [confirm, setConfirm] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void store
+      .getState()
+      .resetBackup()
+      .then((r) => live && setKind(r.kind));
+    return () => {
+      live = false;
+    };
+  }, [store, created]);
+  if (kind === 'none' || readonly) return null;
+  return (
+    <section aria-labelledby="reset-backup-title">
+      <h2 id="reset-backup-title">{t('resetBackupTitle')}</h2>
+      <p>{t('resetBackupBody')}</p>
+      {kind === 'unreadable' ? (
+        <p className="muted">{t('resetBackupUnreadable')}</p>
+      ) : (
+        <button type="button" className="btn btn-ghost" onClick={() => setConfirm(true)}>
+          {t('resetBackupRestore')}
+        </button>
+      )}
+      <Modal open={confirm} onClose={() => setConfirm(false)} labelId="reset-backup-confirm">
+        <h2 id="reset-backup-confirm">{t('resetBackupRestore')}</h2>
+        <p>{t('resetBackupConfirm')}</p>
+        <div className="row">
+          <button type="button" className="btn btn-ghost" onClick={() => setConfirm(false)}>
+            {t('cancel')}
+          </button>
+          <button
+            type="button"
+            className="btn btn-danger"
+            onClick={() => {
+              setConfirm(false);
+              void store
+                .getState()
+                .restoreResetBackup()
+                .then((ok) =>
+                  store.getState().announce(ok ? t('resetBackupDone') : t('writeFailed')),
+                );
+            }}
+          >
+            {t('resetBackupRestore')}
+          </button>
+        </div>
+      </Modal>
+    </section>
+  );
+}
+
+type Tab = 'play' | 'invest' | 'friends' | 'partners';
+const TABS: readonly Tab[] = ['play', 'invest', 'friends', 'partners'];
+const TAB_LABEL = {
+  play: 'tabPlay',
+  invest: 'tabInvest',
+  friends: 'tabFriends',
+  partners: 'tabPartners',
+} as const;
+const TAB_ICON = { play: '🖱', invest: '📈', friends: '♥', partners: '★' } as const;
+
+function TabBar({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
+  return (
+    <nav className="tabbar" aria-label={t('tabsLabel')}>
+      {TABS.map((id) => (
+        <button
+          key={id}
+          type="button"
+          className={`tab ${tab === id ? 'on' : ''}`}
+          aria-current={tab === id ? 'page' : undefined}
+          onClick={() => onTab(id)}
+        >
+          <span aria-hidden="true">{TAB_ICON[id]}</span>
+          {t(TAB_LABEL[id])}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 export function App({ store }: { store: Store }) {
   const status = useStore(store, (s) => s.status);
   const announcement = useStore(store, (s) => s.announcement);
   const motion = useStore(store, (s) => s.game?.settings.reducedMotion ?? 'auto');
+  const writeError = useStore(store, (s) => s.writeError);
+  const [tab, setTab] = useState<Tab>('play');
+  const [quests, setQuests] = useState(false);
 
   useEffect(() => {
     if (motion === 'on') document.documentElement.dataset.motion = 'reduce';
@@ -374,18 +436,32 @@ export function App({ store }: { store: Store }) {
   }
   return (
     <div className="app">
-      <TopBar store={store} />
+      <TopBar store={store} onQuests={() => setQuests(true)} />
       {status === 'readonly' && (
         <p className="banner" role="alert">
           {t('readonlyBanner')}
         </p>
       )}
+      {writeError && status === 'ready' && (
+        <p className="banner" role="alert">
+          {t('writeFailed')}
+        </p>
+      )}
       <main>
         <h1 className="visually-hidden">{t('appTitle')}</h1>
-        <Play store={store} />
-        <Invest store={store} />
-        <SaveMenu store={store} />
+        {tab === 'play' && (
+          <>
+            <Play store={store} />
+            <SaveMenu store={store} />
+            <ResetBackup store={store} />
+          </>
+        )}
+        {tab === 'invest' && <Invest store={store} />}
+        {tab === 'friends' && <Friends store={store} />}
+        {tab === 'partners' && <Partners store={store} />}
       </main>
+      <TabBar tab={tab} onTab={setTab} />
+      <Quests store={store} open={quests} onClose={() => setQuests(false)} />
       <WelcomeBack store={store} />
       {live}
     </div>

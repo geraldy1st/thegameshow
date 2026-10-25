@@ -23,16 +23,17 @@ CSS de base pour un téléphone en portrait (360 px, une main), agrandissement p
 
 ### Mode de test
 
-Uniquement dans `build:test-harness` (`import.meta.env.MODE === 'test-harness'`) : URL `?now=<ms>&seed=<n>`, puis `window.__TGS_TEST__` (`now`, `setNow`, `advance(ms)`, `state()`). Éliminé du build de production (vérifié en CI).
+Uniquement dans `build:test-harness` (`import.meta.env.MODE === 'test-harness'`) : URL `?now=<ms>&seed=<n>`, puis `window.__TGS_TEST__` (`now`, `setNow`, `advance(ms)`, `state()`, et au lot 2 `seed(n)`, `setTickets(n)`, `setPity(n)`). Éliminé du build de production (vérifié en CI).
 
 ## Structure
 
 ```
 src/core/    logique pure (économie, idle/hors ligne, PRNG à graine, horloge injectable, état initial)
 src/data/    balance.ts : seule table d'équilibrage
-src/save/    schéma SaveV1 + validation stricte, migrations, export/import, IndexedDB, sauvegardes de référence
+src/save/    schéma SaveV2 (migration v1→v2) + validation stricte, migrations, export/import, IndexedDB, sauvegardes de référence
 src/store/   store Zustand : orchestre core + save (écriture conditionnelle par révision, lecture seule du 2e onglet)
-src/ui/      écran minimal (tokens du brief design), formatage
+src/ui/      onglets Jouer/Investir/Amis/Associés, quêtes, tirage (tokens du brief design)
+public/game/ portraits WebP + JPEG (tools/import-assets.py, manifeste src/data/assets-manifest.json)
 src/i18n/    textes FR (EN/ES dans un lot suivant)
 tools/       contrôles de build et de contraste
 ```
@@ -42,3 +43,4 @@ Spécification : `SPEC-ADDENDUM.md` (hors dépôt, dossier de plan), DESIGN-BRIE
 ## Journal
 
 - 2026-10-25 — Lot 1 « noyau » (branche `lot-1-core`) : clic, 3 investissements, gains idle et hors ligne plafonnés à 8 h, sauvegarde v1. Tirage, quêtes, amis et PWA : lots suivants.
+- 2026-10-25 — Lot 2 « tirage » (branche `lot-2-draw`) : tirage d'associés (70/25/5, pitié au 50e), 5 quêtes du jour (7 tickets max, sans série), amis Ren/Mio/Sora (scène 1), sauvegarde v2. Tickets uniquement en jouant, aucun achat possible. Pas de PWA.
