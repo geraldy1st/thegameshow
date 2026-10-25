@@ -148,12 +148,18 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
 
       async buy(id) {
         let ok = false;
+        const before = get().game;
         update((g) => {
           const r = coreBuy(g, id);
           ok = r.ok;
           return r.ok ? r.state : g;
         });
         if (ok) await persistNow();
+        if (ok && get().status === 'readonly') {
+          // Conditional write lost to another tab (DEF-GS-04): never show an unsaved purchase.
+          set({ game: before });
+          return false;
+        }
         return ok;
       },
 

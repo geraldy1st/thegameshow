@@ -51,8 +51,11 @@ describe('game store', () => {
     await a.store.getState().init();
     const b = setup(a.name, true, a.clock);
     await b.store.getState().init(); // loads rev 1, writes rev 2
-    await a.store.getState().buy('save'); // tab A still expects rev 1
+    expect(await a.store.getState().buy('save')).toBe(false); // tab A still expects rev 1
     expect(a.store.getState().status).toBe('readonly');
+    // DEF-GS-04: the refused purchase is rolled back, not displayed as done.
+    expect(a.store.getState().game?.investments.save).toBe(0);
+    expect(a.store.getState().game?.yenCents).toBe(12000);
     expect(b.store.getState().status).toBe('ready');
   });
 

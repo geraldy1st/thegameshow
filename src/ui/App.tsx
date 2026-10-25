@@ -89,6 +89,7 @@ function InvestmentCard({ store, id }: { store: Store; id: InvestmentId }) {
     if (disabled) return;
     if (await store.getState().buy(id))
       store.getState().announce(t('bought', { name, n: level + 1 }));
+    else if (store.getState().status === 'readonly') store.getState().announce(t('readonlyBanner'));
   };
   return (
     <article className="card" aria-labelledby={`inv-${id}`}>
