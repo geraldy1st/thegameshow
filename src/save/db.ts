@@ -16,7 +16,10 @@ export const DB_NAME = 'thegameshow';
 const DB_VERSION = 1;
 
 export class RevisionConflictError extends Error {
-  constructor(readonly stored: number, readonly expected: number) {
+  constructor(
+    readonly stored: number,
+    readonly expected: number,
+  ) {
     super(`revision conflict: stored ${stored}, expected ${expected}`);
   }
 }

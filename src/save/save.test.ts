@@ -5,13 +5,7 @@ import { createRng, nextFloat } from '../core/rng';
 import { CURRENT_SCHEMA_VERSION, validateSaveV1 } from './schema';
 import { migrateToCurrent } from './migrations';
 import { MAX_IMPORT_BYTES, fnv1a, parseImport, serializeExport } from './exportImport';
-import {
-  RevisionConflictError,
-  backupBeforeImport,
-  loadSave,
-  openSaveDb,
-  writeSave,
-} from './db';
+import { RevisionConflictError, backupBeforeImport, loadSave, openSaveDb, writeSave } from './db';
 import initial from './__fixtures__/v1-initial.json';
 import midgame from './__fixtures__/v1-midgame.json';
 
@@ -34,7 +28,9 @@ describe('golden saves and migration chain (RES-7a)', () => {
     expect(migrateToCurrent(once.value)).toEqual(once);
   });
   it('refuses future versions and unknown versions', () => {
-    expect(migrateToCurrent({ ...midgame, schemaVersion: CURRENT_SCHEMA_VERSION + 1 }).ok).toBe(false);
+    expect(migrateToCurrent({ ...midgame, schemaVersion: CURRENT_SCHEMA_VERSION + 1 }).ok).toBe(
+      false,
+    );
     expect(migrateToCurrent({ ...midgame, schemaVersion: 0 }).ok).toBe(false);
     expect(migrateToCurrent({ ...midgame, schemaVersion: '1' }).ok).toBe(false);
   });
@@ -52,7 +48,13 @@ describe('validation bounds (RES-7c)', () => {
     ['pity 50', { ...midgame, gacha: { ...midgame.gacha, pity: 50 } }],
     ['stars 6', { ...midgame, gacha: { ...midgame.gacha, stars: { jun: 6 } } }],
     ['unknown associate', { ...midgame, gacha: { ...midgame.gacha, stars: { ren: 1 } } }],
-    ['affinity 101', { ...midgame, friends: { ...midgame.friends, ren: { ...midgame.friends.ren, affinity: 101 } } }],
+    [
+      'affinity 101',
+      {
+        ...midgame,
+        friends: { ...midgame.friends, ren: { ...midgame.friends.ren, affinity: 101 } },
+      },
+    ],
     ['bad day', { ...midgame, quests: { ...midgame.quests, day: 'tomorrow' } }],
     ['unexpected key', { ...midgame, gems: 100 }],
     ['lastSeen > maxSeen', { ...midgame, lastSeenAt: midgame.maxSeenAt + 1 }],
@@ -85,7 +87,9 @@ describe('export / import (GS-CA5)', () => {
     const save = midgame;
     const env = { format: 'other', checksum: fnv1a(JSON.stringify(save)), save };
     expect(parseImport(JSON.stringify(env)).ok).toBe(false);
-    expect(parseImport(JSON.stringify({ ...env, format: 'thegameshow-save', extra: 1 })).ok).toBe(false);
+    expect(parseImport(JSON.stringify({ ...env, format: 'thegameshow-save', extra: 1 })).ok).toBe(
+      false,
+    );
   });
 });
 

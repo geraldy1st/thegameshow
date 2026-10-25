@@ -21,21 +21,30 @@ class Invalid extends Error {}
 type Obj = Record<string, unknown>;
 
 /** Strict object check: plain object, exact key set, no dangerous keys (RES-7c). */
-function obj(v: unknown, path: string, keys: readonly string[], optional: readonly string[] = []): Obj {
-  if (typeof v !== 'object' || v === null || Array.isArray(v)) throw new Invalid(`${path}: object expected`);
+function obj(
+  v: unknown,
+  path: string,
+  keys: readonly string[],
+  optional: readonly string[] = [],
+): Obj {
+  if (typeof v !== 'object' || v === null || Array.isArray(v))
+    throw new Invalid(`${path}: object expected`);
   const proto = Object.getPrototypeOf(v);
-  if (proto !== Object.prototype && proto !== null) throw new Invalid(`${path}: plain object expected`);
+  if (proto !== Object.prototype && proto !== null)
+    throw new Invalid(`${path}: plain object expected`);
   const own = Object.getOwnPropertyNames(v);
   for (const k of own) {
     if (FORBIDDEN_KEYS.has(k)) throw new Invalid(`${path}.${k}: forbidden key`);
-    if (!keys.includes(k) && !optional.includes(k)) throw new Invalid(`${path}.${k}: unexpected key`);
+    if (!keys.includes(k) && !optional.includes(k))
+      throw new Invalid(`${path}.${k}: unexpected key`);
   }
   for (const k of keys) if (!own.includes(k)) throw new Invalid(`${path}.${k}: missing`);
   return v as Obj;
 }
 
 function int(v: unknown, path: string, max = Number.MAX_SAFE_INTEGER, min = 0): number {
-  if (!isAmount(v) || v < min || v > max) throw new Invalid(`${path}: integer in [${min}, ${max}] expected`);
+  if (!isAmount(v) || v < min || v > max)
+    throw new Invalid(`${path}: integer in [${min}, ${max}] expected`);
   return v;
 }
 
@@ -45,7 +54,8 @@ function bool(v: unknown, path: string): boolean {
 }
 
 function oneOf<T extends string>(v: unknown, path: string, values: readonly T[]): T {
-  if (typeof v !== 'string' || !values.includes(v as T)) throw new Invalid(`${path}: invalid value`);
+  if (typeof v !== 'string' || !values.includes(v as T))
+    throw new Invalid(`${path}: invalid value`);
   return v as T;
 }
 
@@ -59,9 +69,22 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 export function validateSaveV1(input: unknown): ValidationResult<SaveV1> {
   try {
     const s = obj(input, 'save', [
-      'schemaVersion', 'revision', 'createdAt', 'lastSeenAt', 'maxSeenAt', 'rng', 'yenCents',
-      'pendingOfflineCents', 'tickets', 'totalClicks', 'investments', 'gacha', 'quests',
-      'friends', 'backup', 'settings',
+      'schemaVersion',
+      'revision',
+      'createdAt',
+      'lastSeenAt',
+      'maxSeenAt',
+      'rng',
+      'yenCents',
+      'pendingOfflineCents',
+      'tickets',
+      'totalClicks',
+      'investments',
+      'gacha',
+      'quests',
+      'friends',
+      'backup',
+      'settings',
     ]);
     if (s.schemaVersion !== 1) throw new Invalid('save.schemaVersion: 1 expected');
     int(s.revision, 'save.revision');
@@ -84,7 +107,8 @@ export function validateSaveV1(input: unknown): ValidationResult<SaveV1> {
     const stars = obj(gacha.stars, 'save.gacha.stars', [], ASSOCIATE_IDS);
     for (const k of Object.keys(stars)) int(stars[k], `save.gacha.stars.${k}`, MAX_STARS, 1);
     const quests = obj(s.quests, 'save.quests', ['day', 'progress', 'claimed']);
-    if (typeof quests.day !== 'string' || !DAY_RE.test(quests.day)) throw new Invalid('save.quests.day: YYYY-MM-DD expected');
+    if (typeof quests.day !== 'string' || !DAY_RE.test(quests.day))
+      throw new Invalid('save.quests.day: YYYY-MM-DD expected');
     const progress = obj(quests.progress, 'save.quests.progress', QUEST_IDS);
     const claimed = obj(quests.claimed, 'save.quests.claimed', QUEST_IDS);
     for (const q of QUEST_IDS) {
@@ -96,7 +120,8 @@ export function validateSaveV1(input: unknown): ValidationResult<SaveV1> {
       const fr = obj(friends[f], `save.friends.${f}`, ['affinity', 'scenesSeen', 'visitsToday']);
       int(fr.affinity, `save.friends.${f}.affinity`, MAX_AFFINITY);
       int(fr.visitsToday, `save.friends.${f}.visitsToday`, 1000);
-      if (!Array.isArray(fr.scenesSeen) || fr.scenesSeen.length > 3) throw new Invalid(`save.friends.${f}.scenesSeen: array expected`);
+      if (!Array.isArray(fr.scenesSeen) || fr.scenesSeen.length > 3)
+        throw new Invalid(`save.friends.${f}.scenesSeen: array expected`);
       fr.scenesSeen.forEach((n, i) => int(n, `save.friends.${f}.scenesSeen[${i}]`, 3, 1));
     }
     const backup = obj(s.backup, 'save.backup', ['lastExportAt', 'reminderDismissedAt']);

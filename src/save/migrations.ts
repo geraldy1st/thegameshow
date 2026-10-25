@@ -8,7 +8,9 @@ export type CurrentSave = SaveV1;
  * Migration chain (RES-7a): MIGRATIONS[n] turns a vN object into vN+1. Empty in v1, but the
  * pipeline (version detection, ordering, future refusal, final validation) is live and tested.
  */
-export const MIGRATIONS: Readonly<Record<number, (save: Record<string, unknown>) => Record<string, unknown>>> = {};
+export const MIGRATIONS: Readonly<
+  Record<number, (save: Record<string, unknown>) => Record<string, unknown>>
+> = {};
 
 /** Migrates any supported version to the current one and validates the result. Never throws. */
 export function migrateToCurrent(input: unknown): ValidationResult<CurrentSave> {

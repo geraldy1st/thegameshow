@@ -47,9 +47,7 @@
   "friends": {
     "ren": {
       "affinity": 25,
-      "scenesSeen": [
-        1
-      ],
+      "scenesSeen": [1],
       "visitsToday": 2
     },
     "mio": {

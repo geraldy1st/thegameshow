@@ -71,7 +71,10 @@ describe('click and investments', () => {
     expect(incomeCentsPerSecond(withLevels(fresh(), 1, 1, 1))).toBeCloseTo(60 + 250 + 1400);
   });
   it('partner bonus multiplies income (Jun 3 stars = +24% all)', () => {
-    const s = { ...withLevels(fresh(), 10), gacha: { pity: 0, pulls: 1, stars: { jun: 3 as const } } };
+    const s = {
+      ...withLevels(fresh(), 10),
+      gacha: { pity: 0, pulls: 1, stars: { jun: 3 as const } },
+    };
     expect(incomeCentsPerSecond(s)).toBeCloseTo(600 * 1.24);
   });
 });

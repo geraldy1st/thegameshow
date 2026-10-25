@@ -46,15 +46,7 @@ export const PITY_LIMIT = 50;
 export const MAX_STARS = 5;
 
 export type AssociateId =
-  | 'haru'
-  | 'kei'
-  | 'lila'
-  | 'nana'
-  | 'noa'
-  | 'yuu'
-  | 'daichi'
-  | 'jun'
-  | 'omar';
+  'haru' | 'kei' | 'lila' | 'nana' | 'noa' | 'yuu' | 'daichi' | 'jun' | 'omar';
 export type BonusTarget = InvestmentId | 'click' | 'all';
 
 export interface AssociateDef {

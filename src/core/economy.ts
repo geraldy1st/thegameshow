@@ -37,7 +37,9 @@ export function click(state: GameState): GameState {
 export function nextCostYen(id: InvestmentId, level: number): number {
   const def = INVESTMENTS[id];
   const cost = Math.ceil(def.baseCost * def.growth ** level);
-  return Number.isFinite(cost) ? Math.min(cost, Math.floor(MAX_AMOUNT / 100)) : Math.floor(MAX_AMOUNT / 100);
+  return Number.isFinite(cost)
+    ? Math.min(cost, Math.floor(MAX_AMOUNT / 100))
+    : Math.floor(MAX_AMOUNT / 100);
 }
 
 export function canBuy(state: GameState, id: InvestmentId): boolean {
