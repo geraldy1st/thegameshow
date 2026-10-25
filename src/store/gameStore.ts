@@ -1,10 +1,19 @@
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import type { InvestmentId } from '../data/balance';
+import type { FriendId, InvestmentId, QuestId } from '../data/balance';
 import type { Clock } from '../core/clock';
 import { buy as coreBuy, click as coreClick } from '../core/economy';
 import { collectOffline as coreCollect, settle } from '../core/idle';
+import { pull as corePull } from '../core/gacha';
+import {
+  answerQuiz as coreAnswerQuiz,
+  claimQuest as coreClaim,
+  markSceneSeen,
+  rollDay,
+  visitFriend,
+} from '../core/quests';
 import { createInitialState } from '../core/state';
-import type { GameState } from '../core/types';
+import type { GameState, LastPull } from '../core/types';
+import { migrateToCurrent } from '../save/migrations';
 import {
   RevisionConflictError,
   backupBeforeImport,
@@ -28,6 +37,8 @@ export interface GameStoreState {
   announcement: string;
   /** Credited absence shown on the welcome-back screen (not persisted). */
   absenceMs: number;
+  /** Set when IndexedDB refused a write that was not a revision conflict. */
+  writeError: boolean;
   init(): Promise<void>;
   tick(): void;
   click(): void;
@@ -38,7 +49,20 @@ export interface GameStoreState {
   newGame(): Promise<void>;
   /** Raw stored save (even unreadable), for download before a reset. */
   rawCurrentSave(): Promise<string | null>;
-  flush(): Promise<void>;
+  /** One draw, written and awaited BEFORE the caller starts the reveal (RES-2). */
+  pull(): Promise<
+    { ok: true; last: LastPull } | { ok: false; reason: 'no-ticket' | 'write-failed' }
+  >;
+  claimQuest(id: QuestId): Promise<boolean>;
+  answerQuiz(choice: number): Promise<boolean>;
+  visit(id: FriendId): Promise<{ counted: boolean } | null>;
+  seeScene(id: FriendId, scene: number): Promise<void>;
+  /** State of the `backup-before-reset` slot. */
+  resetBackup(): Promise<
+    { kind: 'none' } | { kind: 'unreadable' } | { kind: 'ok'; save: GameState }
+  >;
+  restoreResetBackup(): Promise<boolean>;
+  flush(): Promise<boolean>;
   announce(message: string): void;
 }
 
@@ -77,12 +101,17 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
   let chain: Promise<void> = Promise.resolve();
 
   return createStore<GameStoreState>()((set, get) => {
-    /** Serialised write; on conflict this tab becomes read-only. */
-    const persistNow = (): Promise<void> => {
+    /**
+     * Serialised write; resolves true when the current in-memory state is stored.
+     * On a revision conflict this tab becomes read-only AND shows the stored state, so gains
+     * or purchases that were never saved are not displayed (lot 1 PROGRESS note, DEF-GS-04).
+     */
+    const persistNow = (): Promise<boolean> => {
       if (timer) {
         clearTimeout(timer);
         timer = null;
       }
+      let ok = false;
       chain = chain.then(async () => {
         const { game, status } = get();
         if (!db || !game || status !== 'ready') return;
@@ -91,12 +120,20 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
           persistedRevision = written.revision;
           const latest = get().game;
           if (latest) set({ game: { ...latest, revision: written.revision } });
+          ok = true;
         } catch (e) {
-          if (e instanceof RevisionConflictError) set({ status: 'readonly' });
-          else throw e;
+          if (e instanceof RevisionConflictError) {
+            const stored = await loadSave(db).catch(() => null);
+            set({
+              status: 'readonly',
+              ...(stored?.kind === 'ok' ? { game: stored.save, absenceMs: 0 } : {}),
+            });
+          } else {
+            set({ writeError: true });
+          }
         }
       });
-      return chain;
+      return chain.then(() => ok);
     };
     /** Revision currently stored in the `current` slot (-1 if none or unreadable). */
     const storedRevision = async (): Promise<number> => (db ? readRevision(db) : -1);
@@ -107,10 +144,30 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
     const update = (fn: (g: GameState) => GameState) => {
       const { game, status } = get();
       if (!game || status !== 'ready') return false;
-      const r = settle(game, deps.clock.now());
+      const now = deps.clock.now();
+      const r = settle(rollDay(game, now), now);
       if (r.deferred) set({ absenceMs: get().absenceMs + r.creditedMs });
       set({ game: fn(r.state) });
       return true;
+    };
+
+    /**
+     * Applies a change and awaits its write. If the write fails or loses to another tab, the
+     * previous state is shown again and false is returned (never display an unsaved result).
+     */
+    const committed = async (fn: (g: GameState) => GameState): Promise<boolean> => {
+      const before = get().game;
+      let changed = false;
+      const applied = update((g) => {
+        const n = fn(g);
+        changed = n !== g;
+        return n;
+      });
+      if (!applied) return false;
+      if (!changed) return true;
+      const ok = await persistNow();
+      if (!ok && get().status === 'ready') set({ game: before });
+      return ok;
     };
 
     return {
@@ -119,6 +176,7 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
       recoveryReason: null,
       announcement: '',
       absenceMs: 0,
+      writeError: false,
 
       async init() {
         const [opened, isWriter] = await Promise.all([deps.openDb(), deps.acquireWriterLock()]);
@@ -152,19 +210,85 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
 
       async buy(id) {
         let ok = false;
-        const before = get().game;
-        update((g) => {
+        return committed((g) => {
           const r = coreBuy(g, id);
           ok = r.ok;
           return r.ok ? r.state : g;
+        }).then((stored) => ok && stored);
+      },
+
+      async pull() {
+        let last: LastPull | null = null;
+        const stored = await committed((g) => {
+          const r = corePull(g);
+          if (!r.ok) return g;
+          last = r.last;
+          return r.state;
         });
-        if (ok) await persistNow();
-        if (ok && get().status === 'readonly') {
-          // Conditional write lost to another tab (DEF-GS-04): never show an unsaved purchase.
-          set({ game: before });
-          return false;
-        }
-        return ok;
+        if (!last) return { ok: false, reason: 'no-ticket' };
+        if (!stored) return { ok: false, reason: 'write-failed' };
+        return { ok: true, last };
+      },
+
+      async claimQuest(id) {
+        let changed = false;
+        const stored = await committed((g) => {
+          const n = coreClaim(g, id);
+          changed = n !== g;
+          return n;
+        });
+        return changed && stored;
+      },
+
+      async answerQuiz(choice) {
+        let changed = false;
+        const stored = await committed((g) => {
+          const n = coreAnswerQuiz(g, choice);
+          changed = n !== g;
+          return n;
+        });
+        return changed && stored;
+      },
+
+      async visit(id) {
+        let counted = false;
+        const stored = await committed((g) => {
+          const r = visitFriend(g, id);
+          counted = r.counted;
+          return r.state;
+        });
+        return stored ? { counted } : null;
+      },
+
+      async seeScene(id, scene) {
+        await committed((g) => markSceneSeen(g, id, scene));
+      },
+
+      async resetBackup() {
+        if (!db) return { kind: 'none' };
+        const raw = await db.get('saves', 'backup-before-reset');
+        if (raw === undefined) return { kind: 'none' };
+        const m = migrateToCurrent(raw);
+        return m.ok ? { kind: 'ok', save: m.value } : { kind: 'unreadable' };
+      },
+
+      async restoreResetBackup() {
+        const b = await get().resetBackup();
+        if (b.kind !== 'ok' || !db || get().status === 'readonly') return false;
+        await chain;
+        await backupBeforeImport(db);
+        persistedRevision = await storedRevision();
+        const now = deps.clock.now();
+        set({
+          game: {
+            ...b.save,
+            maxSeenAt: Math.min(b.save.maxSeenAt, now),
+            lastSeenAt: Math.min(b.save.lastSeenAt, now),
+          },
+          status: 'ready',
+          recoveryReason: null,
+        });
+        return persistNow();
       },
 
       async collectOffline() {
