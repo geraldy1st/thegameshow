@@ -149,6 +149,16 @@ section > h2 {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
+/* WCAG 2.4.7 / 2.4.11: the file input is visually hidden, so its focus ring is drawn on the
+   visible label (gold ring on navy, DESIGN-BRIEF R6). */
+.file-input:focus-visible + .file-label,
+.file-input:focus + .file-label {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.file-label {
+  cursor: pointer;
+}
 .card {
   background: var(--card);
   color: var(--card-fg);

@@ -152,17 +152,18 @@ function ImportButton({ store }: { store: Store }) {
   };
   return (
     <>
-      <label className="btn btn-ghost row" htmlFor="import-file">
-        {t('importSave')}
-      </label>
       <input
         id="import-file"
         ref={input}
-        className="visually-hidden"
+        className="visually-hidden file-input"
         type="file"
         accept="application/json,.json"
         onChange={(e) => void onFile(e.target.files?.[0])}
       />
+      {/* The label follows the hidden input so CSS can mirror the input focus on it. */}
+      <label className="btn btn-ghost row file-label" htmlFor="import-file">
+        {t('importSave')}
+      </label>
       <Modal open={pending !== null} onClose={() => setPending(null)} labelId="import-title">
         <h2 id="import-title">{t('importSave')}</h2>
         <p>{t('importConfirm')}</p>
