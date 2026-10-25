@@ -27,4 +27,4 @@ jobs:
       - run: npm run test:e2e
         env:
           CI: 'true'
-# No GitHub Pages deployment in lot 1 (deployment is added later, on main only).
+# Deployment lives in pages.yml (main only).
