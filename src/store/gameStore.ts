@@ -24,6 +24,8 @@ export interface GameStoreState {
   recoveryReason: string | null;
   /** Last message for the polite live region. */
   announcement: string;
+  /** Credited absence shown on the welcome-back screen (not persisted). */
+  absenceMs: number;
   init(): Promise<void>;
   tick(): void;
   click(): void;
@@ -101,7 +103,9 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
     const update = (fn: (g: GameState) => GameState) => {
       const { game, status } = get();
       if (!game || status !== 'ready') return false;
-      set({ game: fn(settle(game, deps.clock.now()).state) });
+      const r = settle(game, deps.clock.now());
+      if (r.deferred) set({ absenceMs: get().absenceMs + r.creditedMs });
+      set({ game: fn(r.state) });
       return true;
     };
 
@@ -110,6 +114,7 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
       game: null,
       recoveryReason: null,
       announcement: '',
+      absenceMs: 0,
 
       async init() {
         const [opened, isWriter] = await Promise.all([deps.openDb(), deps.acquireWriterLock()]);
@@ -120,11 +125,14 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
           return;
         }
         const now = deps.clock.now();
-        const base =
-          loaded.kind === 'ok' ? loaded.save : createInitialState(now, deps.newSeed());
+        const base = loaded.kind === 'ok' ? loaded.save : createInitialState(now, deps.newSeed());
         persistedRevision = await storedRevision();
-        const settled = settle(base, now).state;
-        set({ game: settled, status: isWriter ? 'ready' : 'readonly' });
+        const r = settle(base, now);
+        set({
+          game: r.state,
+          status: isWriter ? 'ready' : 'readonly',
+          absenceMs: r.deferred ? r.creditedMs : 0,
+        });
         if (isWriter) {
           await persistNow();
         }
@@ -150,7 +158,10 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
       },
 
       async collectOffline() {
-        if (update(coreCollect)) await persistNow();
+        if (update(coreCollect)) {
+          set({ absenceMs: 0 });
+          await persistNow();
+        }
       },
 
       exportSave() {

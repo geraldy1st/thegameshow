@@ -1,0 +1,69 @@
+/* Design tokens — copied from DESIGN-BRIEF.md §2 (Mirage). Do not add colours here. */
+:root {
+  /* Colours (strict palette) */
+  --navy: #1b2a4a;
+  --navy-deep: #14203a;
+  --cream: #fff6e6;
+  --gold: #f5b83d;
+  --coral: #ff6b5e;
+  /* Dark text variants validated by Geraldy: coloured TEXT ON CREAM ONLY. */
+  --gold-ink: #8a5a00; /* 5.53:1 on cream */
+  --coral-ink: #b3261e; /* 6.09:1 on cream */
+  --bg: var(--navy);
+  --bg-deep: var(--navy-deep);
+  --fg: var(--cream);
+  --accent: var(--gold);
+  --alert: var(--coral);
+  --ink: var(--navy);
+  --muted: rgba(255, 246, 230, 0.78);
+  --muted-ink: rgba(27, 42, 74, 0.75);
+  --line: rgba(255, 246, 230, 0.18);
+  --line-ink: rgba(27, 42, 74, 0.2);
+  --focus: var(--gold);
+  /* Surfaces */
+  --surface-1: rgba(255, 246, 230, 0.08);
+  --surface-2: rgba(255, 246, 230, 0.14);
+  --card: var(--cream);
+  --card-fg: var(--ink);
+  --scrim: rgba(20, 32, 58, 0.72);
+  /* Radii */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-xl: 24px;
+  --r-pill: 999px;
+  /* Shadows */
+  --sh-1: 0 2px 6px rgba(20, 32, 58, 0.35);
+  --sh-2: 0 8px 22px rgba(20, 32, 58, 0.45);
+  --sh-3: 0 12px 30px rgba(0, 0, 0, 0.4);
+  --glow-gold: 0 0 0 2px var(--gold), 0 0 18px rgba(245, 184, 61, 0.45);
+  --bevel: inset 0 -3px 0 rgba(27, 42, 74, 0.25);
+  /* Spacing */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --tap: 44px;
+  --tap-lg: 56px;
+  /* Type */
+  --font-display: 'Fredoka', 'Baloo 2', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --fs-xs: clamp(0.8125rem, 0.78rem + 0.15vw, 0.875rem);
+  --fs-sm: clamp(0.875rem, 0.84rem + 0.2vw, 0.9375rem);
+  --fs-md: clamp(1rem, 0.96rem + 0.25vw, 1.0625rem);
+  --fs-lg: clamp(1.125rem, 1.05rem + 0.4vw, 1.25rem);
+  --fs-xl: clamp(1.375rem, 1.2rem + 0.9vw, 1.75rem);
+  --fs-2xl: clamp(1.75rem, 1.4rem + 1.8vw, 2.5rem);
+  --lh-tight: 1.15;
+  --lh-body: 1.45;
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --t1: 180ms;
+  --t2: 480ms;
+  --t3: 900ms;
+}

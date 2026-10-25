@@ -1,0 +1,270 @@
+/*
+ * Lot 1 minimal screen. Convention checked by tools/css-contrast.test.ts:
+ * selectors containing `.card`, `.on-cream` or `dialog` sit on cream and may only use
+ * --ink, --muted-ink, --gold-ink or --coral-ink as text colour (DESIGN-BRIEF R1-R4).
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  background: var(--bg-deep);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
+  -webkit-tap-highlight-color: transparent;
+}
+/* Mobile first: base styles target a 360 px portrait phone; larger screens only widen. */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  font-size: max(16px, 1em); /* no iOS auto-zoom on focus */
+  touch-action: manipulation;
+}
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: var(--lh-tight);
+  margin: 0;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.app {
+  max-width: 430px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  background: var(--bg);
+  padding: env(safe-area-inset-top) max(var(--s-4), env(safe-area-inset-right))
+    calc(var(--s-6) + env(safe-area-inset-bottom)) max(var(--s-4), env(safe-area-inset-left));
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+  min-height: 60px;
+  padding: var(--s-2) 0;
+  background: var(--bg);
+}
+.pill {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--tap);
+  padding: 0 var(--s-4);
+  border-radius: var(--r-pill);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-xl);
+}
+.pill-yen {
+  flex: 1;
+  background: var(--gold);
+  color: var(--ink);
+}
+.pill-tickets {
+  background: var(--surface-1);
+  border: 1.5px solid var(--gold);
+  color: var(--gold);
+  font-size: var(--fs-lg);
+}
+section {
+  margin-top: var(--s-5);
+}
+section > h2 {
+  font-size: var(--fs-xl);
+  margin-bottom: var(--s-3);
+}
+.stage {
+  display: grid;
+  justify-items: center;
+  gap: var(--s-2);
+  text-align: center;
+}
+.btn {
+  min-height: var(--tap);
+  padding: 0 var(--s-4);
+  border-radius: var(--r-md);
+  border: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--fs-lg);
+  cursor: pointer;
+  transition:
+    transform var(--t1) var(--ease-out),
+    opacity var(--t1);
+}
+.btn:active {
+  transform: scale(0.96);
+}
+.btn[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-primary {
+  min-height: var(--tap-lg);
+  background: var(--gold);
+  color: var(--ink);
+  box-shadow: var(--bevel);
+}
+.btn-ghost {
+  background: var(--surface-1);
+  border: 1.5px solid var(--cream);
+  color: var(--cream);
+}
+.btn-danger {
+  background: var(--coral);
+  color: var(--ink);
+}
+.aoi {
+  width: 220px;
+  min-height: 260px;
+  border-radius: var(--r-xl);
+  font-size: var(--fs-xl);
+}
+.muted {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.card {
+  background: var(--card);
+  color: var(--card-fg);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-2);
+  padding: var(--s-4);
+  margin-bottom: var(--s-3);
+  display: grid;
+  gap: var(--s-2);
+}
+.card h3 {
+  font-size: var(--fs-lg);
+}
+.card .meta {
+  color: var(--muted-ink);
+  font-size: var(--fs-sm);
+}
+.card .risk {
+  color: var(--coral-ink);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.card .gain {
+  color: var(--gold-ink);
+  font-weight: 600;
+}
+.card .btn:focus-visible,
+.on-cream :focus-visible,
+dialog :focus-visible {
+  outline-color: var(--ink);
+  box-shadow: 0 0 0 5px var(--cream);
+}
+.card .btn-secondary,
+dialog .btn-secondary {
+  background: var(--cream);
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+}
+.banner {
+  border: 1.5px solid var(--gold);
+  border-radius: var(--r-md);
+  padding: var(--s-3);
+  margin-top: var(--s-3);
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  align-items: center;
+}
+dialog {
+  max-width: 400px;
+  width: calc(100% - 2 * var(--s-4));
+  border: 0;
+  border-radius: var(--r-xl);
+  background: var(--card);
+  color: var(--card-fg);
+  padding: var(--s-5);
+}
+dialog::backdrop {
+  background: var(--scrim);
+}
+dialog[open] {
+  animation: sheet-in var(--t2) var(--ease-out);
+}
+dialog .big {
+  font-family: var(--font-display);
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  text-align: center;
+}
+dialog .meta {
+  color: var(--muted-ink);
+  font-size: var(--fs-sm);
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: var(--t1) !important;
+    transition-duration: 0ms !important;
+  }
+  dialog[open] {
+    animation-name: fade-in;
+  }
+  .btn:active {
+    transform: none;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+/* Manual reduced-motion setting (settings.reducedMotion = 'on'). */
+[data-motion='reduce'] *,
+[data-motion='reduce'] *::before,
+[data-motion='reduce'] *::after {
+  animation-duration: var(--t1) !important;
+  transition-duration: 0ms !important;
+}
+[data-motion='reduce'] dialog[open] {
+  animation-name: fade-in;
+}
+@media (min-width: 600px) {
+  .app {
+    padding-inline: var(--s-5);
+  }
+}

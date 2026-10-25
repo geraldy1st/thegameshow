@@ -79,7 +79,9 @@ describe('game store', () => {
     expect(store.getState().game?.investments.save).toBe(0);
     expect(store.getState().game?.totalClicks).toBe(1);
     const db = await openSaveDb(name);
-    const backup = (await db.get('saves', 'backup-before-import')) as { investments: { save: number } };
+    const backup = (await db.get('saves', 'backup-before-import')) as {
+      investments: { save: number };
+    };
     expect(backup.investments.save).toBe(1);
   });
 
