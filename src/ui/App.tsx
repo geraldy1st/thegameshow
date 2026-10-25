@@ -41,12 +41,17 @@ function TopBar({ store }: { store: Store }) {
   const tickets = useStore(store, (s) => s.game?.tickets ?? 0);
   return (
     <header className="topbar">
-      <p className="pill pill-yen num" aria-label={`${t('yen')} : ${formatYenLong(yen)}`}>
+      {/* Plain text, read in document order; no aria-label on <p> (axe aria-prohibited-attr),
+          no live region so per-second income does not spam screen readers. */}
+      <p className="pill pill-yen num">
+        <span className="visually-hidden">{t('yen')} : </span>
         <span aria-hidden="true">¥</span>
-        <span aria-hidden="true">{formatYen(yen)}</span>
+        <span>{formatYen(yen)}</span>
       </p>
-      <p className="pill pill-tickets num" aria-label={t('ticketsValue', { n: tickets })}>
-        <span aria-hidden="true">🎟 {tickets}</span>
+      <p className="pill pill-tickets num">
+        <span className="visually-hidden">{t('tickets')} : </span>
+        <span aria-hidden="true">🎟</span>
+        <span>{tickets}</span>
       </p>
     </header>
   );
