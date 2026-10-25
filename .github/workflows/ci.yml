@@ -1,0 +1,26 @@
+name: CI
+on:
+  push:
+    branches-ignore: [gh-pages]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run build
+      - run: npm run check:no-test-hook
+      - run: npm run check:harness-detected
+      - run: npm audit --audit-level=critical
+# No GitHub Pages deployment in lot 1 (deployment is added later, on main only).
