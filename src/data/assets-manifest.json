@@ -1,0 +1,86 @@
+{
+  "haru": {
+    "webp": "game/portraits/haru.webp",
+    "jpg": "game/portraits/haru.jpg",
+    "width": 360,
+    "height": 480
+  },
+  "kei": {
+    "webp": "game/portraits/kei.webp",
+    "jpg": "game/portraits/kei.jpg",
+    "width": 360,
+    "height": 480
+  },
+  "lila": {
+    "webp": "game/portraits/lila.webp",
+    "jpg": "game/portraits/lila.jpg",
+    "width": 360,
+    "height": 480
+  },
+  "nana": {
+    "webp": "game/portraits/nana.webp",
+    "jpg": "game/portraits/nana.jpg",
+    "width": 360,
+    "height": 480
+  },
+  "noa": {
+    "webp": "game/portraits/noa.webp",
+    "jpg": "game/portraits/noa.jpg",
+    "width": 360,
+    "height": 480
+  },
+  "yuu": {
+    "webp": "game/portraits/yuu.webp",
+    "jpg": "game/portraits/yuu.jpg",
+    "width": 360,
+    "height": 480
+  },
+  "daichi": {
+    "webp": "game/portraits/daichi.webp",
+    "jpg": "game/portraits/daichi.jpg",
+    "width": 360,
+    "height": 480
+  },
+  "jun": {
+    "webp": "game/portraits/jun.webp",
+    "jpg": "game/portraits/jun.jpg",
+    "width": 360,
+    "height": 480
+  },
+  "omar": {
+    "webp": "game/portraits/omar.webp",
+    "jpg": "game/portraits/omar.jpg",
+    "width": 360,
+    "height": 480
+  },
+  "ren": {
+    "webp": "game/portraits/ren.webp",
+    "jpg": "game/portraits/ren.jpg",
+    "width": 360,
+    "height": 480
+  },
+  "mio": {
+    "webp": "game/portraits/mio.webp",
+    "jpg": "game/portraits/mio.jpg",
+    "width": 360,
+    "height": 480
+  },
+  "sora": {
+    "webp": "game/portraits/sora.webp",
+    "jpg": "game/portraits/sora.jpg",
+    "width": 360,
+    "height": 480
+  },
+  "aoi": {
+    "webp": "game/portraits/aoi.webp",
+    "jpg": "game/portraits/aoi.jpg",
+    "width": 360,
+    "height": 480
+  },
+  "kyoko": {
+    "webp": "game/portraits/kyoko.webp",
+    "jpg": "game/portraits/kyoko.jpg",
+    "width": 360,
+    "height": 360
+  }
+}

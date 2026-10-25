@@ -8,9 +8,9 @@ import {
   QUEST_IDS,
 } from '../data/balance';
 import { isAmount } from '../core/numbers';
-import type { SaveV1 } from '../core/types';
+import type { SaveV1, SaveV2 } from '../core/types';
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 export type ValidationResult<T> = { ok: true; value: T } | { ok: false; reason: string };
 
@@ -133,6 +133,59 @@ export function validateSaveV1(input: unknown): ValidationResult<SaveV1> {
     oneOf(settings.reducedMotion, 'save.settings.reducedMotion', ['auto', 'on', 'off']);
     // Return a structural deep copy so callers never share references with the input.
     return { ok: true, value: structuredClone(input) as SaveV1 };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Invalid ? e.message : 'invalid save' };
+  }
+}
+
+/** Validates a SaveV2: the v1 rules plus `gacha.last` and `quests.quizChoice`. Never throws. */
+export function validateSaveV2(input: unknown): ValidationResult<SaveV2> {
+  try {
+    const s = obj(input, 'save', [
+      'schemaVersion',
+      'revision',
+      'createdAt',
+      'lastSeenAt',
+      'maxSeenAt',
+      'rng',
+      'yenCents',
+      'pendingOfflineCents',
+      'tickets',
+      'totalClicks',
+      'investments',
+      'gacha',
+      'quests',
+      'friends',
+      'backup',
+      'settings',
+    ]);
+    if (s.schemaVersion !== 2) throw new Invalid('save.schemaVersion: 2 expected');
+    const gacha = obj(s.gacha, 'save.gacha', ['pity', 'pulls', 'stars', 'last']);
+    const quests = obj(s.quests, 'save.quests', ['day', 'progress', 'claimed', 'quizChoice']);
+    if (quests.quizChoice !== null) int(quests.quizChoice, 'save.quests.quizChoice', 3);
+    if (gacha.last !== null) {
+      const l = obj(gacha.last, 'save.gacha.last', [
+        'id',
+        'stars',
+        'isNew',
+        'wasted',
+        'forced',
+        'pull',
+      ]);
+      oneOf(l.id, 'save.gacha.last.id', ASSOCIATE_IDS);
+      int(l.stars, 'save.gacha.last.stars', MAX_STARS, 1);
+      bool(l.isNew, 'save.gacha.last.isNew');
+      bool(l.wasted, 'save.gacha.last.wasted');
+      bool(l.forced, 'save.gacha.last.forced');
+      int(l.pull, 'save.gacha.last.pull', Number.MAX_SAFE_INTEGER, 1);
+    }
+    const { last: _last, ...g1 } = gacha;
+    const { quizChoice: _q, ...q1 } = quests;
+    void _last;
+    void _q;
+    const v1 = validateSaveV1({ ...s, schemaVersion: 1, gacha: g1, quests: q1 });
+    if (!v1.ok) return v1;
+    return { ok: true, value: structuredClone(input) as SaveV2 };
   } catch (e) {
     return { ok: false, reason: e instanceof Invalid ? e.message : 'invalid save' };
   }

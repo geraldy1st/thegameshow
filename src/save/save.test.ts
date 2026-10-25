@@ -2,12 +2,14 @@ import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { createInitialState } from '../core/state';
 import { createRng, nextFloat } from '../core/rng';
-import { CURRENT_SCHEMA_VERSION, validateSaveV1 } from './schema';
+import { CURRENT_SCHEMA_VERSION, validateSaveV2 } from './schema';
 import { migrateToCurrent } from './migrations';
 import { MAX_IMPORT_BYTES, fnv1a, parseImport, serializeExport } from './exportImport';
 import { RevisionConflictError, backupBeforeImport, loadSave, openSaveDb, writeSave } from './db';
-import initial from './__fixtures__/v1-initial.json';
-import midgame from './__fixtures__/v1-midgame.json';
+import initialV1 from './__fixtures__/v1-initial.json';
+import midgameV1 from './__fixtures__/v1-midgame.json';
+import initial from './__fixtures__/v2-initial.json';
+import midgame from './__fixtures__/v2-midgame.json';
 
 const T0 = Date.UTC(2026, 9, 25, 12, 0, 0);
 let dbCounter = 0;
@@ -15,12 +17,41 @@ const freshDb = () => openSaveDb(`test-${++dbCounter}`);
 
 describe('golden saves and migration chain (RES-7a)', () => {
   it.each([
-    ['v1-initial', initial],
-    ['v1-midgame', midgame],
+    ['v2-initial', initial],
+    ['v2-midgame', midgame],
   ])('%s loads through the chain unchanged', (_name, fixture) => {
     const r = migrateToCurrent(fixture);
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.value).toEqual(fixture);
+  });
+  it.each([
+    ['v1-initial', initialV1],
+    ['v1-midgame', midgameV1],
+  ])('%s migrates to v2 keeping every v1 value', (_name, fixture) => {
+    const r = migrateToCurrent(fixture);
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.value).toEqual({
+      ...fixture,
+      schemaVersion: 2,
+      gacha: { ...fixture.gacha, last: null },
+      quests: { ...fixture.quests, quizChoice: null },
+    });
+  });
+  it('v1-initial migrates to exactly v2-initial', () => {
+    expect(migrateToCurrent(initialV1)).toEqual({ ok: true, value: initial });
+  });
+  it('refuses an invalid v1 before migrating it', () => {
+    expect(migrateToCurrent({ ...midgameV1, tickets: -1 }).ok).toBe(false);
+  });
+  it('imports a lot 1 (v1) export file', () => {
+    const payload = JSON.stringify(midgameV1);
+    const text = JSON.stringify({
+      format: 'thegameshow-save',
+      checksum: fnv1a(payload),
+      save: midgameV1,
+    });
+    const r = parseImport(text);
+    expect(r.ok && r.value.schemaVersion).toBe(2);
   });
   it('is idempotent', () => {
     const once = migrateToCurrent(midgame);
@@ -60,13 +91,27 @@ describe('validation bounds (RES-7c)', () => {
     ['lastSeen > maxSeen', { ...midgame, lastSeenAt: midgame.maxSeenAt + 1 }],
   ];
   it.each(bad)('rejects %s', (_n, v) => {
-    expect(validateSaveV1(v).ok).toBe(false);
+    expect(validateSaveV2(v).ok).toBe(false);
+  });
+  it.each([
+    ['quiz choice 4', { ...midgame, quests: { ...midgame.quests, quizChoice: 4 } }],
+    [
+      'last draw stars 6',
+      { ...midgame, gacha: { ...midgame.gacha, last: { ...midgame.gacha.last, stars: 6 } } },
+    ],
+    [
+      'last draw friend id',
+      { ...midgame, gacha: { ...midgame.gacha, last: { ...midgame.gacha.last, id: 'ren' } } },
+    ],
+    ['v1 shape labelled v2', { ...midgameV1, schemaVersion: 2 }],
+  ])('rejects v2 %s', (_n, v) => {
+    expect(validateSaveV2(v).ok).toBe(false);
   });
   it('rejects __proto__ / constructor keys from parsed JSON', () => {
     const text = JSON.stringify(midgame).replace('{', '{"__proto__":{"polluted":1},');
-    expect(validateSaveV1(JSON.parse(text)).ok).toBe(false);
+    expect(validateSaveV2(JSON.parse(text)).ok).toBe(false);
     const text2 = JSON.stringify(midgame).replace('"stars":{', '"stars":{"constructor":1,');
-    expect(validateSaveV1(JSON.parse(text2)).ok).toBe(false);
+    expect(validateSaveV2(JSON.parse(text2)).ok).toBe(false);
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
 });
@@ -112,7 +157,7 @@ describe('loader fuzz (RES-7b): never throws, never accepts garbage', () => {
         t = t.slice(0, pos) + chars[Math.floor(rand() * chars.length)] + t.slice(pos + 1);
       }
       const r = parseImport(t);
-      if (r.ok) expect(validateSaveV1(r.value).ok).toBe(true);
+      if (r.ok) expect(validateSaveV2(r.value).ok).toBe(true);
       expect(() => migrateToCurrent(safeParse(t))).not.toThrow();
     }
   });

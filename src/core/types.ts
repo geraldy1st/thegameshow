@@ -39,4 +39,24 @@ export interface SaveV1 {
   settings: { lang: Lang; sound: boolean; reducedMotion: ReducedMotionSetting };
 }
 
-export type GameState = SaveV1;
+/** Last draw, kept so a reload during the reveal shows the already-saved result (GS-CA17). */
+export interface LastPull {
+  id: AssociateId;
+  stars: StarCount;
+  isNew: boolean;
+  /** True when the pull was a duplicate at 5 stars (no effect, ticket consumed). */
+  wasted: boolean;
+  forced: boolean;
+  pull: number;
+}
+
+/**
+ * Save schema v2 (lot 2): v1 + `gacha.last` and `quests.quizChoice` (answer to today's quiz).
+ */
+export interface SaveV2 extends Omit<SaveV1, 'schemaVersion' | 'gacha' | 'quests'> {
+  schemaVersion: 2;
+  gacha: SaveV1['gacha'] & { last: LastPull | null };
+  quests: SaveV1['quests'] & { quizChoice: number | null };
+}
+
+export type GameState = SaveV2;

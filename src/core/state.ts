@@ -13,7 +13,7 @@ export const emptyQuestClaims = (): Record<QuestId, boolean> => record(QUEST_IDS
 /** Initial state per spec (RES-7e): 120 yen, 3 tickets, everything else at zero. */
 export function createInitialState(now: number, seed: number): GameState {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     revision: 0,
     createdAt: now,
     lastSeenAt: now,
@@ -24,8 +24,13 @@ export function createInitialState(now: number, seed: number): GameState {
     tickets: INITIAL.tickets,
     totalClicks: 0,
     investments: { save: 0, stock: 0, estate: 0 },
-    gacha: { pity: 0, pulls: 0, stars: {} },
-    quests: { day: localDay(now), progress: emptyQuestProgress(), claimed: emptyQuestClaims() },
+    gacha: { pity: 0, pulls: 0, stars: {}, last: null },
+    quests: {
+      day: localDay(now),
+      progress: emptyQuestProgress(),
+      claimed: emptyQuestClaims(),
+      quizChoice: null,
+    },
     friends: record<FriendId, FriendState>(FRIEND_IDS, () => ({
       affinity: 0,
       scenesSeen: [],

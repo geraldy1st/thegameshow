@@ -8,6 +8,7 @@ import {
   type InvestmentId,
 } from '../data/balance';
 import { addAmount, yenToCents } from './numbers';
+import { bumpQuest } from './quests';
 import type { GameState } from './types';
 
 /** Partner bonus multiplier for a target: 1 + sum(percent x stars) / 100 (mockup rule). */
@@ -26,6 +27,10 @@ export function clickValueYen(state: GameState): number {
 }
 
 export function click(state: GameState): GameState {
+  return bumpQuest(clickRaw(state), 'click');
+}
+
+function clickRaw(state: GameState): GameState {
   return {
     ...state,
     yenCents: addAmount(state.yenCents, yenToCents(clickValueYen(state))),
@@ -51,14 +56,14 @@ export type BuyResult = { ok: true; state: GameState } | { ok: false; reason: 'i
 export function buy(state: GameState, id: InvestmentId): BuyResult {
   const cost = yenToCents(nextCostYen(id, state.investments[id]));
   if (state.yenCents < cost) return { ok: false, reason: 'insufficient' };
-  return {
-    ok: true,
-    state: {
-      ...state,
-      yenCents: state.yenCents - cost,
-      investments: { ...state.investments, [id]: addAmount(state.investments[id], 1) },
-    },
+  let next: GameState = {
+    ...state,
+    yenCents: state.yenCents - cost,
+    investments: { ...state.investments, [id]: addAmount(state.investments[id], 1) },
   };
+  next = bumpQuest(next, 'invest');
+  if (id === 'save') next = bumpQuest(next, 'save'); // "épargner une fois" (RES-6)
+  return { ok: true, state: next };
 }
 
 /** Income of one investment in hundredths of yen per second (fractional). */

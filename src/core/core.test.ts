@@ -22,7 +22,7 @@ describe('initial state (RES-7e)', () => {
     expect(s.tickets).toBe(3);
     expect(s.investments).toEqual({ save: 0, stock: 0, estate: 0 });
     expect(Object.values(s.friends).map((f) => f.affinity)).toEqual([0, 0, 0]);
-    expect(s.gacha).toEqual({ pity: 0, pulls: 0, stars: {} });
+    expect(s.gacha).toEqual({ pity: 0, pulls: 0, stars: {}, last: null });
     expect(s.revision).toBe(0);
   });
 });
@@ -73,7 +73,7 @@ describe('click and investments', () => {
   it('partner bonus multiplies income (Jun 3 stars = +24% all)', () => {
     const s = {
       ...withLevels(fresh(), 10),
-      gacha: { pity: 0, pulls: 1, stars: { jun: 3 as const } },
+      gacha: { pity: 0, pulls: 1, stars: { jun: 3 as const }, last: null },
     };
     expect(incomeCentsPerSecond(s)).toBeCloseTo(600 * 1.24);
   });

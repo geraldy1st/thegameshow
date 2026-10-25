@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 2,
+  "revision": 0,
+  "createdAt": 1792929600000,
+  "lastSeenAt": 1792929600000,
+  "maxSeenAt": 1792929600000,
+  "rng": {
+    "seed": 20261025,
+    "state": 20261025
+  },
+  "yenCents": 12000,
+  "pendingOfflineCents": 0,
+  "tickets": 3,
+  "totalClicks": 0,
+  "investments": {
+    "save": 0,
+    "stock": 0,
+    "estate": 0
+  },
+  "gacha": {
+    "pity": 0,
+    "pulls": 0,
+    "stars": {},
+    "last": null
+  },
+  "quests": {
+    "day": "2026-10-25",
+    "progress": {
+      "quiz": 0,
+      "save": 0,
+      "invest": 0,
+      "visit": 0,
+      "click": 0
+    },
+    "claimed": {
+      "quiz": false,
+      "save": false,
+      "invest": false,
+      "visit": false,
+      "click": false
+    },
+    "quizChoice": null
+  },
+  "friends": {
+    "ren": {
+      "affinity": 0,
+      "scenesSeen": [],
+      "visitsToday": 0
+    },
+    "mio": {
+      "affinity": 0,
+      "scenesSeen": [],
+      "visitsToday": 0
+    },
+    "sora": {
+      "affinity": 0,
+      "scenesSeen": [],
+      "visitsToday": 0
+    }
+  },
+  "backup": {
+    "lastExportAt": null,
+    "reminderDismissedAt": null
+  },
+  "settings": {
+    "lang": "fr",
+    "sound": true,
+    "reducedMotion": "auto"
+  }
+}

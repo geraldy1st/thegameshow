@@ -70,9 +70,35 @@ export const ASSOCIATES: readonly AssociateDef[] = [
 ];
 export const ASSOCIATE_IDS: readonly AssociateId[] = ASSOCIATES.map((a) => a.id);
 
-// ---- Quests and friends (lot 3) ----
+// ---- Daily quests (MVP-DRAFT table, SPEC-ADDENDUM RES-6) ----
 export type QuestId = 'quiz' | 'save' | 'invest' | 'visit' | 'click';
 export const QUEST_IDS: readonly QuestId[] = ['quiz', 'save', 'invest', 'visit', 'click'];
+export interface QuestDef {
+  goal: number;
+  reward: number;
+}
+export const QUESTS: Readonly<Record<QuestId, QuestDef>> = {
+  quiz: { goal: 1, reward: 2 },
+  save: { goal: 1, reward: 1 },
+  invest: { goal: 3, reward: 1 },
+  visit: { goal: 1, reward: 1 },
+  click: { goal: 100, reward: 2 },
+};
+/** 7 tickets per day at most (sum of rewards). */
+export const MAX_TICKETS_PER_DAY = QUEST_IDS.reduce((n, q) => n + QUESTS[q].reward, 0);
+
+// ---- Friends (SPEC-ADDENDUM RES-6, "à confirmer" values) ----
 export type FriendId = 'ren' | 'mio' | 'sora';
 export const FRIEND_IDS: readonly FriendId[] = ['ren', 'mio', 'sora'];
 export const MAX_AFFINITY = 100;
+export const VISIT_AFFINITY = 5;
+/** Visits that still give affinity, per friend and per day. */
+export const VISITS_COUNTED_PER_DAY = 3;
+/** Scene thresholds from the mockup; only scene 1 exists in the MVP. */
+export const SCENE_THRESHOLDS = [20, 50, 80] as const;
+export const SCENES_READY = 1;
+
+// ---- Draw reveal timing (DESIGN-BRIEF) ----
+export const REVEAL_MS = 2300;
+export const REVEAL_REDUCED_MS = 180;
+export const SKIP_HOLD_MS = 400;

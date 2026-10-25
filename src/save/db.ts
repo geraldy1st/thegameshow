@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { SaveV1 } from '../core/types';
+import type { SaveV2 } from '../core/types';
 import { migrateToCurrent, type CurrentSave } from './migrations';
 
 /**
@@ -62,9 +62,9 @@ function storedRevision(v: unknown): number {
  */
 export async function writeSave(
   db: IDBPDatabase<TgsDB>,
-  save: SaveV1,
+  save: SaveV2,
   expectedRevision: number,
-): Promise<SaveV1> {
+): Promise<SaveV2> {
   const tx = db.transaction('saves', 'readwrite');
   const store = tx.objectStore('saves');
   const current = await store.get('current');
@@ -74,7 +74,7 @@ export async function writeSave(
     await tx.done.catch(() => undefined);
     throw new RevisionConflictError(stored, expectedRevision);
   }
-  const next: SaveV1 = { ...save, revision: Math.max(expectedRevision, save.revision) + 1 };
+  const next: SaveV2 = { ...save, revision: Math.max(expectedRevision, save.revision) + 1 };
   if (current !== undefined) await store.put(current, 'previous');
   await store.put(next, 'current');
   await tx.done;

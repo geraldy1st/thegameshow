@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 2,
+  "revision": 57,
+  "createdAt": 1792929600000,
+  "lastSeenAt": 1793016000000,
+  "maxSeenAt": 1793016000000,
+  "rng": {
+    "seed": 20261025,
+    "state": 123456789
+  },
+  "yenCents": 4567890,
+  "pendingOfflineCents": 12345,
+  "tickets": 4,
+  "totalClicks": 812,
+  "investments": {
+    "save": 12,
+    "stock": 5,
+    "estate": 1
+  },
+  "gacha": {
+    "pity": 37,
+    "pulls": 18,
+    "stars": {
+      "haru": 2,
+      "kei": 1,
+      "noa": 2,
+      "jun": 3
+    },
+    "last": {
+      "id": "haru",
+      "stars": 2,
+      "isNew": false,
+      "wasted": false,
+      "forced": false,
+      "pull": 18
+    }
+  },
+  "quests": {
+    "day": "2026-10-26",
+    "progress": {
+      "quiz": 1,
+      "save": 1,
+      "invest": 3,
+      "visit": 0,
+      "click": 64
+    },
+    "claimed": {
+      "quiz": true,
+      "save": true,
+      "invest": false,
+      "visit": false,
+      "click": false
+    },
+    "quizChoice": 1
+  },
+  "friends": {
+    "ren": {
+      "affinity": 25,
+      "scenesSeen": [1],
+      "visitsToday": 2
+    },
+    "mio": {
+      "affinity": 5,
+      "scenesSeen": [],
+      "visitsToday": 0
+    },
+    "sora": {
+      "affinity": 0,
+      "scenesSeen": [],
+      "visitsToday": 0
+    }
+  },
+  "backup": {
+    "lastExportAt": 1792933200000,
+    "reminderDismissedAt": null
+  },
+  "settings": {
+    "lang": "fr",
+    "sound": false,
+    "reducedMotion": "on"
+  }
+}
