@@ -17,7 +17,8 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "check:no-test-hook": "node tools/check-no-test-hook.mjs",
-    "check:all": "npm run typecheck && npm run lint && npm run test && npm run build && npm run check:no-test-hook"
+    "check:all": "npm run typecheck && npm run lint && npm run test && npm run build && npm run check:no-test-hook",
+    "check:harness-detected": "npm run build:test-harness && node -e \"const r=require('child_process').spawnSync('node',['tools/check-no-test-hook.mjs','dist-test']);process.exit(r.status===1?0:1)\""
   },
   "dependencies": {
     "@fontsource/fredoka": "^5.3.0",
