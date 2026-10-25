@@ -12,6 +12,8 @@ import {
   readRevision,
   writeSave,
   type SaveDb,
+  backupBeforeReset,
+  readRawSlot,
 } from '../save/db';
 import { parseImport, serializeExport } from '../save/exportImport';
 
@@ -34,6 +36,8 @@ export interface GameStoreState {
   exportSave(): string | null;
   importSave(text: string): Promise<{ ok: true } | { ok: false; reason: string }>;
   newGame(): Promise<void>;
+  /** Raw stored save (even unreadable), for download before a reset. */
+  rawCurrentSave(): Promise<string | null>;
   flush(): Promise<void>;
   announce(message: string): void;
 }
@@ -207,12 +211,18 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         if (!db || get().status === 'readonly') return;
         await chain;
         persistedRevision = await storedRevision();
+        await backupBeforeReset(db);
         set({
           game: createInitialState(deps.clock.now(), deps.newSeed()),
           status: 'ready',
           recoveryReason: null,
         });
         await persistNow();
+      },
+
+      async rawCurrentSave() {
+        if (!db) return null;
+        return readRawSlot(db, 'current');
       },
 
       flush() {

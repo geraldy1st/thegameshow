@@ -23,4 +23,8 @@ jobs:
       - run: npm run check:no-test-hook
       - run: npm run check:harness-detected
       - run: npm audit --audit-level=critical
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+        env:
+          CI: 'true'
 # No GitHub Pages deployment in lot 1 (deployment is added later, on main only).

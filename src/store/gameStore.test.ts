@@ -95,7 +95,14 @@ describe('game store', () => {
     const { store } = setup(name);
     await store.getState().init();
     expect(store.getState().status).toBe('recovery');
+    expect(await store.getState().rawCurrentSave()).toContain('"junk": true');
     await store.getState().newGame();
+    // DEF-GS-01: the unreadable save is kept, never silently destroyed.
+    expect(await db.get('saves', 'backup-before-reset')).toEqual({
+      schemaVersion: 1,
+      revision: 4,
+      junk: true,
+    });
     expect(store.getState().status).toBe('ready');
     expect(((await db.get('saves', 'current')) as { revision: number }).revision).toBe(5);
   });

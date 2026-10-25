@@ -48,6 +48,17 @@ export const fr = {
   recoveryBody:
     'Ta sauvegarde n’a pas pu être lue. Tu peux importer un fichier exporté, ou commencer une nouvelle partie.',
   recoveryNew: 'Commencer une nouvelle partie',
+  recoveryConfirmTitle: 'Commencer une nouvelle partie ?',
+  recoveryConfirmBody: 'La partie illisible sera remplacée. Tu perdras dans le jeu :',
+  recoveryLossYen: 'tes yens',
+  recoveryLossTickets: 'tes tickets',
+  recoveryLossInvestments: 'tes investissements et leurs niveaux',
+  recoveryLossProgress: 'ta progression et tes statistiques',
+  recoveryKeepNote:
+    'Une copie brute de la sauvegarde illisible est conservée sur cet appareil. Tu peux aussi la télécharger avant de continuer.',
+  recoveryDownload: 'Télécharger la sauvegarde illisible',
+  recoveryDownloaded: 'Copie de la sauvegarde illisible téléchargée.',
+  recoveryConfirm: 'Oui, commencer une nouvelle partie',
   noPurchase: 'Aucun achat possible : tout se gagne en jouant.',
 } as const;
 

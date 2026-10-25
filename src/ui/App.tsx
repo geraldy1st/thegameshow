@@ -128,11 +128,11 @@ function Invest({ store }: { store: Store }) {
   );
 }
 
-function download(text: string) {
+function download(text: string, prefix = 'thegameshow') {
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
   const a = document.createElement('a');
   a.href = url;
-  a.download = `thegameshow-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `${prefix}-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -262,6 +262,7 @@ function WelcomeBack({ store }: { store: Store }) {
 
 function Recovery({ store }: { store: Store }) {
   const reason = useStore(store, (s) => s.recoveryReason);
+  const [confirm, setConfirm] = useState(false);
   return (
     <main className="app" aria-labelledby="recovery-title">
       <section>
@@ -270,15 +271,55 @@ function Recovery({ store }: { store: Store }) {
         <p className="muted">{reason}</p>
         <div className="row">
           <ImportButton store={store} />
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => void store.getState().newGame()}
-          >
+          <button type="button" className="btn btn-ghost" onClick={() => setConfirm(true)}>
             {t('recoveryNew')}
           </button>
         </div>
       </section>
+      {/* RES-7 / ethics rule 14: list what is lost and offer to keep a copy first (DEF-GS-01). */}
+      <Modal open={confirm} onClose={() => setConfirm(false)} labelId="recovery-confirm-title">
+        <h2 id="recovery-confirm-title">{t('recoveryConfirmTitle')}</h2>
+        <p>{t('recoveryConfirmBody')}</p>
+        <ul>
+          <li>{t('recoveryLossYen')}</li>
+          <li>{t('recoveryLossTickets')}</li>
+          <li>{t('recoveryLossInvestments')}</li>
+          <li>{t('recoveryLossProgress')}</li>
+        </ul>
+        <p>{t('recoveryKeepNote')}</p>
+        <div className="row">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() =>
+              void store
+                .getState()
+                .rawCurrentSave()
+                .then((raw) => {
+                  if (raw) {
+                    download(raw, 'thegameshow-illisible');
+                    store.getState().announce(t('recoveryDownloaded'));
+                  }
+                })
+            }
+          >
+            {t('recoveryDownload')}
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => setConfirm(false)}>
+            {t('cancel')}
+          </button>
+          <button
+            type="button"
+            className="btn btn-danger"
+            onClick={() => {
+              setConfirm(false);
+              void store.getState().newGame();
+            }}
+          >
+            {t('recoveryConfirm')}
+          </button>
+        </div>
+      </Modal>
     </main>
   );
 }
