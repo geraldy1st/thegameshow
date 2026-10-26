@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore, type StoreApi } from 'zustand';
 import { QUESTS, QUEST_IDS, type QuestId } from '../data/balance';
 import { questDone } from '../core/quests';
@@ -69,10 +69,13 @@ function QuestRow({ store, id, onQuiz }: { store: Store; id: QuestId; onQuiz: ()
         <progress max={def.goal} value={p} aria-label={t(`quest${id}` as MessageKey)} />
       </div>
       {claimed ? (
-        <span className="claimed">{t('claimed')}</span>
+        <span className="claimed" id={`quest-action-${id}`} tabIndex={-1}>
+          {t('claimed')}
+        </span>
       ) : done ? (
         <button
           type="button"
+          id={`quest-action-${id}`}
           className="btn btn-primary"
           onClick={() =>
             void store
@@ -84,7 +87,12 @@ function QuestRow({ store, id, onQuiz }: { store: Store; id: QuestId; onQuiz: ()
           {t('claim')}
         </button>
       ) : id === 'quiz' ? (
-        <button type="button" className="btn btn-secondary" onClick={onQuiz}>
+        <button
+          type="button"
+          id={`quest-action-${id}`}
+          className="btn btn-secondary"
+          onClick={onQuiz}
+        >
           {t('quizOpen')}
         </button>
       ) : null}
@@ -103,10 +111,30 @@ export function Quests({
 }) {
   const [quiz, setQuiz] = useState(false);
   const has = useStore(store, (s) => s.game !== null);
+  const refocus = useRef(false);
+  // DEF-GS-06: the quiz opens ON TOP of the quests dialog (closing it would unmount the quiz).
+  // After the quiz, focus goes to the quiz row's action (its opener is replaced once answered).
+  const closeQuiz = () => {
+    refocus.current = true;
+    setQuiz(false);
+  };
+  useEffect(() => {
+    if (!quiz && refocus.current) {
+      refocus.current = false;
+      document.getElementById('quest-action-quiz')?.focus();
+    }
+  }, [quiz]);
   if (!has) return null;
   return (
     <>
-      <Modal open={open && !quiz} onClose={onClose} labelId="quests-title">
+      <Modal
+        open={open}
+        onClose={() => {
+          setQuiz(false);
+          onClose();
+        }}
+        labelId="quests-title"
+      >
         <h2 id="quests-title">{t('questsTitle')}</h2>
         <ul className="quests">
           {QUEST_IDS.map((id) => (
@@ -118,7 +146,7 @@ export function Quests({
           {t('close')}
         </button>
       </Modal>
-      {open && quiz && <Quiz store={store} onClose={() => setQuiz(false)} />}
+      {open && quiz && <Quiz store={store} onClose={closeQuiz} />}
     </>
   );
 }

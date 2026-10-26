@@ -17,10 +17,11 @@ beforeAll(() => {
 });
 afterEach(() => {
   cleanup();
+  localStorage.clear();
   vi.useRealTimers();
 });
 
-async function app(name: string) {
+async function app(name: string, tab = 'Associés') {
   const store = createGameStore({
     clock: new ManualClock(Date.UTC(2026, 9, 25)),
     openDb: () => openSaveDb(name),
@@ -30,7 +31,7 @@ async function app(name: string) {
   });
   render(<App store={store} />);
   await act(() => store.getState().init());
-  fireEvent.click(screen.getByRole('button', { name: 'Associés' }));
+  if (tab) fireEvent.click(screen.getByRole('button', { name: tab }));
   return store;
 }
 
@@ -66,5 +67,32 @@ describe('draw screen', () => {
       'Les tickets se gagnent uniquement en jouant. Aucun achat possible.',
     );
     expect(d.textContent).toMatch(/environ 5,4 %/);
+  });
+});
+
+describe('daily quiz (DEF-GS-06)', () => {
+  it('opens over the quests, accepts any answer, explains, credits the quest and refocuses', async () => {
+    const store = await app('ui-quiz-1', '');
+    fireEvent.click(screen.getByRole('button', { name: /Quêtes du jour/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Répondre au quiz' }));
+    const quiz = screen.getByRole('dialog', { name: 'Quiz de Kyoko-sensei' });
+    expect(screen.getByRole('dialog', { name: 'Quêtes du jour' })).toBeTruthy();
+    const choices = quiz.querySelectorAll('.quiz-choices button');
+    expect(choices.length).toBeGreaterThan(1);
+    await act(async () => {
+      fireEvent.click(choices[0]!);
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    expect(quiz.querySelector('.quiz-why')?.textContent).toMatch(/Bonne réponse|La bonne réponse/);
+    expect(store.getState().game!.quests.progress.quiz).toBe(1);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Fermer' }).at(-1)!);
+    const claim = document.getElementById('quest-action-quiz')!;
+    expect(document.activeElement).toBe(claim);
+    const before = store.getState().game!.tickets;
+    await act(async () => {
+      fireEvent.click(claim);
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    expect(store.getState().game!.tickets).toBe(before + 2);
   });
 });

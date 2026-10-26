@@ -72,3 +72,37 @@ test('a friend visit adds affinity', async ({ page }) => {
   await page.getByRole('button', { name: 'Passer du temps avec Ren' }).click();
   await expect(page.getByText('Affinité : 5 sur 100').first()).toBeVisible();
 });
+
+test('the daily quiz is playable and all 7 daily tickets can be earned (DEF-GS-06)', async ({
+  page,
+}) => {
+  const tickets = page.locator('.pill-tickets span').last();
+  await expect(tickets).toHaveText('3');
+  const work = page.getByRole('button', { name: 'Travailler avec Aoi' });
+  for (let i = 0; i < 100; i++) await work.click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Investir' }).click();
+  for (let i = 0; i < 3; i++)
+    await page.getByRole('button', { name: /un niveau de Épargne/ }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Amis' }).click();
+  await page.getByRole('button', { name: 'Passer du temps avec Mio' }).click();
+
+  await page.getByRole('button', { name: /Quêtes du jour/ }).click();
+  await page.getByRole('button', { name: 'Répondre au quiz' }).click();
+  const quiz = page.getByRole('dialog', { name: 'Quiz de Kyoko-sensei' });
+  await expect(quiz).toBeVisible();
+  await expect(quiz.locator('.quiz-q')).not.toBeEmpty();
+  await quiz.locator('.quiz-choices button').first().click();
+  await expect(quiz.locator('.quiz-why')).toContainText(/Bonne réponse|La bonne réponse/);
+  await page.waitForFunction(() =>
+    document.getAnimations().every((a) => a.playState !== 'running'),
+  );
+  expect(await axeViolations(page)).toEqual([]);
+  await quiz.getByRole('button', { name: 'Fermer' }).click();
+  await expect(quiz).toBeHidden();
+  const quests = page.getByRole('dialog', { name: 'Quêtes du jour' });
+  await expect(quests.locator('#quest-action-quiz')).toBeFocused();
+  for (let i = 0; i < 5; i++)
+    await quests.getByRole('button', { name: 'Récupérer' }).first().click();
+  await expect(quests.getByText('Récupéré ✓')).toHaveCount(5);
+  await expect(tickets).toHaveText('10'); // 3 at start + 7 for the day
+});
