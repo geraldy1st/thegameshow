@@ -23,3 +23,22 @@ export const claimableCount = (g: GameState | null): number =>
 export function todayQuestion(g: GameState) {
   return QUIZ[quizIndex(g.quests.day, g.createdAt >>> 0)]!;
 }
+
+// DEF-GS-08: which draw's reveal was fully shown, kept OUTSIDE the save (no save write, no draw).
+const SEEN_KEY = 'tgs-reveal-seen';
+export function markRevealSeen(pull: number): void {
+  try {
+    localStorage.setItem(SEEN_KEY, String(pull));
+  } catch {
+    /* storage unavailable: the summary may show again, harmless */
+  }
+}
+/** True when the saved last draw was never fully revealed (reload during the reveal). */
+export function revealPending(last: { pull: number } | null): boolean {
+  if (!last) return false;
+  try {
+    return localStorage.getItem(SEEN_KEY) !== String(last.pull);
+  } catch {
+    return false;
+  }
+}

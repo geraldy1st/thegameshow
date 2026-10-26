@@ -15,7 +15,7 @@ import type { LastPull } from '../core/types';
 import { t, type MessageKey } from '../i18n/fr';
 import type { GameStoreState } from '../store/gameStore';
 import { Modal, Portrait } from './common';
-import { displayName, prefersReducedMotion } from './helpers';
+import { displayName, markRevealSeen, prefersReducedMotion, revealPending } from './helpers';
 
 type Store = StoreApi<GameStoreState>;
 
@@ -83,9 +83,19 @@ function resultText(last: LastPull): string {
  * Reveal (~2.3 s, DESIGN-BRIEF). The result is ALREADY saved when this opens. A long press
  * (>= 400 ms) or "Passer" jumps to the end; reduced motion = 180 ms fade.
  */
-function Reveal({ store, last, onDone }: { store: Store; last: LastPull; onDone: () => void }) {
+function Reveal({
+  store,
+  last,
+  onDone,
+  resumed = false,
+}: {
+  store: Store;
+  last: LastPull;
+  onDone: () => void;
+  resumed?: boolean;
+}) {
   const reduced = prefersReducedMotion();
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState(resumed);
   const hold = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pity = useStore(store, (s) => s.game?.gacha.pity ?? 0);
   const def = ASSOCIATES.find((a) => a.id === last.id)!;
@@ -94,6 +104,7 @@ function Reveal({ store, last, onDone }: { store: Store; last: LastPull; onDone:
     return () => clearTimeout(id);
   }, [reduced]);
   useEffect(() => {
+    if (done) markRevealSeen(last.pull);
     if (done)
       store
         .getState()
@@ -129,6 +140,7 @@ function Reveal({ store, last, onDone }: { store: Store; last: LastPull; onDone:
         ) : (
           <>
             <h2 id="reveal-title">{displayName(last.id)}</h2>
+            {resumed && <p className="meta">{t('lastPullResumed')}</p>}
             <Portrait id={last.id} alt="" className={`portrait frame-${def.rarity}`} />
             <p className="stars-line" aria-hidden="true">
               {stars(last.stars)}
@@ -171,6 +183,10 @@ function PartnerCard({ store, a }: { store: Store; a: AssociateDef }) {
 
 export function Partners({ store }: { store: Store }) {
   const drawBtn = useRef<HTMLButtonElement>(null);
+  const lastPull = useStore(store, (s) => s.game?.gacha.last ?? null);
+  const [resume, setResume] = useState(() =>
+    revealPending(store.getState().game?.gacha.last ?? null),
+  );
   const pity = useStore(store, (s) => s.game?.gacha.pity ?? 0);
   const tickets = useStore(store, (s) => s.game?.tickets ?? 0);
   const owned = useStore(store, (s) => Object.keys(s.game?.gacha.stars ?? {}).length);
@@ -200,6 +216,7 @@ export function Partners({ store }: { store: Store }) {
           aria-label={t('pityCount', { n: pity })}
         />
         <p className="meta num">{t('pityCount', { n: pity })}</p>
+        {lastPull && <p className="meta">{t('lastPull', { result: resultText(lastPull) })}</p>}
       </div>
       <div className="draw-row">
         <button
@@ -229,6 +246,17 @@ export function Partners({ store }: { store: Store }) {
           onDone={() => {
             setReveal(null);
             drawBtn.current?.focus(); // DEF-GS-09
+          }}
+        />
+      )}
+      {!reveal && resume && lastPull && (
+        <Reveal
+          store={store}
+          last={lastPull}
+          resumed
+          onDone={() => {
+            setResume(false);
+            drawBtn.current?.focus();
           }}
         />
       )}

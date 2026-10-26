@@ -150,7 +150,8 @@ export const fr = {
   resetBackupConfirm:
     'Remplacer ta partie actuelle par la partie précédente ? Ta partie actuelle est gardée sur cet appareil comme copie de secours avant import (écrasée au prochain import ou à la prochaine restauration).',
   resetBackupUnreadable: 'La copie gardée est illisible : elle ne peut pas être restaurée.',
-  resetBackupDownload: 'Télécharger la copie',
+  lastPull: 'Dernier tirage : {result}',
+  lastPullResumed: 'Dernier tirage (déjà enregistré, rien n’est retiré à nouveau)',
   resetBackupDone: 'Partie précédente restaurée.',
 } as const;
 

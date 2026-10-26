@@ -119,6 +119,24 @@ test('keyboard: focus returns to « Tirer » after the reveal (DEF-GS-09)', asyn
   await expect(draw).toBeFocused();
 });
 
+test('a reload during the reveal shows the saved result once, with no new draw (DEF-GS-08)', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.getByRole('navigation').getByRole('button', { name: 'Associés' }).click();
+  await page.getByRole('button', { name: 'Tirer · 1 ticket' }).click();
+  await expect(page.getByText('Tirage en cours…')).toBeVisible();
+  await page.reload();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('Dernier tirage (déjà enregistré');
+  await expect(page.locator('.pill-tickets span').last()).toHaveText('2');
+  await dialog.getByRole('button', { name: 'Continuer' }).click();
+  await expect(page.getByText('3 ★ garanti dans 49 tirages', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Travailler avec Aoi' })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
 test('reset confirmation tells the truth about the backup copy (DEF-GS-07)', async ({ page }) => {
   await page.getByRole('button', { name: 'Nouvelle partie' }).click();
   const d = page.getByRole('dialog', { name: 'Recommencer de zéro ?' });

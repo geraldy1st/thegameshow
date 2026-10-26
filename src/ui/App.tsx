@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal } from './common';
-import { download, claimableCount } from './helpers';
+import { download, claimableCount, revealPending } from './helpers';
 import { Partners } from './Partners';
 import { Friends } from './Friends';
 import { Quests } from './Quests';
@@ -391,6 +391,17 @@ export function App({ store }: { store: Store }) {
   const writeError = useStore(store, (s) => s.writeError);
   const [tab, setTab] = useState<Tab>('play');
   const [quests, setQuests] = useState(false);
+  // DEF-GS-08: a reveal interrupted by a reload is shown again once, on the Associés tab.
+  const resumed = useRef(false);
+  useEffect(
+    () =>
+      store.subscribe((st) => {
+        if (st.status !== 'ready' || resumed.current) return;
+        resumed.current = true;
+        if (revealPending(st.game?.gacha.last ?? null)) setTab('partners');
+      }),
+    [store],
+  );
 
   useEffect(() => {
     if (motion === 'on') document.documentElement.dataset.motion = 'reduce';

@@ -80,6 +80,28 @@ describe('draw screen', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Tirer · 1 ticket' }));
     expect(store.getState().game!.gacha.pulls).toBe(1);
   });
+
+  it('shows the saved last draw once after a reload during the reveal, without a new draw (DEF-GS-08)', async () => {
+    const store = await app('ui-draw-4');
+    fireEvent.click(screen.getByRole('button', { name: 'Tirer · 1 ticket' }));
+    await act(() => new Promise((r) => setTimeout(r, 30)));
+    expect(screen.getByText('Tirage en cours…')).toBeTruthy();
+    const tickets = store.getState().game!.tickets;
+    cleanup(); // "reload" during the animation
+    const again = await app('ui-draw-4', '');
+    expect(
+      screen.getByText('Dernier tirage (déjà enregistré, rien n’est retiré à nouveau)'),
+    ).toBeTruthy();
+    expect(again.getState().game!.gacha.pulls).toBe(1);
+    expect(again.getState().game!.tickets).toBe(tickets); // no ticket spent again
+    fireEvent.click(screen.getByRole('button', { name: 'Continuer' }));
+    expect(screen.getByText(/^Dernier tirage : /)).toBeTruthy(); // summary stays on the screen
+    cleanup();
+    await app('ui-draw-4', '');
+    expect(
+      screen.queryByText('Dernier tirage (déjà enregistré, rien n’est retiré à nouveau)'),
+    ).toBeNull();
+  });
 });
 
 describe('daily quiz (DEF-GS-06)', () => {
