@@ -68,6 +68,18 @@ describe('draw screen', () => {
     );
     expect(d.textContent).toMatch(/environ 5,4 %/);
   });
+
+  it('gives focus back to « Tirer » when the reveal closes (DEF-GS-09)', async () => {
+    const store = await app('ui-draw-3');
+    const draw = screen.getByRole('button', { name: 'Tirer · 1 ticket' });
+    draw.focus();
+    fireEvent.click(draw);
+    await act(() => new Promise((r) => setTimeout(r, 30)));
+    fireEvent.click(screen.getByRole('button', { name: 'Passer' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continuer' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Tirer · 1 ticket' }));
+    expect(store.getState().game!.gacha.pulls).toBe(1);
+  });
 });
 
 describe('daily quiz (DEF-GS-06)', () => {

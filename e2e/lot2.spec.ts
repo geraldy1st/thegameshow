@@ -107,6 +107,18 @@ test('the daily quiz is playable and all 7 daily tickets can be earned (DEF-GS-0
   await expect(tickets).toHaveText('10'); // 3 at start + 7 for the day
 });
 
+test('keyboard: focus returns to « Tirer » after the reveal (DEF-GS-09)', async ({ page }) => {
+  await page.getByRole('navigation').getByRole('button', { name: 'Associés' }).click();
+  const draw = page.getByRole('button', { name: 'Tirer · 1 ticket' });
+  await draw.focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: 'Passer' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: 'Continuer' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(draw).toBeFocused();
+});
+
 test('reset confirmation tells the truth about the backup copy (DEF-GS-07)', async ({ page }) => {
   await page.getByRole('button', { name: 'Nouvelle partie' }).click();
   const d = page.getByRole('dialog', { name: 'Recommencer de zéro ?' });

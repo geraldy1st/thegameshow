@@ -21,6 +21,16 @@ function Modal(props: {
       if (opener.current instanceof HTMLElement) opener.current.focus();
     }
   }, [props.open]);
+  // Unmounted while open (e.g. `{x && <Modal open />}`): close and give focus back (DEF-GS-09).
+  useEffect(
+    () => () => {
+      const d = ref.current;
+      if (d?.open) d.close();
+      if (opener.current instanceof HTMLElement && opener.current.isConnected)
+        opener.current.focus();
+    },
+    [],
+  );
   return (
     <dialog ref={ref} aria-labelledby={props.labelId} onClose={props.onClose}>
       {props.children}

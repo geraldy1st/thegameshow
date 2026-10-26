@@ -170,6 +170,7 @@ function PartnerCard({ store, a }: { store: Store; a: AssociateDef }) {
 }
 
 export function Partners({ store }: { store: Store }) {
+  const drawBtn = useRef<HTMLButtonElement>(null);
   const pity = useStore(store, (s) => s.game?.gacha.pity ?? 0);
   const tickets = useStore(store, (s) => s.game?.tickets ?? 0);
   const owned = useStore(store, (s) => Object.keys(s.game?.gacha.stars ?? {}).length);
@@ -221,7 +222,16 @@ export function Partners({ store }: { store: Store }) {
         ))}
       </ul>
       <Rates open={rates} onClose={() => setRates(false)} />
-      {reveal && <Reveal store={store} last={reveal} onDone={() => setReveal(null)} />}
+      {reveal && (
+        <Reveal
+          store={store}
+          last={reveal}
+          onDone={() => {
+            setReveal(null);
+            drawBtn.current?.focus(); // DEF-GS-09
+          }}
+        />
+      )}
     </section>
   );
 }
