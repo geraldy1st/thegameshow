@@ -106,3 +106,11 @@ test('the daily quiz is playable and all 7 daily tickets can be earned (DEF-GS-0
   await expect(quests.getByText('Récupéré ✓')).toHaveCount(5);
   await expect(tickets).toHaveText('10'); // 3 at start + 7 for the day
 });
+
+test('reset confirmation tells the truth about the backup copy (DEF-GS-07)', async ({ page }) => {
+  await page.getByRole('button', { name: 'Nouvelle partie' }).click();
+  const d = page.getByRole('dialog', { name: 'Recommencer de zéro ?' });
+  await expect(d).toContainText('copie de secours');
+  await expect(d).toContainText('écrasée à la prochaine remise à zéro');
+  await expect(d).not.toContainText('Rien n’est conservé');
+});

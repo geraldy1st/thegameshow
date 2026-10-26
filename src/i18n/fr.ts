@@ -40,7 +40,7 @@ export const fr = {
   reset: 'Nouvelle partie',
   resetTitle: 'Recommencer de zéro ?',
   resetBody:
-    'Ta progression (yens, tickets, investissements) sera effacée. Rien n’est conservé, sauf si tu exportes d’abord ta sauvegarde.',
+    'Ta progression (yens, tickets, investissements, associés, amis) sera remplacée par une partie neuve. Une copie de secours de ta partie actuelle est gardée sur cet appareil et peut être restaurée depuis « Partie précédente ». Elle sera écrasée à la prochaine remise à zéro. Pour la garder ailleurs, exporte d’abord ta sauvegarde.',
   resetConfirm: 'Oui, recommencer',
   cancel: 'Annuler',
   readonlyBanner: 'Le jeu est ouvert dans un autre onglet. Recharge cette page pour continuer ici.',
@@ -55,7 +55,7 @@ export const fr = {
   recoveryLossInvestments: 'tes investissements et leurs niveaux',
   recoveryLossProgress: 'ta progression et tes statistiques',
   recoveryKeepNote:
-    'Une copie brute de la sauvegarde illisible est conservée sur cet appareil. Tu peux aussi la télécharger avant de continuer.',
+    'Une copie brute de la sauvegarde illisible est gardée sur cet appareil jusqu’à la prochaine remise à zéro, qui l’écrasera. Tu peux aussi la télécharger avant de continuer.',
   recoveryDownload: 'Télécharger la sauvegarde illisible',
   recoveryDownloaded: 'Copie de la sauvegarde illisible téléchargée.',
   recoveryConfirm: 'Oui, commencer une nouvelle partie',
@@ -145,11 +145,11 @@ export const fr = {
   // ---- Reset backup restore ----
   resetBackupTitle: 'Partie précédente',
   resetBackupBody:
-    'Une copie de ta partie d’avant la dernière réinitialisation est gardée sur cet appareil.',
+    'Une copie de ta partie d’avant la dernière remise à zéro est gardée sur cet appareil. Elle sera écrasée à la prochaine remise à zéro.',
   resetBackupRestore: 'Restaurer la partie précédente',
   resetBackupConfirm:
-    'Remplacer ta partie actuelle par la partie précédente ? Ta partie actuelle est gardée comme copie avant import.',
-  resetBackupUnreadable: 'La copie gardée est illisible : tu peux seulement la télécharger.',
+    'Remplacer ta partie actuelle par la partie précédente ? Ta partie actuelle est gardée sur cet appareil comme copie de secours avant import (écrasée au prochain import ou à la prochaine restauration).',
+  resetBackupUnreadable: 'La copie gardée est illisible : elle ne peut pas être restaurée.',
   resetBackupDownload: 'Télécharger la copie',
   resetBackupDone: 'Partie précédente restaurée.',
 } as const;

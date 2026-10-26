@@ -301,7 +301,7 @@ function Recovery({ store }: { store: Store }) {
 
 /** Restore the `backup-before-reset` slot (lot 2 scope e), with confirmation. */
 function ResetBackup({ store }: { store: Store }) {
-  const created = useStore(store, (s) => s.game?.createdAt ?? 0);
+  const revision = useStore(store, (s) => s.game?.revision ?? 0);
   const readonly = useStore(store, (s) => s.status !== 'ready');
   const [kind, setKind] = useState<'none' | 'unreadable' | 'ok'>('none');
   const [confirm, setConfirm] = useState(false);
@@ -314,7 +314,7 @@ function ResetBackup({ store }: { store: Store }) {
     return () => {
       live = false;
     };
-  }, [store, created]);
+  }, [store, revision]);
   if (kind === 'none' || readonly) return null;
   return (
     <section aria-labelledby="reset-backup-title">
