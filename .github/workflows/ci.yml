@@ -21,9 +21,13 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run check:no-test-hook
+      - run: npm run check:no-budget-fake
       - run: npm run check:harness-detected
       - run: npm audit --audit-level=critical
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
+      # GS-V5-02 (D7): home budget <= 500 KB, blocking; then the gauge must fail on 600 KB fake.
+      - run: npm run budget:home
+      - run: npm run budget:gauge
       - run: npm run test:e2e
         env:
           CI: 'true'
