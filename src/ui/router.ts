@@ -30,10 +30,19 @@ const write = (route: Route, mode: 'push' | 'replace') => {
   window.dispatchEvent(new Event(EVENT));
 };
 
-/** Called once at startup: normalises the hash (unknown → home, reload → home). */
+/**
+ * Called once at startup: normalises the hash (unknown → home, reload → home). A direct link
+ * to a screen gets a home entry below it, so the back button returns home (GS-V5-17 c).
+ */
 export function initRoute(): void {
   const wanted = isReload() ? 'home' : parseRoute(location.hash);
-  if (location.hash !== `#${wanted}`) write(wanted, 'replace');
+  if (wanted === 'home') {
+    if (location.hash !== '#home') write('home', 'replace');
+    return;
+  }
+  if ((history.state as { tgs?: number } | null)?.tgs === 1) return; // already set up
+  write('home', 'replace');
+  write(wanted, 'push');
 }
 
 export function currentRoute(): Route {

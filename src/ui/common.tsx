@@ -6,6 +6,8 @@ function Modal(props: {
   open: boolean;
   onClose: () => void;
   labelId: string;
+  /** Lot 3 (GS-V5-17): give the focus to this element (tabIndex -1) once the dialog opens. */
+  initialFocusId?: string;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -16,11 +18,12 @@ function Modal(props: {
     if (props.open && !d.open) {
       opener.current = document.activeElement;
       d.showModal();
+      if (props.initialFocusId) document.getElementById(props.initialFocusId)?.focus();
     } else if (!props.open && d.open) {
       d.close();
       if (opener.current instanceof HTMLElement) opener.current.focus();
     }
-  }, [props.open]);
+  }, [props.open, props.initialFocusId]);
   // Unmounted while open (e.g. `{x && <Modal open />}`): close and give focus back (DEF-GS-09).
   useEffect(
     () => () => {

@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal } from './common';
 import { download, claimableCount, revealPending } from './helpers';
+import { Home } from './Home';
+import { goHome, navigate, replaceRoute, useRoute, type Route } from './router';
 import { Partners } from './Partners';
 import { Friends } from './Friends';
 import { Quests } from './Quests';
 import { useStore, type StoreApi } from 'zustand';
 import { INVESTMENT_IDS, INVESTMENTS, type InvestmentId } from '../data/balance';
-import { canBuy, clickValueYen, incomeCentsPerSecond, nextCostYen } from '../core/economy';
+import { canBuy, nextCostYen } from '../core/economy';
 import { centsToYen } from '../core/numbers';
 import { t, type MessageKey } from '../i18n/fr';
 import type { GameStoreState } from '../store/gameStore';
-import { formatDuration, formatRate, formatYen, formatYenLong } from './format';
+import { formatRate, formatYen } from './format';
 
 type Store = StoreApi<GameStoreState>;
 
@@ -40,27 +42,6 @@ function TopBar({ store, onQuests }: { store: Store; onQuests: () => void }) {
   );
 }
 
-function Play({ store }: { store: Store }) {
-  const value = useStore(store, (s) => (s.game ? clickValueYen(s.game) : 1));
-  const income = useStore(store, (s) => (s.game ? incomeCentsPerSecond(s.game) / 100 : 0));
-  const readonly = useStore(store, (s) => s.status !== 'ready');
-  return (
-    <section aria-labelledby="play-title" className="stage">
-      <h2 id="play-title">{t('playTitle')}</h2>
-      <button
-        type="button"
-        className="btn btn-primary aoi"
-        onClick={() => store.getState().click()}
-        aria-disabled={readonly}
-      >
-        {t('clickAoi')}
-      </button>
-      <p className="num">{t('clickHint', { n: value })}</p>
-      <p className="muted num">{t('incomePerSecond', { n: formatRate(income) })}</p>
-    </section>
-  );
-}
-
 function InvestmentCard({ store, id }: { store: Store; id: InvestmentId }) {
   const level = useStore(store, (s) => s.game?.investments[id] ?? 0);
   const affordable = useStore(store, (s) => (s.game ? canBuy(s.game, id) : false));
@@ -76,7 +57,7 @@ function InvestmentCard({ store, id }: { store: Store; id: InvestmentId }) {
   };
   return (
     <article className="card" aria-labelledby={`inv-${id}`}>
-      <h3 id={`inv-${id}`}>{name}</h3>
+      <h2 id={`inv-${id}`}>{name}</h2>
       <p className="meta num">
         {t('level', { n: level })} ·{' '}
         <span className="gain">
@@ -104,7 +85,9 @@ function InvestmentCard({ store, id }: { store: Store; id: InvestmentId }) {
 function Invest({ store }: { store: Store }) {
   return (
     <section aria-labelledby="invest-title">
-      <h2 id="invest-title">{t('investTitle')}</h2>
+      <h1 id="invest-title" className="screen-title" tabIndex={-1}>
+        {t('investTitle')}
+      </h1>
       {INVESTMENT_IDS.map((id) => (
         <InvestmentCard key={id} store={store} id={id} />
       ))}
@@ -212,29 +195,6 @@ function SaveMenu({ store }: { store: Store }) {
   );
 }
 
-function WelcomeBack({ store }: { store: Store }) {
-  const pending = useStore(store, (s) => centsToYen(s.game?.pendingOfflineCents ?? 0));
-  const absence = useStore(store, (s) => s.absenceMs);
-  const ready = useStore(store, (s) => s.status === 'ready');
-  const collect = async () => {
-    await store.getState().collectOffline();
-    store.getState().announce(t('collected', { n: formatYen(pending) }));
-  };
-  return (
-    <Modal open={ready && pending > 0} onClose={() => void collect()} labelId="welcome-title">
-      <h2 id="welcome-title">{t('welcomeTitle')}</h2>
-      <p>{t('welcomeBody', { t: absence > 0 ? formatDuration(absence) : '—' })}</p>
-      <p className="big num" aria-label={formatYenLong(pending)}>
-        +{formatYen(pending)} ¥
-      </p>
-      <p className="meta">{t('welcomeCap')}</p>
-      <button type="button" className="btn btn-primary" onClick={() => void collect()} autoFocus>
-        {t('collect')}
-      </button>
-    </Modal>
-  );
-}
-
 function Recovery({ store }: { store: Store }) {
   const reason = useStore(store, (s) => s.recoveryReason);
   const kind = useStore(store, (s) => s.recoveryKind);
@@ -300,37 +260,60 @@ function Recovery({ store }: { store: Store }) {
   );
 }
 
-/** Restore the `backup-before-reset` slot (lot 2 scope e), with confirmation. */
-function ResetBackup({ store }: { store: Store }) {
+type BackupKind = 'none' | 'unreadable' | 'ok';
+
+/**
+ * Manual restore of a backup slot with confirmation: `backup-before-reset` (lot 2 scope e,
+ * « Partie précédente ») or `backup-before-migration` (lot 3, MVP v1.3 step 8). Both copy the
+ * current state into `backup-before-restore` first (R12).
+ */
+function BackupRestore({ store, slot }: { store: Store; slot: 'reset' | 'migration' }) {
   const revision = useStore(store, (s) => s.game?.revision ?? 0);
   const readonly = useStore(store, (s) => s.status !== 'ready');
-  const [kind, setKind] = useState<'none' | 'unreadable' | 'ok'>('none');
+  const [kind, setKind] = useState<BackupKind>('none');
   const [confirm, setConfirm] = useState(false);
+  const keys =
+    slot === 'reset'
+      ? {
+          title: 'resetBackupTitle',
+          body: 'resetBackupBody',
+          restore: 'resetBackupRestore',
+          confirm: 'resetBackupConfirm',
+          done: 'resetBackupDone',
+        }
+      : {
+          title: 'migrationBackupTitle',
+          body: 'migrationBackupBody',
+          restore: 'migrationBackupRestore',
+          confirm: 'migrationBackupConfirm',
+          done: 'migrationBackupDone',
+        };
   useEffect(() => {
     let live = true;
-    void store
-      .getState()
-      .resetBackup()
-      .then((r) => live && setKind(r.kind));
+    const st = store.getState();
+    void (slot === 'reset' ? st.resetBackup() : st.migrationBackup()).then(
+      (r) => live && setKind(r.kind),
+    );
     return () => {
       live = false;
     };
-  }, [store, revision]);
+  }, [store, revision, slot]);
   if (kind === 'none' || readonly) return null;
+  const id = `${slot}-backup`;
   return (
-    <section aria-labelledby="reset-backup-title">
-      <h2 id="reset-backup-title">{t('resetBackupTitle')}</h2>
-      <p>{t('resetBackupBody')}</p>
+    <section aria-labelledby={`${id}-title`}>
+      <h2 id={`${id}-title`}>{t(keys.title as MessageKey)}</h2>
+      <p>{t(keys.body as MessageKey)}</p>
       {kind === 'unreadable' ? (
         <p className="muted">{t('resetBackupUnreadable')}</p>
       ) : (
         <button type="button" className="btn btn-ghost" onClick={() => setConfirm(true)}>
-          {t('resetBackupRestore')}
+          {t(keys.restore as MessageKey)}
         </button>
       )}
-      <Modal open={confirm} onClose={() => setConfirm(false)} labelId="reset-backup-confirm">
-        <h2 id="reset-backup-confirm">{t('resetBackupRestore')}</h2>
-        <p>{t('resetBackupConfirm')}</p>
+      <Modal open={confirm} onClose={() => setConfirm(false)} labelId={`${id}-confirm`}>
+        <h2 id={`${id}-confirm`}>{t(keys.restore as MessageKey)}</h2>
+        <p>{t(keys.confirm as MessageKey)}</p>
         <div className="row">
           <button type="button" className="btn btn-ghost" onClick={() => setConfirm(false)}>
             {t('cancel')}
@@ -340,15 +323,14 @@ function ResetBackup({ store }: { store: Store }) {
             className="btn btn-danger"
             onClick={() => {
               setConfirm(false);
-              void store
-                .getState()
-                .restoreResetBackup()
-                .then((ok) =>
-                  store.getState().announce(ok ? t('resetBackupDone') : t('writeFailed')),
-                );
+              const st = store.getState();
+              void (slot === 'reset' ? st.restoreResetBackup() : st.restoreMigrationBackup()).then(
+                (ok) =>
+                  store.getState().announce(ok ? t(keys.done as MessageKey) : t('writeFailed')),
+              );
             }}
           >
-            {t('resetBackupRestore')}
+            {t(keys.restore as MessageKey)}
           </button>
         </div>
       </Modal>
@@ -356,32 +338,44 @@ function ResetBackup({ store }: { store: Store }) {
   );
 }
 
-type Tab = 'play' | 'invest' | 'friends' | 'partners';
-const TABS: readonly Tab[] = ['play', 'invest', 'friends', 'partners'];
+type Tab = 'home' | 'invest' | 'friends' | 'partners';
+const TABS: readonly Tab[] = ['home', 'invest', 'friends', 'partners'];
 const TAB_LABEL = {
-  play: 'tabPlay',
+  home: 'tabHome',
   invest: 'tabInvest',
   friends: 'tabFriends',
   partners: 'tabPartners',
 } as const;
-const TAB_ICON = { play: '🖱', invest: '📈', friends: '♥', partners: '★' } as const;
+const TAB_ICON = { home: '⌂', invest: '📈', friends: '♥', partners: '★' } as const;
 
-function TabBar({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
+function TabBar({ route }: { route: Route }) {
   return (
     <nav className="tabbar" aria-label={t('tabsLabel')}>
-      {TABS.map((id) => (
-        <button
-          key={id}
-          type="button"
-          className={`tab ${tab === id ? 'on' : ''}`}
-          aria-current={tab === id ? 'page' : undefined}
-          onClick={() => onTab(id)}
-        >
-          <span aria-hidden="true">{TAB_ICON[id]}</span>
-          {t(TAB_LABEL[id])}
-        </button>
-      ))}
+      {TABS.map((id) => {
+        const on = route === id || (id === 'home' && route === 'quests');
+        return (
+          <button
+            key={id}
+            type="button"
+            className={`tab ${on ? 'on' : ''}`}
+            aria-current={on ? 'page' : undefined}
+            onClick={() => (id === 'home' ? goHome() : navigate(id))}
+          >
+            <span aria-hidden="true">{TAB_ICON[id]}</span>
+            {t(TAB_LABEL[id])}
+          </button>
+        );
+      })}
     </nav>
+  );
+}
+
+/** « ← Accueil » on every non-home screen (MVP v1.3 lot 3, menu). */
+function BackHome() {
+  return (
+    <button type="button" className="btn btn-ghost back" onClick={() => goHome()}>
+      {t('backHome')}
+    </button>
   );
 }
 
@@ -390,19 +384,30 @@ export function App({ store }: { store: Store }) {
   const announcement = useStore(store, (s) => s.announcement);
   const motion = useStore(store, (s) => s.game?.settings.reducedMotion ?? 'auto');
   const writeError = useStore(store, (s) => s.writeError);
-  const [tab, setTab] = useState<Tab>('play');
-  const [quests, setQuests] = useState(false);
-  // DEF-GS-08: a reveal interrupted by a reload is shown again once, on the Associés tab.
+  const route = useRoute();
+  const screen: Route = route;
+  // DEF-GS-08: a reveal interrupted by a reload is shown again once, on the Associés screen.
   const resumed = useRef(false);
   useEffect(
     () =>
       store.subscribe((st) => {
         if (st.status !== 'ready' || resumed.current) return;
         resumed.current = true;
-        if (revealPending(st.game?.gacha.last ?? null)) setTab('partners');
+        if (revealPending(st.game, st.game?.gacha.last ?? null)) {
+          if (screen === 'home') navigate('partners');
+          else replaceRoute('partners');
+        }
       }),
-    [store],
+    [store, screen],
   );
+  // GS-V5-04 / GS-V5-17: after every screen change the focus goes to the screen's h1 (the
+  // quests dialog focuses its own title). A focus() on an element made inert by an open
+  // dialog is ignored, so a dialog keeps the focus.
+  const shown = status === 'ready' || status === 'readonly';
+  useEffect(() => {
+    if (!shown || route === 'quests') return;
+    document.querySelector<HTMLElement>('main .screen-title')?.focus();
+  }, [route, shown]);
 
   useEffect(() => {
     if (motion === 'on') document.documentElement.dataset.motion = 'reduce';
@@ -448,7 +453,7 @@ export function App({ store }: { store: Store }) {
   }
   return (
     <div className="app">
-      <TopBar store={store} onQuests={() => setQuests(true)} />
+      <TopBar store={store} onQuests={() => navigate('quests')} />
       {status === 'readonly' && (
         <p className="banner" role="alert">
           {t('readonlyBanner')}
@@ -460,21 +465,20 @@ export function App({ store }: { store: Store }) {
         </p>
       )}
       <main>
-        <h1 className="visually-hidden">{t('appTitle')}</h1>
-        {tab === 'play' && (
-          <>
-            <Play store={store} />
+        {(screen === 'home' || screen === 'quests') && (
+          <Home store={store}>
             <SaveMenu store={store} />
-            <ResetBackup store={store} />
-          </>
+            <BackupRestore store={store} slot="reset" />
+            <BackupRestore store={store} slot="migration" />
+          </Home>
         )}
-        {tab === 'invest' && <Invest store={store} />}
-        {tab === 'friends' && <Friends store={store} />}
-        {tab === 'partners' && <Partners store={store} />}
+        {screen !== 'home' && screen !== 'quests' && <BackHome />}
+        {screen === 'invest' && <Invest store={store} />}
+        {screen === 'friends' && <Friends store={store} />}
+        {screen === 'partners' && <Partners store={store} />}
       </main>
-      <TabBar tab={tab} onTab={setTab} />
-      <Quests store={store} open={quests} onClose={() => setQuests(false)} />
-      <WelcomeBack store={store} />
+      <TabBar route={route} />
+      <Quests store={store} open={route === 'quests'} onClose={() => goHome()} />
       {live}
     </div>
   );

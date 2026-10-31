@@ -1,5 +1,11 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { axeViolations } from './axe';
+
+// Navigation helper (lot 3, GS-V5-13): the v5 hub replaces the "Jouer" tab by "Accueil".
+async function openTab(page: Page, name: string) {
+  const label = name === 'Jouer' ? 'Accueil' : name;
+  await page.getByRole('navigation').getByRole('button', { name: label }).click();
+}
 
 test.beforeEach(async ({ page }) => {
   await page.goto('./');
@@ -8,7 +14,7 @@ test.beforeEach(async ({ page }) => {
 
 test('every tab has no axe violations at 360x640 (GS-CA19)', async ({ page }) => {
   for (const name of ['Investir', 'Amis', 'Associés', 'Jouer']) {
-    await page.getByRole('navigation').getByRole('button', { name }).click();
+    await openTab(page, name);
     expect(await axeViolations(page), name).toEqual([]);
   }
   await page.getByRole('button', { name: /Quêtes du jour/ }).click();
@@ -21,7 +27,7 @@ test('every tab has no axe violations at 360x640 (GS-CA19)', async ({ page }) =>
 test('rates link is visible without scrolling and states no purchase is possible', async ({
   page,
 }) => {
-  await page.getByRole('navigation').getByRole('button', { name: 'Associés' }).click();
+  await openTab(page, 'Associés');
   const link = page.getByRole('button', { name: 'Taux de tirage' });
   await expect(link).toBeInViewport();
   await expect(page.getByText('3 ★ garanti dans 50 tirages')).toBeInViewport();
@@ -42,7 +48,7 @@ test('a draw is saved before the reveal, can be skipped, and survives a reload',
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.getByRole('navigation').getByRole('button', { name: 'Associés' }).click();
+  await openTab(page, 'Associés');
   await page.getByRole('button', { name: 'Tirer · 1 ticket' }).click();
   const reveal = page.getByRole('dialog');
   await reveal.getByRole('button', { name: 'Passer' }).click();
@@ -54,20 +60,20 @@ test('a draw is saved before the reveal, can be skipped, and survives a reload',
   await reveal.getByRole('button', { name: 'Continuer' }).click();
   await expect(page.getByText('3 ★ garanti dans 49 tirages', { exact: true })).toBeVisible();
   await page.reload();
-  await page.getByRole('navigation').getByRole('button', { name: 'Associés' }).click();
+  await openTab(page, 'Associés');
   await expect(page.getByText('3 ★ garanti dans 49 tirages', { exact: true })).toBeVisible();
   await expect(page.getByText('Collection : 1 sur 9')).toBeVisible();
 });
 
 test('reduced motion reveals with a short fade', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.getByRole('navigation').getByRole('button', { name: 'Associés' }).click();
+  await openTab(page, 'Associés');
   await page.getByRole('button', { name: 'Tirer · 1 ticket' }).click();
   await expect(page.getByRole('button', { name: 'Continuer' })).toBeVisible({ timeout: 1000 });
 });
 
 test('a friend visit adds affinity', async ({ page }) => {
-  await page.getByRole('navigation').getByRole('button', { name: 'Amis' }).click();
+  await openTab(page, 'Amis');
   await expect(page.getByText('Affinité : 0 sur 100').first()).toBeVisible();
   await page.getByRole('button', { name: 'Passer du temps avec Ren' }).click();
   await expect(page.getByText('Affinité : 5 sur 100').first()).toBeVisible();
@@ -80,10 +86,10 @@ test('the daily quiz is playable and all 7 daily tickets can be earned (DEF-GS-0
   await expect(tickets).toHaveText('3');
   const work = page.getByRole('button', { name: 'Travailler avec Aoi' });
   for (let i = 0; i < 100; i++) await work.click();
-  await page.getByRole('navigation').getByRole('button', { name: 'Investir' }).click();
+  await openTab(page, 'Investir');
   for (let i = 0; i < 3; i++)
     await page.getByRole('button', { name: /un niveau de Épargne/ }).click();
-  await page.getByRole('navigation').getByRole('button', { name: 'Amis' }).click();
+  await openTab(page, 'Amis');
   await page.getByRole('button', { name: 'Passer du temps avec Mio' }).click();
 
   await page.getByRole('button', { name: /Quêtes du jour/ }).click();
@@ -108,7 +114,7 @@ test('the daily quiz is playable and all 7 daily tickets can be earned (DEF-GS-0
 });
 
 test('keyboard: focus returns to « Tirer » after the reveal (DEF-GS-09)', async ({ page }) => {
-  await page.getByRole('navigation').getByRole('button', { name: 'Associés' }).click();
+  await openTab(page, 'Associés');
   const draw = page.getByRole('button', { name: 'Tirer · 1 ticket' });
   await draw.focus();
   await page.keyboard.press('Enter');
@@ -123,7 +129,7 @@ test('a reload during the reveal shows the saved result once, with no new draw (
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.getByRole('navigation').getByRole('button', { name: 'Associés' }).click();
+  await openTab(page, 'Associés');
   await page.getByRole('button', { name: 'Tirer · 1 ticket' }).click();
   await expect(page.getByText('Tirage en cours…')).toBeVisible();
   await page.reload();

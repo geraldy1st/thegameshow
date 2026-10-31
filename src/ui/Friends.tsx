@@ -56,7 +56,7 @@ function FriendCard({ store, id, onScene }: { store: Store; id: FriendId; onScen
     <li className="friend card">
       <Portrait id={id} alt="" className="portrait" />
       <div className="friend-body">
-        <h3>{name}</h3>
+        <h2>{name}</h2>
         <p className="num">{t('affinity', { n: f.affinity })}</p>
         <progress
           max={MAX_AFFINITY}
@@ -105,7 +105,9 @@ export function Friends({ store }: { store: Store }) {
   const [scene, setScene] = useState<FriendId | null>(null);
   return (
     <section aria-labelledby="friends-title">
-      <h2 id="friends-title">{t('friendsTitle')}</h2>
+      <h1 id="friends-title" className="screen-title" tabIndex={-1}>
+        {t('friendsTitle')}
+      </h1>
       <ul className="friends">
         {FRIEND_IDS.map((id) => (
           <FriendCard key={id} store={store} id={id} onScene={() => setScene(id)} />

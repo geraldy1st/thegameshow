@@ -10,6 +10,7 @@ import { ManualClock, systemClock, type Clock } from './core/clock';
 import { openSaveDb } from './save/db';
 import { createGameStore, randomSeed, webLocksWriter } from './store/gameStore';
 import { App } from './ui/App';
+import { initRoute } from './ui/router';
 
 async function boot() {
   let clock: Clock = systemClock;
@@ -39,6 +40,7 @@ async function boot() {
   });
 }
 
+initRoute();
 void boot().then((store) => {
   if ('storage' in navigator && navigator.storage.persist) void navigator.storage.persist(); // best effort only (RES-8)
   createRoot(document.getElementById('root')!).render(

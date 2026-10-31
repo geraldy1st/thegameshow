@@ -134,8 +134,11 @@ export function Quests({
           onClose();
         }}
         labelId="quests-title"
+        initialFocusId="quests-title"
       >
-        <h2 id="quests-title">{t('questsTitle')}</h2>
+        <h2 id="quests-title" tabIndex={-1}>
+          {t('questsTitle')}
+        </h2>
         <ul className="quests">
           {QUEST_IDS.map((id) => (
             <QuestRow key={id} store={store} id={id} onQuiz={() => setQuiz(true)} />

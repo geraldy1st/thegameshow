@@ -25,19 +25,35 @@ export function todayQuestion(g: GameState) {
 }
 
 // DEF-GS-08: which draw's reveal was fully shown, kept OUTSIDE the save (no save write, no draw).
+// DEF-GS-11 (lot 3, GS-V5-15): the marker is keyed by `createdAt:pull`, so a new game, an
+// import or a migration (createdAt kept by deep equality) can never be confused with another
+// game's draw n°1. No explicit clearing anywhere.
 const SEEN_KEY = 'tgs-reveal-seen';
-export function markRevealSeen(pull: number): void {
+type SaveKey = { createdAt: number };
+const markerOf = (save: SaveKey, pull: number) => `${save.createdAt}:${pull}`;
+
+export function markRevealSeen(save: SaveKey, pull: number): void {
   try {
-    localStorage.setItem(SEEN_KEY, String(pull));
+    localStorage.setItem(SEEN_KEY, markerOf(save, pull));
   } catch {
     /* storage unavailable: the summary may show again, harmless */
   }
 }
-/** True when the saved last draw was never fully revealed (reload during the reveal). */
-export function revealPending(last: { pull: number } | null): boolean {
-  if (!last) return false;
+/**
+ * True when the saved last draw was never fully revealed (reload during the reveal).
+ * A lot 2 marker (pull number only) equal to the last pull counts as seen and is rewritten
+ * in the `createdAt:pull` format (localStorage only, never IndexedDB).
+ */
+export function revealPending(save: SaveKey | null, last: { pull: number } | null): boolean {
+  if (!save || !last) return false;
   try {
-    return localStorage.getItem(SEEN_KEY) !== String(last.pull);
+    const stored = localStorage.getItem(SEEN_KEY);
+    if (stored === markerOf(save, last.pull)) return false;
+    if (stored === String(last.pull)) {
+      markRevealSeen(save, last.pull);
+      return false;
+    }
+    return true;
   } catch {
     return false;
   }

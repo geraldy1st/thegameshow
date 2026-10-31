@@ -104,7 +104,8 @@ function Reveal({
     return () => clearTimeout(id);
   }, [reduced]);
   useEffect(() => {
-    if (done) markRevealSeen(last.pull);
+    const g = store.getState().game;
+    if (done && g) markRevealSeen(g, last.pull);
     if (done)
       store
         .getState()
@@ -185,7 +186,7 @@ export function Partners({ store }: { store: Store }) {
   const drawBtn = useRef<HTMLButtonElement>(null);
   const lastPull = useStore(store, (s) => s.game?.gacha.last ?? null);
   const [resume, setResume] = useState(() =>
-    revealPending(store.getState().game?.gacha.last ?? null),
+    revealPending(store.getState().game, store.getState().game?.gacha.last ?? null),
   );
   const pity = useStore(store, (s) => s.game?.gacha.pity ?? 0);
   const tickets = useStore(store, (s) => s.game?.tickets ?? 0);
@@ -206,7 +207,9 @@ export function Partners({ store }: { store: Store }) {
   };
   return (
     <section aria-labelledby="partners-title">
-      <h2 id="partners-title">{t('partnersTitle')}</h2>
+      <h1 id="partners-title" className="screen-title" tabIndex={-1}>
+        {t('partnersTitle')}
+      </h1>
       <div className="pity card">
         <p className="pity-main num">{pityText(pity)}</p>
         <progress
@@ -220,6 +223,7 @@ export function Partners({ store }: { store: Store }) {
       </div>
       <div className="draw-row">
         <button
+          ref={drawBtn}
           type="button"
           className="btn btn-primary draw"
           aria-disabled={disabled}
@@ -232,7 +236,7 @@ export function Partners({ store }: { store: Store }) {
         </button>
       </div>
       {tickets < 1 && <p className="muted">{t('noTicket')}</p>}
-      <h3 className="sub">{t('collection', { a: owned, b: ASSOCIATES.length })}</h3>
+      <h2 className="sub">{t('collection', { a: owned, b: ASSOCIATES.length })}</h2>
       <ul className="grid">
         {ASSOCIATES.map((a) => (
           <PartnerCard key={a.id} store={store} a={a} />
@@ -256,7 +260,9 @@ export function Partners({ store }: { store: Store }) {
           resumed
           onDone={() => {
             setResume(false);
-            drawBtn.current?.focus();
+            // DEF-GS-10: the ref is now attached; focus after the dialog unmount has handed
+            // focus back to its opener (body after a reload), hence the next task.
+            setTimeout(() => drawBtn.current?.focus(), 0);
           }}
         />
       )}
