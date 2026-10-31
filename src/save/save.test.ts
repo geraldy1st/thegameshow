@@ -1,15 +1,32 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
-import { createInitialState } from '../core/state';
+import { createInitialState, initialV3Fields } from '../core/state';
 import { createRng, nextFloat } from '../core/rng';
-import { CURRENT_SCHEMA_VERSION, validateSaveV2 } from './schema';
+import { CURRENT_SCHEMA_VERSION, validateSaveV2, validateSaveV3 } from './schema';
 import { migrateToCurrent } from './migrations';
 import { MAX_IMPORT_BYTES, fnv1a, parseImport, serializeExport } from './exportImport';
-import { RevisionConflictError, backupBeforeImport, loadSave, openSaveDb, writeSave } from './db';
+import {
+  RevisionConflictError,
+  backupBeforeImport,
+  backupBeforeMigration,
+  backupBeforeRestore,
+  loadSave,
+  openSaveDb,
+  writeSave,
+} from './db';
 import initialV1 from './__fixtures__/v1-initial.json';
 import midgameV1 from './__fixtures__/v1-midgame.json';
 import initial from './__fixtures__/v2-initial.json';
 import midgame from './__fixtures__/v2-midgame.json';
+import initialV3 from './__fixtures__/v3-initial.json';
+import midgameV3 from './__fixtures__/v3-midgame.json';
+
+/** Lot 3: the v2 → v3 step adds the v3 fields at their initial values, nothing else. */
+const withV3 = <T extends { maxSeenAt: number }>(v2: T) => ({
+  ...v2,
+  schemaVersion: 3,
+  ...initialV3Fields(v2.maxSeenAt),
+});
 
 const T0 = Date.UTC(2026, 9, 25, 12, 0, 0);
 let dbCounter = 0;
@@ -17,12 +34,24 @@ const freshDb = () => openSaveDb(`test-${++dbCounter}`);
 
 describe('golden saves and migration chain (RES-7a)', () => {
   it.each([
-    ['v2-initial', initial],
-    ['v2-midgame', midgame],
+    ['v3-initial', initialV3],
+    ['v3-midgame', midgameV3],
   ])('%s loads through the chain unchanged', (_name, fixture) => {
     const r = migrateToCurrent(fixture);
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.value).toEqual(fixture);
+  });
+  it.each([
+    ['v2-initial', initial],
+    ['v2-midgame', midgame],
+  ])('%s migrates to v3 keeping every v2 value (GS-V5-05)', (_name, fixture) => {
+    const r = migrateToCurrent(fixture);
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.value).toEqual(withV3(fixture));
+    const { profile, energy, stats, wardrobe, ...v2Part } = r.value;
+    expect({ ...v2Part, schemaVersion: 2 }).toEqual(fixture);
+    expect([profile, energy.value, wardrobe.outfit]).toEqual([{ level: 1, xp: 0 }, 50, 'jean']);
+    expect(Object.values(stats)).toEqual(Array(10).fill(0));
   });
   it.each([
     ['v1-initial', initialV1],
@@ -30,15 +59,17 @@ describe('golden saves and migration chain (RES-7a)', () => {
   ])('%s migrates to v2 keeping every v1 value', (_name, fixture) => {
     const r = migrateToCurrent(fixture);
     if (!r.ok) throw new Error(r.reason);
-    expect(r.value).toEqual({
-      ...fixture,
-      schemaVersion: 2,
-      gacha: { ...fixture.gacha, last: null },
-      quests: { ...fixture.quests, quizChoice: null },
-    });
+    expect(r.value).toEqual(
+      withV3({
+        ...fixture,
+        schemaVersion: 2,
+        gacha: { ...fixture.gacha, last: null },
+        quests: { ...fixture.quests, quizChoice: null },
+      }),
+    );
   });
   it('v1-initial migrates to exactly v2-initial', () => {
-    expect(migrateToCurrent(initialV1)).toEqual({ ok: true, value: initial });
+    expect(migrateToCurrent(initialV1)).toEqual({ ok: true, value: initialV3 });
   });
   it('refuses an invalid v1 before migrating it', () => {
     expect(migrateToCurrent({ ...midgameV1, tickets: -1 }).ok).toBe(false);
@@ -51,7 +82,7 @@ describe('golden saves and migration chain (RES-7a)', () => {
       save: midgameV1,
     });
     const r = parseImport(text);
-    expect(r.ok && r.value.schemaVersion).toBe(2);
+    expect(r.ok && r.value.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
   });
   it('is idempotent', () => {
     const once = migrateToCurrent(midgame);
@@ -66,7 +97,7 @@ describe('golden saves and migration chain (RES-7a)', () => {
     expect(migrateToCurrent({ ...midgame, schemaVersion: '1' }).ok).toBe(false);
   });
   it('the initial fixture equals the spec initial state', () => {
-    expect(initial).toEqual(createInitialState(T0, 20261025));
+    expect(initialV3).toEqual(createInitialState(T0, 20261025));
   });
 });
 
@@ -118,8 +149,8 @@ describe('validation bounds (RES-7c)', () => {
 
 describe('export / import (GS-CA5)', () => {
   it('round-trips to an identical state', () => {
-    const r = parseImport(serializeExport(midgame as never));
-    expect(r).toEqual({ ok: true, value: midgame });
+    const r = parseImport(serializeExport(midgameV3 as never));
+    expect(r).toEqual({ ok: true, value: midgameV3 });
   });
   it('detects accidental corruption via checksum', () => {
     const text = serializeExport(midgame as never).replace('"tickets": 4', '"tickets": 5');
@@ -157,7 +188,7 @@ describe('loader fuzz (RES-7b): never throws, never accepts garbage', () => {
         t = t.slice(0, pos) + chars[Math.floor(rand() * chars.length)] + t.slice(pos + 1);
       }
       const r = parseImport(t);
-      if (r.ok) expect(validateSaveV2(r.value).ok).toBe(true);
+      if (r.ok) expect(validateSaveV3(r.value).ok).toBe(true);
       expect(() => migrateToCurrent(safeParse(t))).not.toThrow();
     }
   });
@@ -214,6 +245,71 @@ describe('IndexedDB persistence (RES-2, RES-3, RES-7d)', () => {
     const db = await freshDb();
     const a = await writeSave(db, createInitialState(T0, 1), -1);
     await backupBeforeImport(db);
+    expect(await db.get('saves', 'backup-before-import')).toEqual(a);
+  });
+});
+
+describe('schema v3 (lot 3, GS-V5-05/06)', () => {
+  it.each([
+    ['level 0', { ...midgameV3, profile: { level: 0, xp: 0 } }],
+    ['level 1000', { ...midgameV3, profile: { level: 1000, xp: 0 } }],
+    ['negative xp', { ...midgameV3, profile: { level: 1, xp: -1 } }],
+    ['stat 101', { ...midgameV3, stats: { ...midgameV3.stats, intel: 101 } }],
+    ['missing stat', { ...midgameV3, stats: { ...midgameV3.stats, intel: undefined } }],
+    ['negative energy', { ...midgameV3, energy: { value: -1, updatedAt: 0 } }],
+    ['energy extra key', { ...midgameV3, energy: { ...midgameV3.energy, x: 1 } }],
+    ['outfit not a string', { ...midgameV3, wardrobe: { outfit: 3 } }],
+    ['v2 shape labelled v3', { ...midgame, schemaVersion: 3 }],
+    ['bad v2 part', { ...midgameV3, tickets: -1 }],
+  ])('rejects %s', (_n, v) => {
+    expect(validateSaveV3(JSON.parse(JSON.stringify(v))).ok).toBe(false);
+  });
+  it('normalises an unknown outfit to the initial one', () => {
+    const r = validateSaveV3({ ...midgameV3, wardrobe: { outfit: 'kimono' } });
+    expect(r.ok && r.value.wardrobe.outfit).toBe('jean');
+  });
+  it('migration is pure and deterministic (no clock read)', () => {
+    expect(migrateToCurrent(midgame)).toEqual(migrateToCurrent(structuredClone(midgame)));
+    expect(withV3(midgame).energy.updatedAt).toBe(midgame.maxSeenAt);
+  });
+});
+
+describe('migration backups (lot 3, MVP v1.3 steps 2, 6, 7, 8 and R12)', () => {
+  it('keeps the raw v2 record once, and never rewrites it on a replay', async () => {
+    const db = await freshDb();
+    await db.put('saves', midgame, 'current');
+    expect(await backupBeforeMigration(db)).toBe(true);
+    expect(await db.get('saves', 'backup-before-migration')).toEqual(midgame);
+    expect(await backupBeforeMigration(db)).toBe(false);
+    expect(await db.get('saves', 'backup-before-migration')).toEqual(midgame);
+  });
+  it('does not back up a v3 current record', async () => {
+    const db = await freshDb();
+    await writeSave(db, createInitialState(T0, 1), -1);
+    expect(await backupBeforeMigration(db)).toBe(false);
+    expect(await db.get('saves', 'backup-before-migration')).toBeUndefined();
+  });
+  it('falls back to backup-before-migration when current and previous are unreadable', async () => {
+    const db = await freshDb();
+    await db.put('saves', midgame, 'backup-before-migration');
+    await db.put('saves', { garbage: true }, 'current');
+    await db.put('saves', 'nope', 'previous');
+    const r = await loadSave(db);
+    expect(r).toEqual({ kind: 'ok', save: withV3(midgame), from: 'backup-before-migration' });
+  });
+  it('refuses a future version without falling back', async () => {
+    const db = await freshDb();
+    await db.put('saves', midgame, 'previous');
+    await db.put('saves', { ...midgameV3, schemaVersion: 4 }, 'current');
+    expect(await loadSave(db)).toEqual({ kind: 'future', version: 4 });
+  });
+  it('backup-before-restore copies current and leaves backup-before-import unchanged (R12)', async () => {
+    const db = await freshDb();
+    const a = await writeSave(db, createInitialState(T0, 1), -1);
+    await backupBeforeImport(db);
+    const b = await writeSave(db, { ...a, tickets: 8 }, a.revision);
+    await backupBeforeRestore(db);
+    expect(await db.get('saves', 'backup-before-restore')).toEqual(b);
     expect(await db.get('saves', 'backup-before-import')).toEqual(a);
   });
 });

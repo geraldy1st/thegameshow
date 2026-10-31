@@ -1,4 +1,11 @@
-import type { AssociateId, FriendId, InvestmentId, QuestId } from '../data/balance';
+import type {
+  AssociateId,
+  FriendId,
+  InvestmentId,
+  OutfitId,
+  QuestId,
+  StatId,
+} from '../data/balance';
 import type { RngState } from './rng';
 
 export type Lang = 'fr' | 'en' | 'es';
@@ -59,4 +66,17 @@ export interface SaveV2 extends Omit<SaveV1, 'schemaVersion' | 'gacha' | 'quests
   quests: SaveV1['quests'] & { quizChoice: number | null };
 }
 
-export type GameState = SaveV2;
+/**
+ * Save schema v3 (lot 3, MVP v5): v2 + Aoi's profile, energy, 10 skills and outfit.
+ * Every v2 field is kept unchanged by the migration (deep equality, GS-V5-05).
+ */
+export interface SaveV3 extends Omit<SaveV2, 'schemaVersion'> {
+  schemaVersion: 3;
+  profile: { level: number; xp: number };
+  /** `updatedAt` is the last instant the recharge was credited (never after maxSeenAt). */
+  energy: { value: number; updatedAt: number };
+  stats: Record<StatId, number>;
+  wardrobe: { outfit: OutfitId };
+}
+
+export type GameState = SaveV3;

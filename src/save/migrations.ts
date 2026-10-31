@@ -1,13 +1,15 @@
-import type { SaveV2 } from '../core/types';
+import { initialV3Fields } from '../core/state';
+import type { SaveV3 } from '../core/types';
 import {
   CURRENT_SCHEMA_VERSION,
   validateSaveV1,
   validateSaveV2,
+  validateSaveV3,
   type ValidationResult,
 } from './schema';
 
 /** Current save type. Bump together with CURRENT_SCHEMA_VERSION. */
-export type CurrentSave = SaveV2;
+export type CurrentSave = SaveV3;
 
 /**
  * Migration chain (RES-7a): MIGRATIONS[n] turns a valid vN object into vN+1.
@@ -23,10 +25,18 @@ export const MIGRATIONS: Readonly<Record<number, Step>> = {
     gacha: { ...(s.gacha as Record<string, unknown>), last: null },
     quests: { ...(s.quests as Record<string, unknown>), quizChoice: null },
   }),
+  // v2 -> v3 (lot 3): every v2 field kept as is; new fields at their exact initial values.
+  // Pure: the energy timestamp is the save's own maxSeenAt (never in its future), not Date.now().
+  2: (s) => ({
+    ...s,
+    schemaVersion: 3,
+    ...initialV3Fields(s.maxSeenAt as number),
+  }),
 };
 
 const VALIDATORS: Readonly<Record<number, (v: unknown) => ValidationResult<unknown>>> = {
   1: validateSaveV1,
+  2: validateSaveV2,
 };
 
 /** Migrates any supported version to the current one and validates the result. Never throws. */
@@ -54,5 +64,5 @@ export function migrateToCurrent(input: unknown): ValidationResult<CurrentSave> 
   } catch {
     return { ok: false, reason: 'migration failed' };
   }
-  return validateSaveV2(data);
+  return validateSaveV3(data);
 }

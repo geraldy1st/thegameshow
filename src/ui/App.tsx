@@ -237,12 +237,13 @@ function WelcomeBack({ store }: { store: Store }) {
 
 function Recovery({ store }: { store: Store }) {
   const reason = useStore(store, (s) => s.recoveryReason);
+  const kind = useStore(store, (s) => s.recoveryKind);
   const [confirm, setConfirm] = useState(false);
   return (
     <main className="app" aria-labelledby="recovery-title">
       <section>
         <h1 id="recovery-title">{t('recoveryTitle')}</h1>
-        <p>{t('recoveryBody')}</p>
+        <p>{kind === 'future' ? t('futureVersion') : t('recoveryBody')}</p>
         <p className="muted">{reason}</p>
         <div className="row">
           <ImportButton store={store} />

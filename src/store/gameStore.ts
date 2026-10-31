@@ -12,6 +12,8 @@ import {
   visitFriend,
 } from '../core/quests';
 import { createInitialState } from '../core/state';
+import { rechargeEnergy } from '../core/energy';
+import { t } from '../i18n/fr';
 import type { GameState, LastPull } from '../core/types';
 import { migrateToCurrent } from '../save/migrations';
 import {
@@ -22,6 +24,8 @@ import {
   writeSave,
   type SaveDb,
   backupBeforeReset,
+  backupBeforeMigration,
+  backupBeforeRestore,
   readRawSlot,
 } from '../save/db';
 import { parseImport, serializeExport } from '../save/exportImport';
@@ -33,6 +37,8 @@ export interface GameStoreState {
   game: GameState | null;
   /** Reason shown on the recovery screen. */
   recoveryReason: string | null;
+  /** Lot 3: why the recovery screen is shown (future version has its own exact text). */
+  recoveryKind: 'corrupt' | 'future' | null;
   /** Last message for the polite live region. */
   announcement: string;
   /** Credited absence shown on the welcome-back screen (not persisted). */
@@ -62,6 +68,12 @@ export interface GameStoreState {
     { kind: 'none' } | { kind: 'unreadable' } | { kind: 'ok'; save: GameState }
   >;
   restoreResetBackup(): Promise<boolean>;
+  /** Lot 3: state of the `backup-before-migration` slot. */
+  migrationBackup(): Promise<
+    { kind: 'none' } | { kind: 'unreadable' } | { kind: 'ok'; save: GameState }
+  >;
+  /** Lot 3: manual rollback to the pre-migration save (MVP v1.3 step 8, R12). */
+  restoreMigrationBackup(): Promise<boolean>;
   flush(): Promise<boolean>;
   announce(message: string): void;
 }
@@ -147,7 +159,7 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
       const now = deps.clock.now();
       const r = settle(rollDay(game, now), now);
       if (r.deferred) set({ absenceMs: get().absenceMs + r.creditedMs });
-      set({ game: fn(r.state) });
+      set({ game: fn(rechargeEnergy(r.state, now)) });
       return true;
     };
 
@@ -170,10 +182,42 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
       return ok;
     };
 
+    /** Reads a backup slot through the migration chain. */
+    const readBackup = async (slot: 'backup-before-reset' | 'backup-before-migration') => {
+      if (!db) return { kind: 'none' as const };
+      const raw = await db.get('saves', slot);
+      if (raw === undefined) return { kind: 'none' as const };
+      const m = migrateToCurrent(raw);
+      return m.ok ? { kind: 'ok' as const, save: m.value } : { kind: 'unreadable' as const };
+    };
+    /** Manual restore: the current record goes to `backup-before-restore` first (R12). */
+    const restoreFrom = async (slot: 'backup-before-reset' | 'backup-before-migration') => {
+      const b = await readBackup(slot);
+      if (b.kind !== 'ok' || !db || get().status === 'readonly') return false;
+      // Flush pending progress so the kept copy is the latest state the player saw.
+      if (!(await persistNow())) return false;
+      await backupBeforeRestore(db);
+      persistedRevision = await storedRevision();
+      const now = deps.clock.now();
+      set({
+        game: {
+          ...b.save,
+          maxSeenAt: Math.min(b.save.maxSeenAt, now),
+          lastSeenAt: Math.min(b.save.lastSeenAt, now),
+          energy: { ...b.save.energy, updatedAt: Math.min(b.save.energy.updatedAt, now) },
+        },
+        status: 'ready',
+        recoveryReason: null,
+        recoveryKind: null,
+      });
+      return persistNow();
+    };
+
     return {
       status: 'loading',
       game: null,
       recoveryReason: null,
+      recoveryKind: null,
       announcement: '',
       absenceMs: 0,
       writeError: false,
@@ -182,10 +226,23 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         const [opened, isWriter] = await Promise.all([deps.openDb(), deps.acquireWriterLock()]);
         db = opened;
         const loaded = await loadSave(db);
-        if (loaded.kind === 'corrupt') {
-          set({ status: 'recovery', recoveryReason: loaded.reason });
+        if (loaded.kind === 'future') {
+          // Refused without any write (MVP v1.3 step 7).
+          set({
+            status: 'recovery',
+            recoveryKind: 'future',
+            recoveryReason: `schemaVersion ${loaded.version}`,
+          });
           return;
         }
+        if (loaded.kind === 'corrupt') {
+          set({ status: 'recovery', recoveryKind: 'corrupt', recoveryReason: loaded.reason });
+          return;
+        }
+        // Only the writer tab keeps the raw pre-migration record (step 1 and 2); a read-only
+        // tab migrates in memory for display and never writes.
+        if (isWriter && loaded.kind === 'ok' && loaded.from === 'current')
+          await backupBeforeMigration(db);
         const now = deps.clock.now();
         const base = loaded.kind === 'ok' ? loaded.save : createInitialState(now, deps.newSeed());
         persistedRevision = await storedRevision();
@@ -195,6 +252,8 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
           status: isWriter ? 'ready' : 'readonly',
           absenceMs: r.deferred ? r.creditedMs : 0,
         });
+        if (loaded.kind === 'ok' && loaded.from !== 'current')
+          set({ announcement: t('restoredFromBackup') });
         if (isWriter) {
           await persistNow();
         }
@@ -264,31 +323,20 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         await committed((g) => markSceneSeen(g, id, scene));
       },
 
-      async resetBackup() {
-        if (!db) return { kind: 'none' };
-        const raw = await db.get('saves', 'backup-before-reset');
-        if (raw === undefined) return { kind: 'none' };
-        const m = migrateToCurrent(raw);
-        return m.ok ? { kind: 'ok', save: m.value } : { kind: 'unreadable' };
+      resetBackup() {
+        return readBackup('backup-before-reset');
       },
 
-      async restoreResetBackup() {
-        const b = await get().resetBackup();
-        if (b.kind !== 'ok' || !db || get().status === 'readonly') return false;
-        await chain;
-        await backupBeforeImport(db);
-        persistedRevision = await storedRevision();
-        const now = deps.clock.now();
-        set({
-          game: {
-            ...b.save,
-            maxSeenAt: Math.min(b.save.maxSeenAt, now),
-            lastSeenAt: Math.min(b.save.lastSeenAt, now),
-          },
-          status: 'ready',
-          recoveryReason: null,
-        });
-        return persistNow();
+      restoreResetBackup() {
+        return restoreFrom('backup-before-reset');
+      },
+
+      migrationBackup() {
+        return readBackup('backup-before-migration');
+      },
+
+      restoreMigrationBackup() {
+        return restoreFrom('backup-before-migration');
       },
 
       async collectOffline() {
@@ -326,7 +374,7 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
           maxSeenAt: Math.min(parsed.value.maxSeenAt, now),
           lastSeenAt: Math.min(parsed.value.lastSeenAt, now),
         };
-        set({ game: imported, status: 'ready', recoveryReason: null });
+        set({ game: imported, status: 'ready', recoveryReason: null, recoveryKind: null });
         await persistNow();
         return { ok: true };
       },
@@ -340,6 +388,7 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
           game: createInitialState(deps.clock.now(), deps.newSeed()),
           status: 'ready',
           recoveryReason: null,
+          recoveryKind: null,
         });
         await persistNow();
       },

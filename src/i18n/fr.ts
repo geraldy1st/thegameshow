@@ -148,11 +148,22 @@ export const fr = {
     'Une copie de ta partie d’avant la dernière remise à zéro est gardée sur cet appareil. Elle sera écrasée à la prochaine remise à zéro.',
   resetBackupRestore: 'Restaurer la partie précédente',
   resetBackupConfirm:
-    'Remplacer ta partie actuelle par la partie précédente ? Ta partie actuelle est gardée sur cet appareil comme copie de secours avant import (écrasée au prochain import ou à la prochaine restauration).',
+    'Remplacer ta partie actuelle par la partie précédente ? Ta partie actuelle est gardée sur cet appareil comme copie de secours avant restauration (écrasée à la prochaine restauration).',
   resetBackupUnreadable: 'La copie gardée est illisible : elle ne peut pas être restaurée.',
   lastPull: 'Dernier tirage : {result}',
   lastPullResumed: 'Dernier tirage (déjà enregistré, rien n’est retiré à nouveau)',
   resetBackupDone: 'Partie précédente restaurée.',
+  // ---- Lot 3: save migration and rollback ----
+  restoredFromBackup: 'Une copie de secours de ta sauvegarde a été restaurée.',
+  futureVersion:
+    "Cette sauvegarde vient d'une version plus récente du jeu. Recharge la page pour obtenir la dernière version.",
+  migrationBackupTitle: 'Sauvegarde d’avant la mise à jour',
+  migrationBackupBody:
+    'Ta partie telle qu’elle était avant la mise à jour du jeu est gardée sur cet appareil.',
+  migrationBackupRestore: 'Restaurer la sauvegarde d’avant la mise à jour',
+  migrationBackupConfirm:
+    'Ta partie actuelle sera remplacée par celle d’avant la mise à jour. Une copie de ta partie actuelle est gardée sur cet appareil jusqu’à la prochaine restauration.',
+  migrationBackupDone: 'Sauvegarde d’avant la mise à jour restaurée.',
 } as const;
 
 export type Messages = { readonly [K in keyof typeof fr]: string };

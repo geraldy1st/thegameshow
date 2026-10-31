@@ -6,11 +6,16 @@ import {
   MAX_STARS,
   PITY_LIMIT,
   QUEST_IDS,
+  BALANCE,
+  MAX_LEVEL,
+  MAX_STAT,
+  OUTFIT_IDS,
+  STAT_IDS,
 } from '../data/balance';
 import { isAmount } from '../core/numbers';
-import type { SaveV1, SaveV2 } from '../core/types';
+import type { SaveV1, SaveV2, SaveV3 } from '../core/types';
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 export type ValidationResult<T> = { ok: true; value: T } | { ok: false; reason: string };
 
@@ -186,6 +191,58 @@ export function validateSaveV2(input: unknown): ValidationResult<SaveV2> {
     const v1 = validateSaveV1({ ...s, schemaVersion: 1, gacha: g1, quests: q1 });
     if (!v1.ok) return v1;
     return { ok: true, value: structuredClone(input) as SaveV2 };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Invalid ? e.message : 'invalid save' };
+  }
+}
+
+const V2_KEYS = [
+  'schemaVersion',
+  'revision',
+  'createdAt',
+  'lastSeenAt',
+  'maxSeenAt',
+  'rng',
+  'yenCents',
+  'pendingOfflineCents',
+  'tickets',
+  'totalClicks',
+  'investments',
+  'gacha',
+  'quests',
+  'friends',
+  'backup',
+  'settings',
+] as const;
+
+/**
+ * Validates a SaveV3 (lot 3): the v2 rules plus profile, energy, stats and wardrobe.
+ * An unknown outfit is normalised to the initial outfit (MVP v1.3). Never throws.
+ */
+export function validateSaveV3(input: unknown): ValidationResult<SaveV3> {
+  try {
+    const s = obj(input, 'save', [...V2_KEYS, 'profile', 'energy', 'stats', 'wardrobe']);
+    if (s.schemaVersion !== 3) throw new Invalid('save.schemaVersion: 3 expected');
+    const profile = obj(s.profile, 'save.profile', ['level', 'xp']);
+    int(profile.level, 'save.profile.level', MAX_LEVEL, 1);
+    int(profile.xp, 'save.profile.xp');
+    const energy = obj(s.energy, 'save.energy', ['value', 'updatedAt']);
+    // Stored values above the max are accepted and clipped by the recharge (GS-V5-10).
+    int(energy.value, 'save.energy.value');
+    int(energy.updatedAt, 'save.energy.updatedAt');
+    const stats = obj(s.stats, 'save.stats', STAT_IDS);
+    for (const k of STAT_IDS) int(stats[k], `save.stats.${k}`, MAX_STAT);
+    const wardrobe = obj(s.wardrobe, 'save.wardrobe', ['outfit']);
+    if (typeof wardrobe.outfit !== 'string')
+      throw new Invalid('save.wardrobe.outfit: string expected');
+    const rest: Obj = {};
+    for (const k of V2_KEYS) rest[k] = s[k];
+    const v2 = validateSaveV2({ ...rest, schemaVersion: 2 });
+    if (!v2.ok) return v2;
+    const value = structuredClone(input) as SaveV3;
+    if (!(OUTFIT_IDS as readonly string[]).includes(value.wardrobe.outfit))
+      value.wardrobe.outfit = BALANCE.profile.initialOutfit;
+    return { ok: true, value };
   } catch (e) {
     return { ok: false, reason: e instanceof Invalid ? e.message : 'invalid save' };
   }
