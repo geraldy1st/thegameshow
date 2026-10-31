@@ -102,3 +102,50 @@ export const SCENES_READY = 1;
 export const REVEAL_MS = 2300;
 export const REVEAL_REDUCED_MS = 180;
 export const SKIP_HOLD_MS = 400;
+
+// ---- v5 (lot 3 onward). Validated by Geraldy on 31/10/2026 "for now" (G-2, G-5 to G-7);
+// balancing will be revisited. Frozen by balance.snapshot.test.ts (R15). ----
+export type OutfitId = 'jean' | 'hoodie' | 'survet' | 'rock';
+export const OUTFIT_IDS: readonly OutfitId[] = ['jean', 'hoodie', 'survet', 'rock'];
+export type StatId =
+  | 'bonheur'
+  | 'social'
+  | 'intel'
+  | 'chance'
+  | 'sante'
+  | 'disc'
+  | 'nego'
+  | 'charisme'
+  | 'crea'
+  | 'repu';
+/** The 10 skills of the mockup, in display order. */
+export const STAT_IDS: readonly StatId[] = [
+  'bonheur',
+  'social',
+  'intel',
+  'chance',
+  'sante',
+  'disc',
+  'nego',
+  'charisme',
+  'crea',
+  'repu',
+];
+export const MAX_STAT = 100;
+export const MAX_LEVEL = 999;
+
+export const BALANCE = {
+  /** G-2: every skill starts at this value. */
+  initialStats: 0,
+  profile: { initialLevel: 1, initialXp: 0, initialOutfit: 'jean' as OutfitId },
+  energy: { max: 50, initial: 50, perSecond: 1 },
+  /** G-5: a boost running while the tab is hidden is lost (wall clock). Lot 4. */
+  boost: { hiddenTab: 'lost' as const },
+  /** G-6: a quiz spanning midnight pays on the day it ends. Lot 5. */
+  quiz: { midnightRule: 'end-day' as const },
+  /** G-7: metro mini-game daily cap. Lot 6. */
+  metro: { paidRunsPerDay: 5, maxYenPerDay: 1000 },
+} as const;
+
+/** XP needed to go from `level` to `level + 1` (mockup curve, not used before lot 4). */
+export const xpNeed = (level: number): number => 20 + level * 10;
