@@ -87,10 +87,12 @@ export interface GameStoreDeps {
   debounceMs?: number;
 }
 
-/** Holds the writer lock for the lifetime of the page when Web Locks exist (RES-3). */
-export function webLocksWriter(): Promise<boolean> {
-  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
-  if (!locks) return Promise.resolve(true); // fallback: revision compare-and-set only
+/** Delays (ms) between writer lock attempts: a tab closed a moment ago may still hold it (DEF-GS-13). */
+export const WRITER_LOCK_RETRY_MS: readonly number[] = [50, 100, 200, 400, 800];
+
+type LockManagerLike = Pick<LockManager, 'request'>;
+
+function tryWriterLock(locks: LockManagerLike): Promise<boolean> {
   return new Promise((resolve) => {
     void locks.request('thegameshow-writer', { ifAvailable: true }, (lock) => {
       if (!lock) {
@@ -101,6 +103,27 @@ export function webLocksWriter(): Promise<boolean> {
       return new Promise<void>(() => undefined); // never released while the page lives
     });
   });
+}
+
+/**
+ * Holds the writer lock for the lifetime of the page when Web Locks exist (RES-3).
+ * WebKit may release the lock of a just-closed tab late (DEF-GS-13): retry with a short,
+ * bounded backoff (about 1.5 s in total) before falling back to read-only.
+ */
+export async function webLocksWriter(
+  locks: LockManagerLike | undefined = typeof navigator !== 'undefined'
+    ? navigator.locks
+    : undefined,
+  retryMs: readonly number[] = WRITER_LOCK_RETRY_MS,
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+): Promise<boolean> {
+  if (!locks) return true; // fallback: revision compare-and-set only
+  if (await tryWriterLock(locks)) return true;
+  for (const ms of retryMs) {
+    await sleep(ms);
+    if (await tryWriterLock(locks)) return true;
+  }
+  return false;
 }
 
 export const randomSeed = (): number => crypto.getRandomValues(new Uint32Array(1))[0] ?? 1;
