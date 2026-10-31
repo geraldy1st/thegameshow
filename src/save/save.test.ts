@@ -68,7 +68,7 @@ describe('golden saves and migration chain (RES-7a)', () => {
       }),
     );
   });
-  it('v1-initial migrates to exactly v2-initial', () => {
+  it('v1-initial migrates to exactly v3-initial (through v2)', () => {
     expect(migrateToCurrent(initialV1)).toEqual({ ok: true, value: initialV3 });
   });
   it('refuses an invalid v1 before migrating it', () => {
