@@ -34,6 +34,7 @@ try {
       timeout: 30_000,
     },
   );
+  await page.waitForLoadState('load');
   await page.waitForTimeout(500);
   rows = await page.evaluate(() =>
     [
