@@ -6,6 +6,7 @@
 import type { StoreApi } from 'zustand/vanilla';
 import type { ManualClock } from './core/clock';
 import { createRng } from './core/rng';
+import { BALANCE } from './data/balance';
 import type { GameStoreState } from './store/gameStore';
 
 export interface TestHook {
@@ -17,6 +18,8 @@ export interface TestHook {
   seed(n: number): Promise<boolean>;
   setTickets(n: number): Promise<boolean>;
   setPity(n: number): Promise<boolean>;
+  /** Test build only (lot 3, DEF-GS-14): set the energy (clamped 0..max) at the harness clock, then persist. */
+  setEnergy(n: number): Promise<boolean>;
 }
 
 declare global {
@@ -46,5 +49,12 @@ export function installTestHook(store: StoreApi<GameStoreState>, clock: ManualCl
       const g = store.getState().game;
       return g ? patch({ gacha: { ...g.gacha, pity: n } }) : Promise.resolve(false);
     },
+    setEnergy: (n) =>
+      patch({
+        energy: {
+          value: Math.max(0, Math.min(BALANCE.energy.max, Math.floor(n))),
+          updatedAt: clock.now(),
+        },
+      }),
   };
 }

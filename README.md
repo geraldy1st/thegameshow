@@ -26,7 +26,7 @@ CSS de base pour un téléphone en portrait (360 px, une main), agrandissement p
 
 ### Mode de test
 
-Uniquement dans `build:test-harness` (`import.meta.env.MODE === 'test-harness'`) : URL `?now=<ms>&seed=<n>`, puis `window.__TGS_TEST__` (`now`, `setNow`, `advance(ms)`, `state()`, et au lot 2 `seed(n)`, `setTickets(n)`, `setPity(n)`). Éliminé du build de production (vérifié en CI).
+Uniquement dans `build:test-harness` (`import.meta.env.MODE === 'test-harness'`) : URL `?now=<ms>&seed=<n>`, puis `window.__TGS_TEST__` (`now`, `setNow`, `advance(ms)`, `state()`, au lot 2 `seed(n)`, `setTickets(n)`, `setPity(n)`, au lot 3 `setEnergy(n)`). Le harnais **n'injecte pas de sauvegarde brute** : les tests E2E écrivent directement dans IndexedDB (`thegameshow` / `saves`) avant le chargement (voir `e2e/lot3.spec.ts`, `seed`). Éliminé du build de production (vérifié en CI, y compris par nom de point d'accès).
 
 ## Structure
 

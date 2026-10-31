@@ -10,6 +10,8 @@ if (!existsSync(dir)) {
 }
 const FORBIDDEN = [
   ['test harness', /__TGS_TEST__|installTestHook|test-harness/],
+  // Harness entry points by name (DEF-GS-14): they must never reach production.
+  ['test harness entry point', /\b(setEnergy|setPity|setTickets)\b/],
   ['payment API (ethics rule 5)', /PaymentRequest|stripe|checkout\.js/i],
   ['push notifications (ethics rule 11)', /Notification\.requestPermission|pushManager/],
 ];
