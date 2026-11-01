@@ -110,7 +110,7 @@ describe('daily quiz (DEF-GS-06)', () => {
     fireEvent.click(screen.getByRole('button', { name: /Quêtes du jour/ }));
     // 0.4.2 (1b): the unfinished quiz row is itself the button that opens the quiz.
     const row = screen.getByRole('button', { name: /^Quiz de Kyoko-sensei/ });
-    expect(row.getAttribute('aria-describedby')).toBe('quest-dot-quiz');
+    expect(row.getAttribute('aria-describedby')).toBe('desc-quest-row-todo');
     fireEvent.click(row);
     const quiz = screen.getByRole('dialog', { name: 'Quiz de Kyoko-sensei' });
     expect(screen.getByRole('dialog', { name: 'Quêtes du jour' })).toBeTruthy();

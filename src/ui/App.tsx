@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Dot, Modal } from './common';
+import { DESC_TODO, Dot, DotDescription, Modal } from './common';
 import { pendingQuestsFor } from '../core/questTargets';
 import { download, claimableCount, revealPending } from './helpers';
 import { Home } from './Home';
-import { goHome, navigate, replaceRoute, useRoute, type Route } from './router';
+import { currentRoute, goHome, navigate, replaceRoute, useRoute, type Route } from './router';
 import { Partners } from './Partners';
 import { Friends } from './Friends';
 import { Quests } from './Quests';
@@ -390,12 +390,12 @@ function TabBar({ store, route }: { store: Store; route: Route }) {
             type="button"
             className={`tab ${on ? 'on' : ''}`}
             aria-current={section ? 'true' : on ? 'page' : undefined}
-            aria-describedby={todo ? `dot-tab-${id}` : undefined}
+            aria-describedby={todo ? DESC_TODO : undefined}
             onClick={() => (id === 'home' ? goHome() : navigate(id))}
           >
             <span aria-hidden="true">{TAB_ICON[id]}</span>
             {t(TAB_LABEL[id])}
-            {todo && <Dot id={`dot-tab-${id}`} label={t('questTodo')} />}
+            {todo && <Dot />}
           </button>
         );
       })}
@@ -437,9 +437,21 @@ export function App({ store }: { store: Store }) {
   // quests dialog focuses its own title). A focus() on an element made inert by an open
   // dialog is ignored, so a dialog keeps the focus.
   const shown = status === 'ready' || status === 'readonly';
+  // Patch 0.4.2 (GS-V5-66): closing the quests dialog back to home gives the focus back to
+  // the opener (done by the Modal), not to the h1.
+  const prevRoute = useRef<Route>(route);
   useEffect(() => {
+    const from = prevRoute.current;
+    prevRoute.current = route;
     if (!shown || route === 'quests') return;
-    document.querySelector<HTMLElement>('main .screen-title')?.focus();
+    const focusTitle = () => document.querySelector<HTMLElement>('main .screen-title')?.focus();
+    if (from === 'quests' && route === 'home') {
+      // No opener to go back to (direct link #quests): the focus is left on the body or in the
+      // closed dialog, so fall back to the h1.
+      const a = document.activeElement;
+      if (a && a !== document.body && !a.closest('dialog')) return;
+    }
+    focusTitle();
   }, [route, shown]);
 
   useEffect(() => {
@@ -507,7 +519,13 @@ export function App({ store }: { store: Store }) {
         {screen === 'partners' && <Partners store={store} />}
       </main>
       <TabBar store={store} route={route} />
-      <Quests store={store} open={route === 'quests'} onClose={() => goHome()} />
+      <DotDescription id={DESC_TODO} label={t('questTodo')} />
+      <Quests
+        store={store}
+        open={route === 'quests'}
+        // The dialog also fires `close` when a quest row has already opened another screen.
+        onClose={() => currentRoute() === 'quests' && goHome()}
+      />
       {live}
     </div>
   );

@@ -5,7 +5,7 @@ import { questDone } from '../core/quests';
 import { t, type MessageKey } from '../i18n/fr';
 import type { GameStoreState } from '../store/gameStore';
 import { QUEST_TARGET } from '../core/questTargets';
-import { Dot, Modal, Portrait } from './common';
+import { DESC_ROW_TODO, Dot, DotDescription, Modal, Portrait } from './common';
 import { navigate } from './router';
 import { todayQuestion } from './helpers';
 
@@ -85,11 +85,11 @@ function QuestRow({ store, id, onQuiz }: { store: Store; id: QuestId; onQuiz: ()
           type="button"
           id={`quest-action-${id}`}
           className="quest-text quest-go"
-          aria-describedby={`quest-dot-${id}`}
+          aria-describedby={DESC_ROW_TODO}
           onClick={go}
         >
           {body}
-          <Dot id={`quest-dot-${id}`} label={t('questRowTodo')} />
+          <Dot />
         </button>
       ) : (
         <div className="quest-text">{body}</div>
@@ -168,6 +168,7 @@ export function Quests({
           ))}
         </ul>
         <p className="meta">{t('noStreak')}</p>
+        <DotDescription id={DESC_ROW_TODO} label={t('questRowTodo')} />
       </Modal>
       {open && quiz && <Quiz store={store} onClose={closeQuiz} />}
     </>

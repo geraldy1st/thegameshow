@@ -1705,8 +1705,18 @@ dialog .stats .bar i {
   right: calc(50% - 22px);
 }
 .hub-btn .dot {
-  top: 4px;
-  right: 4px;
+  top: 0;
+  right: 0;
+}
+/* The tile keeps its illustration clear of the dot: a 12 px band on top, taken from the art. */
+.hub-btn.has-dot {
+  /* Only when the art is big enough to reach the corner; the tile height does not change. */
+  --dot-band: clamp(0px, calc(33cqh - 76px), 12px);
+  padding-top: var(--dot-band);
+}
+.hub-btn.has-dot .hub-ill {
+  width: clamp(20px, calc(33cqh - 24px - var(--dot-band)), 76px);
+  height: clamp(20px, calc(33cqh - 24px - var(--dot-band)), 76px);
 }
 /* The quests card keeps its text clear of the dot (no overlap, R-P42 Q2). */
 .info.has-dot {
@@ -1742,7 +1752,7 @@ dialog .stats .bar i {
 }
 .dlg-head .dlg-close {
   margin: 0;
-  min-height: 44px;
+  min-height: 46px;
   flex: none;
 }
 /* Point 1b: an unfinished quest is one native button (name, progress, reward). */
@@ -1777,10 +1787,10 @@ dialog .stats .bar i {
 /* Points 3a–3e: no « ← Accueil », no Roman / Presse; Aoi is the target, the document is
    decoration only. R-P42-2: one gesture = one tap (no double-tap zoom, no text selection). */
 .aoi-hit {
-  left: 6%;
-  top: 22%;
-  width: 62%;
-  height: 56%;
+  left: 4%;
+  top: 20%;
+  width: 70%;
+  height: 60%;
   border-radius: 24px;
   touch-action: manipulation;
   user-select: none;
@@ -1864,4 +1874,60 @@ dialog .stats li b {
 }
 dialog:has(.stats) .btn {
   min-height: 44px;
+}
+@media (max-height: 900px) {
+  /* Wrapped labels must still fit above the tab bar at 120 % font (GS-V5-64 f). */
+  .app.is-home .infos .info > h2,
+  .app.is-quests .infos .info > h2 {
+    line-height: 1.05;
+  }
+  .app.is-home .infos .info > .info-big,
+  .app.is-quests .infos .info > .info-big {
+    font-size: calc(var(--fs-sm) * 0.92);
+    line-height: 1.05;
+  }
+  .app.is-home .info.has-dot,
+  .app.is-quests .info.has-dot {
+    padding-right: 16px;
+  }
+}
+@media (max-height: 720px) {
+  /* Patch 0.4.2: room for the wrapped info labels in the read-only state (banner shown). */
+  .app.is-home .infos .info,
+  .app.is-quests .infos .info {
+    padding-block: 5px;
+    gap: 2px;
+  }
+}
+/* Patch 0.4.2: twelve columns so the quests card (with its dot) keeps one-line labels while
+   the offline gains card keeps room for « Récolter ». */
+.app.is-home .infos,
+.app.is-quests .infos {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+.app.is-home .infos .info.goal,
+.app.is-quests .infos .info.goal {
+  grid-column: span 8;
+}
+.app.is-home .infos .info.stats,
+.app.is-quests .infos .info.stats {
+  grid-column: span 4;
+}
+.app.is-home .infos .info:has(#quests-card-title),
+.app.is-quests .infos .info:has(#quests-card-title) {
+  grid-column: span 5;
+}
+.app.is-home .infos .info:has(#offline-title),
+.app.is-quests .infos .info:has(#offline-title) {
+  grid-column: span 7;
+}
+/* With « Récolter » shown, the offline card keeps its 0.4.1 one-line labels (the button needs
+   the width); its full text stays in the accessible name. */
+.app.is-home .infos .info:has(.btn) > h2,
+.app.is-home .infos .info:has(.btn) > .info-big,
+.app.is-quests .infos .info:has(.btn) > h2,
+.app.is-quests .infos .info:has(.btn) > .info-big {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Dot, Modal } from './common';
+import { DESC_TODO, Dot, Modal } from './common';
 import { pendingQuests, pendingQuestsFor } from '../core/questTargets';
 import { navigate } from './router';
 import { useStore, type StoreApi } from 'zustand';
@@ -69,13 +69,13 @@ function WorkTile({ store, ill, name }: { store: Store; ill: ReactNode; name: st
   return (
     <button
       type="button"
-      className="hub-btn is-open"
-      aria-describedby={todo ? 'dot-tile-work' : undefined}
+      className={todo ? 'hub-btn is-open has-dot' : 'hub-btn is-open'}
+      aria-describedby={todo ? DESC_TODO : undefined}
       onClick={() => navigate('work')}
     >
       {ill}
       <span className="hub-lbl">{name}</span>
-      {todo && <Dot id="dot-tile-work" label={t('questTodo')} />}
+      {todo && <Dot />}
     </button>
   );
 }
@@ -197,9 +197,9 @@ function Infos({ store }: { store: Store }) {
       <article
         className="card info has-dot"
         aria-labelledby="quests-card-title"
-        aria-describedby={todo ? 'dot-quests-card' : undefined}
+        aria-describedby={todo ? DESC_TODO : undefined}
       >
-        {todo && <Dot id="dot-quests-card" label={t('questTodo')} />}
+        {todo && <Dot />}
         <h2 id="quests-card-title">{t('questsCardTitle')}</h2>
         <p className="info-big num">{t('questsCardBig', { a: done, b: QUEST_IDS.length })}</p>
         <p className="small">{t('questsCardSub')}</p>

@@ -126,7 +126,6 @@ export const fr = {
   claimed: 'Récupéré ✓',
   claimDone: '+{n} tickets récupérés',
   noStreak: 'Pas de série : rate un jour sans rien perdre. Maximum 7 tickets par jour.',
-  quizOpen: 'Répondre au quiz',
   quizTitle: 'Quiz de Kyoko-sensei',
   quizRight: 'Bonne réponse !',
   quizWrong: 'Pas tout à fait. La bonne réponse : {a}',
