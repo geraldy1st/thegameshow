@@ -24,6 +24,8 @@ export function shouldUseStill(e: MediaEnv): boolean {
 export interface MediaOverride {
   systemReduced?: boolean;
   connection?: { saveData?: boolean; effectiveType?: string } | null;
+  /** Simulates a browser that refuses play() (autoplay policy, Low Power Mode). */
+  refusePlay?: boolean;
 }
 let override: MediaOverride | null = null;
 const listeners = new Set<() => void>();
@@ -50,4 +52,10 @@ export function readMediaEnv(setting: MediaEnv['setting']): MediaEnv {
     setting,
     connection: conn ? { saveData: conn.saveData, effectiveType: conn.effectiveType } : undefined,
   };
+}
+
+/** play() honouring the harness refusal; a rejected promise keeps the poster. */
+export function playVideo(v: HTMLVideoElement): Promise<void> {
+  if (override?.refusePlay) return Promise.reject(new Error('play refused (harness)'));
+  return v.play() ?? Promise.resolve();
 }

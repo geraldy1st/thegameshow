@@ -11,7 +11,19 @@ if (!existsSync(dir)) {
 const FORBIDDEN = [
   ['test harness', /__TGS_TEST__|installTestHook|test-harness/],
   // Harness entry points by name (DEF-GS-14): they must never reach production.
-  ['test harness entry point', /\b(setEnergy|setPity|setTickets)\b/],
+  // Lot 4 keys (ARCHITECTURE-LOT4 §7 bis): object properties survive minification.
+  ...[
+    'setEnergy',
+    'setPity',
+    'setTickets',
+    'loadSave',
+    'seedRng',
+    'setVisibility',
+    'setCursor',
+    'boostShow',
+    'boostPhase',
+    'mediaOverride',
+  ].map((k) => [`test harness entry point ${k}`, new RegExp(`\\b${k}\\b`)]),
   ['payment API (ethics rule 5)', /PaymentRequest|stripe|checkout\.js/i],
   ['push notifications (ethics rule 11)', /Notification\.requestPermission|pushManager/],
 ];

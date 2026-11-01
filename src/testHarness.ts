@@ -8,6 +8,31 @@ import type { ManualClock } from './core/clock';
 import { createRng } from './core/rng';
 import { BALANCE } from './data/balance';
 import type { GameStoreState } from './store/gameStore';
+import type { BoostPhase } from './core/boost';
+import { boostStore, forceShow, seedBoost } from './ui/work/boostStore';
+import { setMediaOverride, type MediaOverride } from './ui/work/media';
+
+/**
+ * Controlled key list (ARCHITECTURE-LOT4 §7 bis): every key of `__TGS_TEST__` must be here, and
+ * every specific key is searched in the minified production build by tools/check-no-test-hook.mjs.
+ */
+export const HARNESS_KEYS = [
+  'now',
+  'setNow',
+  'advance',
+  'state',
+  'seed',
+  'setTickets',
+  'setPity',
+  'setEnergy',
+  'loadSave',
+  'seedRng',
+  'setVisibility',
+  'setCursor',
+  'boostShow',
+  'boostPhase',
+  'mediaOverride',
+] as const;
 
 export interface TestHook {
   now(): number;
@@ -20,6 +45,20 @@ export interface TestHook {
   setPity(n: number): Promise<boolean>;
   /** Test build only (lot 3, DEF-GS-14): set the energy (clamped 0..max) at the harness clock, then persist. */
   setEnergy(n: number): Promise<boolean>;
+  /** Lot 4: validate, migrate and write `obj` through the normal compare-and-set; refuses an invalid object. */
+  loadSave(obj: unknown): Promise<boolean>;
+  /** Lot 4: seed of the boost rng (40-60 s gap); restarts the boost cycle at the harness clock. */
+  seedRng(n: number): void;
+  /** Lot 4: override document.visibilityState and fire visibilitychange. */
+  setVisibility(v: 'visible' | 'hidden'): void;
+  /** Lot 4: fix the gauge cursor (0..1), or null for the normal triangle wave. */
+  setCursor(p: number | null): void;
+  /** Lot 4: show the boost now. */
+  boostShow(): void;
+  /** Lot 4: current boost phase. */
+  boostPhase(): BoostPhase;
+  /** Lot 4: force reduced motion, Save-Data, effectiveType or a refused play(); null resets. */
+  mediaOverride(o: MediaOverride | null): void;
 }
 
 declare global {
@@ -56,5 +95,18 @@ export function installTestHook(store: StoreApi<GameStoreState>, clock: ManualCl
           updatedAt: clock.now(),
         },
       }),
+    loadSave: async (obj) => (await store.getState().importSave(JSON.stringify(obj))).ok,
+    seedRng: (n) => seedBoost(n, clock.now()),
+    setVisibility: (v) => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => v });
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => v === 'hidden' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    },
+    setCursor: (p) => boostStore.setState({ cursor: p }),
+    boostShow: () => {
+      forceShow(clock.now());
+    },
+    boostPhase: () => boostStore.getState().boost.phase,
+    mediaOverride: (o) => setMediaOverride(o),
   };
 }

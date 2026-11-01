@@ -18,7 +18,7 @@
     "test": "vitest run",
     "check:no-test-hook": "node tools/check-no-test-hook.mjs",
     "check:all": "npm run typecheck && npm run lint && npm run test && npm run build && npm run check:no-test-hook && npm run check:no-budget-fake",
-    "check:harness-detected": "npm run build:test-harness && node -e \"const r=require('child_process').spawnSync('node',['tools/check-no-test-hook.mjs','dist-test']);process.exit(r.status===1?0:1)\"",
+    "check:harness-detected": "npm run build:test-harness && node tools/check-harness-detected.mjs dist-test",
     "test:e2e": "playwright test",
     "check:no-budget-fake": "node tools/check-no-budget-fake.mjs",
     "budget:home": "node tools/measure-home-budget.mjs dist",

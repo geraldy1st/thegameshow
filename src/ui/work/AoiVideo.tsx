@@ -1,3 +1,4 @@
+import { playVideo } from './media';
 import { useEffect, useRef, useState } from 'react';
 
 export type AoiState = 'work' | 'think' | 'joy';
@@ -32,7 +33,7 @@ export function AoiVideo({ state, still }: { state: AoiState; still: boolean }) 
         if (s !== 'work') v.currentTime = 0;
         if (document.visibilityState === 'visible') {
           try {
-            void v.play()?.catch(() => undefined);
+            void playVideo(v).catch(() => undefined);
           } catch {
             /* play() refused: the poster stays */
           }
@@ -47,7 +48,7 @@ export function AoiVideo({ state, still }: { state: AoiState; still: boolean }) 
       const v = refs.current[state];
       if (!v) return;
       if (document.visibilityState === 'hidden') v.pause();
-      else void v.play()?.catch(() => undefined);
+      else void playVideo(v).catch(() => undefined);
     };
     document.addEventListener('visibilitychange', onVis);
     return () => document.removeEventListener('visibilitychange', onVis);
