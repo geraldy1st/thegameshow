@@ -23,3 +23,10 @@
 - Recette Crypto : GO AVEC RÉSERVES (db109ce). Corrigés : DEF-GS-15 (oracle), DEF-GS-16, DEF-GS-17, R-LOT4-1 (correctif 0.3.2 en patch, non poussé), R-LOT4-2 (simulation + comparaison adoptées).
 - Contrôles : vitest 212, E2E Chromium tout vert ; lot2 « rechargement pendant la révélation » ×20 : 40/40, ×50 : 100/100 (2 moteurs) ; aller-retour 0.3.2 ↔ 0.4.1 : 5/5 (Chromium) ; accueil 336,6 Ko / 500 Ko ; §2.4 : 0 champ différent.
 - Reste : R-LOT4-3 (stocker l'énergie pour le boost : 1,72, équilibrage non touché), R-LOT4-4/5, fiche iPhone, crash vidéo de WebKit local (#work testé en CI).
+
+## 2026-11-01 — Lot 4 publié (0.4.1)
+
+- Publication selon la consigne permanente de Geraldy (31/10) ; recette Crypto GO AVEC RÉSERVES sur 9fa3e02.
+- `main` avancé en avance rapide 5894cb8 → 9fa3e02 (aucun changement de contenu) ; 0.3.2 non publiée (patch dans `hotfix-0.3.2/`).
+- pages.yml run 41332459752 : build, check:no-test-hook, check:no-budget-fake, budgets accueil/Travailler, déploiement OK.
+- Fumée sur https://geraldy1st.github.io/thegameshow/ (360×640) : 200, « Accueil » sans défilement (640/640), tuile Travailler sans cadenas → `#work`, onglet Menu → Paramètres (Sauvegarde, Exporter, Importer), aucun harnais (`__TGS_TEST__`, `setEnergy`, `loadSave` absents du JS), accueil 336,8 Ko / 500 Ko, 0 erreur console, 0 réponse ≥ 400 ; bundle identique au build local.
