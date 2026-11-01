@@ -267,7 +267,7 @@ export function Work({ store }: { store: Store }) {
           <span className="small">{t('workPoints')}</span>
           <b className="num">{formatYen(work.points)}</b>
         </p>
-        <p className="small rate-l">{t('workRate', { n: value })}</p>
+        <p className="small rate-l">{t('workRate')}</p>
         <button
           type="button"
           className="btn btn-primary"

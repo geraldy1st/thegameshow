@@ -66,7 +66,125 @@ async function watchLive(page: Page) {
 const live = (page: Page) =>
   page.evaluate(() => (window as unknown as { __live: string[] }).__live);
 
+/**
+ * DEF-GS-18: computed contrast of an element's text and border against its effective background
+ * (its own and its ancestors' background colours composited over white, alpha included).
+ */
+async function contrastOf(page: Page, selector: string) {
+  return page.evaluate((sel) => {
+    const parse = (c: string) => {
+      const m = c.match(/[\d.]+/g)!.map(Number);
+      return { r: m[0], g: m[1], b: m[2], a: m.length > 3 ? m[3] : 1 };
+    };
+    type C = ReturnType<typeof parse>;
+    const over = (top: C, under: C): C => ({
+      r: top.r * top.a + under.r * (1 - top.a),
+      g: top.g * top.a + under.g * (1 - top.a),
+      b: top.b * top.a + under.b * (1 - top.a),
+      a: 1,
+    });
+    const lum = (c: C) => {
+      const f = (v: number) => {
+        const x = v / 255;
+        return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+    };
+    const ratio = (a: C, b: C) => {
+      const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
+      return (x + 0.05) / (y + 0.05);
+    };
+    const backOf = (from: Element | null) => {
+      const layers: C[] = [];
+      for (let e = from; e; e = e.parentElement) {
+        const bg = parse(getComputedStyle(e).backgroundColor);
+        if (bg.a > 0) layers.push(bg);
+        if (bg.a >= 1) break;
+      }
+      return layers.reduceRight((acc, l) => over(l, acc), { r: 255, g: 255, b: 255, a: 1 });
+    };
+    return [...document.querySelectorAll<HTMLElement>(sel)]
+      .filter((el) => el.getClientRects().length > 0)
+      .map((el) => {
+        const cs = getComputedStyle(el);
+        const back = backOf(el);
+        const around = backOf(el.parentElement);
+        const text = over(parse(cs.color), back);
+        const border = over(parse(cs.borderTopColor), around);
+        return {
+          name: (el.textContent ?? '').trim(),
+          text: Math.round(ratio(text, back) * 100) / 100,
+          border:
+            parseFloat(cs.borderTopWidth) > 0
+              ? Math.round(ratio(border, around) * 100) / 100
+              : null,
+        };
+      });
+  }, selector);
+}
+
+test('DEF-GS-18: every visible .btn-ghost is readable (screens and their dialogs)', async ({
+  page,
+}) => {
+  await start(page);
+  await page.evaluate(async (save) => {
+    if (!(await window.__TGS_TEST__!.loadSave(save))) throw new Error('loadSave refused');
+  }, midgame);
+  const seen: string[] = [];
+  const check = async (where: string) => {
+    for (const c of await contrastOf(page, '.btn-ghost')) {
+      seen.push(`${where}: ${c.name} ${c.text}/${c.border}`);
+      expect(c.text, `${where} « ${c.name} » text`).toBeGreaterThanOrEqual(4.5);
+      if (c.border !== null)
+        expect(c.border, `${where} « ${c.name} » border`).toBeGreaterThanOrEqual(3);
+    }
+  };
+  for (const hash of ['home', 'invest', 'friends', 'partners', 'settings']) {
+    await page.goto(`./#${hash}`);
+    await page.waitForFunction(() => !!window.__TGS_TEST__?.state());
+    await check(hash);
+  }
+  // « Nouvelle partie » (its dialog), then the reset backup's restore confirmation.
+  await page.getByRole('button', { name: 'Nouvelle partie' }).click();
+  await check('settings reset dialog');
+  await page.locator('dialog[open] .btn-danger').click();
+  await page.goto('./#settings');
+  await page.waitForFunction(() => !!window.__TGS_TEST__?.state());
+  await expect(page.getByRole('button', { name: 'Restaurer la partie précédente' })).toBeVisible();
+  await check('settings after reset');
+  const openers = page.locator('main .btn-ghost', {
+    hasText: /Restaurer|Revenir|partie précédente/,
+  });
+  for (let i = 0; i < (await openers.count()); i++) {
+    await openers.nth(i).click();
+    if (await page.locator('dialog[open]').count()) {
+      await check(`settings dialog ${i}`);
+      await page.keyboard.press('Escape');
+      await expect(page.locator('dialog[open]')).toHaveCount(0);
+    }
+  }
+  console.log(seen.join('\n'));
+  expect(seen.some((x) => x.startsWith('settings dialog'))).toBe(true);
+});
+
 test.describe('quests (GS-V5-66 to 69)', () => {
+  for (const vp of [
+    { width: 360, height: 640 },
+    { width: 390, height: 844 },
+  ]) {
+    test(`DEF-GS-18: « Fermer » is readable on the light dialog head at ${vp.width}x${vp.height}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(vp);
+      await start(page);
+      await page.getByRole('button', { name: 'Quêtes du jour' }).click();
+      await expect(page.locator('.dlg-close')).toBeVisible();
+      const [c] = await contrastOf(page, 'dialog[open] .dlg-close');
+      expect(c.name).toBe('Fermer');
+      expect(c.text, 'text').toBeGreaterThanOrEqual(4.5);
+      expect(c.border, 'border').toBeGreaterThanOrEqual(3);
+    });
+  }
   for (const font of ['100%', '120%']) {
     test(`GS-V5-66: one « Fermer », top right, visible without scrolling (font ${font})`, async ({
       page,
@@ -451,6 +569,48 @@ test.describe('Travailler (GS-V5-73 to 78)', () => {
       );
       expect(top - REF_TOP, `${vp.width}x${vp.height}`).toBeGreaterThanOrEqual(16);
     }
+  });
+
+  test('GS-V5-77 / DEF-GS-19: the conversion panel is ≤ 64 px, one-line rate, button ≥ 44 px', async ({
+    page,
+  }) => {
+    // 0.4.1 / 5c7ffa2 references (Crypto): 121 px, then 89 px at 360x640 and 70 px at 390x844.
+    await openWork(page);
+    for (const label of ['fresh', 'large points']) {
+      if (label === 'large points') {
+        await page.evaluate(async () => {
+          const h = window.__TGS_TEST__!;
+          const g = h.state()!;
+          const work = { ...g.work, points: 987654, pointsTotal: 987654 };
+          if (!(await h.loadSave({ ...g, work }))) throw new Error('loadSave refused');
+        });
+        await expect(page.locator('.work-panel .num')).toHaveText(/987/);
+      }
+      for (const vp of [
+        { width: 360, height: 640 },
+        { width: 390, height: 844 },
+      ]) {
+        await page.setViewportSize(vp);
+        const m = await page.evaluate(() => {
+          const panel = document.querySelector('.work-panel')!;
+          const rate = panel.querySelector<HTMLElement>('.rate-l')!;
+          const lh = parseFloat(getComputedStyle(rate).lineHeight);
+          return {
+            panel: panel.getBoundingClientRect().height,
+            rateLines: Math.round(rate.getBoundingClientRect().height / lh),
+            rateCut: rate.scrollWidth > rate.clientWidth + 0.5,
+            button: panel.querySelector('.btn')!.getBoundingClientRect().height,
+          };
+        });
+        const at = `${vp.width}x${vp.height} ${label}`;
+        console.log(at, JSON.stringify(m));
+        expect(m.panel, at).toBeLessThanOrEqual(64);
+        expect(m.rateLines, at).toBe(1);
+        expect(m.rateCut, at).toBe(false);
+        expect(m.button, at).toBeGreaterThanOrEqual(44);
+      }
+    }
+    await expect(page.locator('.work-panel .rate-l')).toHaveText('100 pts = 10 ¥');
   });
 
   test('GS-V5-78 / R-P42-6: Aoi shows ≥ 120 % of the 0.4.1 source height at 360x640', async ({

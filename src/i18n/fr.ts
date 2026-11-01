@@ -173,7 +173,7 @@ export const fr = {
   workDocLabel: 'Écrire avec Aoi (1 énergie, +{n} pts)',
   workDocHint: 'Touche Aoi pour écrire',
   workPoints: 'Points',
-  workRate: 'Taux : 100 pts = 10 ¥ · +{n} pts par frappe',
+  workRate: '100 pts = 10 ¥',
   workConvert: 'Convertir en Yen',
   workConvertMin: 'Il faut 100 pts minimum',
   workConverted: '+{n} ¥ · Créativité +1',
