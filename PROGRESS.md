@@ -30,3 +30,10 @@
 - `main` avancé en avance rapide 5894cb8 → 9fa3e02 (aucun changement de contenu) ; 0.3.2 non publiée (patch dans `hotfix-0.3.2/`).
 - pages.yml run 41332459752 : build, check:no-test-hook, check:no-budget-fake, budgets accueil/Travailler, déploiement OK.
 - Fumée sur https://geraldy1st.github.io/thegameshow/ (360×640) : 200, « Accueil » sans défilement (640/640), tuile Travailler sans cadenas → `#work`, onglet Menu → Paramètres (Sauvegarde, Exporter, Importer), aucun harnais (`__TGS_TEST__`, `setEnergy`, `loadSave` absents du JS), accueil 336,8 Ko / 500 Ko, 0 erreur console, 0 réponse ≥ 400 ; bundle identique au build local.
+
+## 2026-11-01 — Patch 0.4.2 codé (branche `patch-042`, non publié)
+
+- GO AVEC RÉSERVES de Crypto pour coder (pas pour publier) ; docs patch v1.1 avec les 12 réserves (copies v1.0 hors dépôt).
+- Contrôles locaux : vitest 255 ; E2E Chromium 59/59 (lots 1-4 + patch042) ; WebKit local 45/59, les 14 échecs sont tous sur `#work` (crash connu à l'affichage d'une vidéo) ; mutation « hors zone → hit » détectée (4 unitaires + 2 E2E) ; lot2 ×50 : 450/450 ; `workSim` : tapeur continu 1,071, actif 1,041, idle 1,017, reduced-motion 1,070 ; budgets : accueil 337,5 Ko / 500, Travailler direct 347,6 / 530, fixe 22,4 / 150, jauges qui échouent comme prévu ; `cmp-builds` 0.4.1 / 0.4.2 : sans option, `--work roman` et `--work presse` OK (presse : seuls `mode` et `cursor` diffèrent).
+- Écarts : le chargement écrit toujours une fois (revision +1, existant) ; à 200 % de police le document déborde en largeur dès l'accueil (40 / 10 px), identique en 0.4.1 ; « Gains hors ligne » peut garder une ellipse à 120 % quand « Récolter » est affiché.
+- Reste : réponses de Geraldy (R-P42-12 : publication après GO de recette, point 4) ; GS-V5-67 sur WebKit en CI ; fiche iPhone (pastilles, cadrage, frappe sur Aoi).
