@@ -79,4 +79,25 @@ export interface SaveV3 extends Omit<SaveV2, 'schemaVersion'> {
   wardrobe: { outfit: OutfitId };
 }
 
-export type GameState = SaveV3;
+export type WorkMode = 'roman' | 'presse';
+
+/** Persistent part of the Travailler screen (lot 4). The boost is never stored (D2). */
+export interface WorkState {
+  mode: WorkMode;
+  /** Points not converted yet. */
+  points: number;
+  /** All points ever earned (100-point milestones, future quests). */
+  pointsTotal: number;
+  /** Position in the scrolling text, 0..WORK_CURSOR_MAX. */
+  cursor: number;
+  /** Accepted taps ever (future quests). */
+  taps: number;
+}
+
+/** Save schema v4 (lot 4, OD-4): v3 + `work`. Every v3 field is kept unchanged. */
+export interface SaveV4 extends Omit<SaveV3, 'schemaVersion'> {
+  schemaVersion: 4;
+  work: WorkState;
+}
+
+export type GameState = SaveV4;

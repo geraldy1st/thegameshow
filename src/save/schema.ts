@@ -13,9 +13,10 @@ import {
   STAT_IDS,
 } from '../data/balance';
 import { isAmount } from '../core/numbers';
-import type { SaveV1, SaveV2, SaveV3 } from '../core/types';
+import type { SaveV1, SaveV2, SaveV3, SaveV4 } from '../core/types';
+import { WORK_CURSOR_MAX } from '../data/workTexts';
 
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 export type ValidationResult<T> = { ok: true; value: T } | { ok: false; reason: string };
 
@@ -242,6 +243,30 @@ export function validateSaveV3(input: unknown): ValidationResult<SaveV3> {
     const value = structuredClone(input) as SaveV3;
     if (!(OUTFIT_IDS as readonly string[]).includes(value.wardrobe.outfit))
       value.wardrobe.outfit = BALANCE.profile.initialOutfit;
+    return { ok: true, value };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Invalid ? e.message : 'invalid save' };
+  }
+}
+
+/** Validates a SaveV4 (lot 4): the v3 rules plus `work`. Never throws. */
+export function validateSaveV4(input: unknown): ValidationResult<SaveV4> {
+  try {
+    const s = obj(input, 'save', [...V2_KEYS, 'profile', 'energy', 'stats', 'wardrobe', 'work']);
+    if (s.schemaVersion !== 4) throw new Invalid('save.schemaVersion: 4 expected');
+    const w = obj(s.work, 'save.work', ['mode', 'points', 'pointsTotal', 'cursor', 'taps']);
+    oneOf(w.mode, 'save.work.mode', ['roman', 'presse']);
+    const points = int(w.points, 'save.work.points');
+    const total = int(w.pointsTotal, 'save.work.pointsTotal');
+    if (points > total) throw new Invalid('save.work.points: must be <= pointsTotal');
+    int(w.cursor, 'save.work.cursor', WORK_CURSOR_MAX);
+    int(w.taps, 'save.work.taps');
+    const { work: _w, ...rest } = s;
+    void _w;
+    const v3 = validateSaveV3({ ...rest, schemaVersion: 3 });
+    if (!v3.ok) return v3;
+    const value = structuredClone(input) as SaveV4;
+    value.wardrobe.outfit = v3.value.wardrobe.outfit;
     return { ok: true, value };
   } catch (e) {
     return { ok: false, reason: e instanceof Invalid ? e.message : 'invalid save' };

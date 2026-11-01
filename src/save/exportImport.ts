@@ -1,4 +1,4 @@
-import type { SaveV3 } from '../core/types';
+import type { GameState } from '../core/types';
 import { migrateToCurrent, type CurrentSave } from './migrations';
 import type { ValidationResult } from './schema';
 
@@ -15,7 +15,7 @@ export function fnv1a(text: string): string {
   return h.toString(16).padStart(8, '0');
 }
 
-export function serializeExport(save: SaveV3): string {
+export function serializeExport(save: GameState): string {
   const payload = JSON.stringify(save);
   return JSON.stringify({ format: EXPORT_FORMAT, checksum: fnv1a(payload), save }, null, 2);
 }

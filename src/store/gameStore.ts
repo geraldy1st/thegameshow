@@ -68,7 +68,10 @@ export interface GameStoreState {
     { kind: 'none' } | { kind: 'unreadable' } | { kind: 'ok'; save: GameState }
   >;
   restoreResetBackup(): Promise<boolean>;
-  /** Lot 3: state of the `backup-before-migration` slot. */
+  /**
+   * Pre-migration copy to offer (lot 4, §4.3): the most recent present slot, `-v3` first,
+   * otherwise `backup-before-migration`.
+   */
   migrationBackup(): Promise<
     { kind: 'none' } | { kind: 'unreadable' } | { kind: 'ok'; save: GameState }
   >;
@@ -206,7 +209,9 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
     };
 
     /** Reads a backup slot through the migration chain. */
-    const readBackup = async (slot: 'backup-before-reset' | 'backup-before-migration') => {
+    type BackupSlot =
+      'backup-before-reset' | 'backup-before-migration' | 'backup-before-migration-v3';
+    const readBackup = async (slot: BackupSlot) => {
       if (!db) return { kind: 'none' as const };
       const raw = await db.get('saves', slot);
       if (raw === undefined) return { kind: 'none' as const };
@@ -214,7 +219,12 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
       return m.ok ? { kind: 'ok' as const, save: m.value } : { kind: 'unreadable' as const };
     };
     /** Manual restore: the current record goes to `backup-before-restore` first (R12). */
-    const restoreFrom = async (slot: 'backup-before-reset' | 'backup-before-migration') => {
+    /** `-v3` first when present, otherwise the lot 3 slot (§4.3, previous version first). */
+    const migrationSlot = async (): Promise<BackupSlot> =>
+      db && (await db.get('saves', 'backup-before-migration-v3')) !== undefined
+        ? 'backup-before-migration-v3'
+        : 'backup-before-migration';
+    const restoreFrom = async (slot: BackupSlot) => {
       const b = await readBackup(slot);
       if (b.kind !== 'ok' || !db || get().status === 'readonly') return false;
       // Flush pending progress so the kept copy is the latest state the player saw.
@@ -354,12 +364,12 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         return restoreFrom('backup-before-reset');
       },
 
-      migrationBackup() {
-        return readBackup('backup-before-migration');
+      async migrationBackup() {
+        return readBackup(await migrationSlot());
       },
 
-      restoreMigrationBackup() {
-        return restoreFrom('backup-before-migration');
+      async restoreMigrationBackup() {
+        return restoreFrom(await migrationSlot());
       },
 
       async collectOffline() {

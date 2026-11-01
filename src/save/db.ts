@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { SaveV3 } from '../core/types';
+import type { GameState } from '../core/types';
 import { migrateToCurrent, type CurrentSave } from './migrations';
 import { CURRENT_SCHEMA_VERSION } from './schema';
 
@@ -15,6 +15,8 @@ export type Slot =
   | 'backup-before-reset'
   /** Lot 3: raw record as it was before the v2 → v3 migration (MVP v1.3 step 2). */
   | 'backup-before-migration'
+  /** Lot 4 (R-L4-1): raw v3 record before the v3 → v4 migration; never overwritten by v1/v2. */
+  | 'backup-before-migration-v3'
   /** Lot 3 (R12): current state before a manual restore; one copy, replaced each time. */
   | 'backup-before-restore';
 
@@ -47,7 +49,7 @@ export type LoadResult =
   | {
       kind: 'ok';
       save: CurrentSave;
-      from: 'current' | 'previous' | 'backup-before-migration';
+      from: 'current' | 'previous' | 'backup-before-migration-v3' | 'backup-before-migration';
     }
   | { kind: 'corrupt'; reason: string }
   /** `current` comes from a newer app: refused, nothing is written (MVP v1.3 step 7). */
@@ -59,14 +61,16 @@ const versionOf = (v: unknown): number => {
 };
 
 /**
- * Loads `current`, falls back to `previous`, then to `backup-before-migration` (re-migrated).
+ * Loads `current`, falls back to `previous` (re-migrated when older), then to
+ * `backup-before-migration-v3`, then to `backup-before-migration` (both re-migrated).
  * A future version in `current` is refused without fallback, so no older state can overwrite
  * it. Never throws on bad data (recovery screen).
  */
 export async function loadSave(db: IDBPDatabase<TgsDB>): Promise<LoadResult> {
-  const [cur, prev, mig] = await Promise.all([
+  const [cur, prev, mig3, mig] = await Promise.all([
     db.get('saves', 'current'),
     db.get('saves', 'previous'),
+    db.get('saves', 'backup-before-migration-v3'),
     db.get('saves', 'backup-before-migration'),
   ]);
   if (cur === undefined && prev === undefined) return { kind: 'empty' };
@@ -75,6 +79,10 @@ export async function loadSave(db: IDBPDatabase<TgsDB>): Promise<LoadResult> {
   if (c.ok) return { kind: 'ok', save: c.value, from: 'current' };
   const p = migrateToCurrent(prev);
   if (p.ok) return { kind: 'ok', save: p.value, from: 'previous' };
+  if (mig3 !== undefined) {
+    const m = migrateToCurrent(mig3);
+    if (m.ok) return { kind: 'ok', save: m.value, from: 'backup-before-migration-v3' };
+  }
   if (mig !== undefined) {
     const m = migrateToCurrent(mig);
     if (m.ok) return { kind: 'ok', save: m.value, from: 'backup-before-migration' };
@@ -95,9 +103,9 @@ function storedRevision(v: unknown): number {
  */
 export async function writeSave(
   db: IDBPDatabase<TgsDB>,
-  save: SaveV3,
+  save: GameState,
   expectedRevision: number,
-): Promise<SaveV3> {
+): Promise<GameState> {
   const tx = db.transaction('saves', 'readwrite');
   const store = tx.objectStore('saves');
   const current = await store.get('current');
@@ -107,7 +115,7 @@ export async function writeSave(
     await tx.done.catch(() => undefined);
     throw new RevisionConflictError(stored, expectedRevision);
   }
-  const next: SaveV3 = { ...save, revision: Math.max(expectedRevision, save.revision) + 1 };
+  const next: GameState = { ...save, revision: Math.max(expectedRevision, save.revision) + 1 };
   if (current !== undefined) await store.put(current, 'previous');
   await store.put(next, 'current');
   await tx.done;
@@ -116,21 +124,30 @@ export async function writeSave(
 
 const sameRecord = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
+/** Slot that keeps a raw record of `version` before migration (R-L4-1: one slot per source). */
+export function migrationSlotFor(version: number): Slot {
+  return version === 3 ? 'backup-before-migration-v3' : 'backup-before-migration';
+}
+
 /**
- * Copies the raw `current` record into `backup-before-migration` before it is migrated
- * (MVP v1.3 step 2), only if the slot is empty or holds a different record, so a replay after
- * an aborted migration never rewrites the original copy. Returns true when it wrote.
+ * Copies the raw `current` record before it is migrated (MVP v1.3 step 2): a v1/v2 record goes
+ * to `backup-before-migration` (lot 3 rule; the v1/v2 → v4 chain runs in memory and never
+ * writes `-v3`), a v3 record goes to `backup-before-migration-v3` (lot 4). Only if the slot is
+ * empty or holds a different record, so a replay after an aborted migration never rewrites the
+ * original copy. Returns true when it wrote.
  */
 export async function backupBeforeMigration(db: IDBPDatabase<TgsDB>): Promise<boolean> {
   const tx = db.transaction('saves', 'readwrite');
-  const [cur, kept] = await Promise.all([
-    tx.store.get('current'),
-    tx.store.get('backup-before-migration'),
-  ]);
+  const cur = await tx.store.get('current');
   let wrote = false;
-  if (cur !== undefined && versionOf(cur) < CURRENT_SCHEMA_VERSION && !sameRecord(cur, kept)) {
-    await tx.store.put(cur, 'backup-before-migration');
-    wrote = true;
+  const v = versionOf(cur);
+  if (cur !== undefined && v < CURRENT_SCHEMA_VERSION) {
+    const slot = migrationSlotFor(v);
+    const kept = await tx.store.get(slot);
+    if (!sameRecord(cur, kept)) {
+      await tx.store.put(cur, slot);
+      wrote = true;
+    }
   }
   await tx.done;
   return wrote;

@@ -11,7 +11,7 @@ import {
 import { localDay } from './clock';
 import { yenToCents } from './numbers';
 import { createRng } from './rng';
-import type { FriendState, GameState, SaveV3 } from './types';
+import type { FriendState, GameState, SaveV3, SaveV4 } from './types';
 
 const record = <K extends string, V>(keys: readonly K[], make: () => V): Record<K, V> =>
   Object.fromEntries(keys.map((k) => [k, make()])) as Record<K, V>;
@@ -31,11 +31,17 @@ export function initialV3Fields(
   };
 }
 
+/** v4 field at its exact initial value (lot 4). */
+export function initialV4Fields(): Pick<SaveV4, 'work'> {
+  return { work: { mode: 'roman', points: 0, pointsTotal: 0, cursor: 0, taps: 0 } };
+}
+
 /** Initial state per spec (RES-7e): 120 yen, 3 tickets, everything else at zero. */
 export function createInitialState(now: number, seed: number): GameState {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     ...initialV3Fields(now),
+    ...initialV4Fields(),
     revision: 0,
     createdAt: now,
     lastSeenAt: now,
