@@ -25,6 +25,11 @@ jobs:
       - run: npm run check:no-test-hook
       # DEF-GS-12: the budget gauge fake must never reach the deployed artifact.
       - run: npm run check:no-budget-fake
+      # GS-V5-61: the weight budgets block the deployment (a non-zero exit stops before upload).
+      - run: npx playwright install --with-deps chromium
+      - run: npm run budget:home
+      - run: npm run budget:work
+      - run: npm run budget:work:still
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

@@ -28,7 +28,27 @@ jobs:
       # GS-V5-02 (D7): home budget <= 500 KB, blocking; then the gauge must fail on 600 KB fake.
       - run: npm run budget:home
       - run: npm run budget:gauge
+      # GS-V5-55 (OD-10): Travailler entry <= 200 KB beyond the home (<= 530 KB direct), stills
+      # <= 150 KB, all blocking (Google Chrome: H.264); then the 600 KB fake video must fail.
+      - run: npm run budget:work
+      - run: npm run budget:work:still
+      - run: npm run budget:work:gauge
       - run: npm run test:e2e
         env:
           CI: 'true'
-# Deployment lives in pages.yml (main only).
+      # Deployment lives in pages.yml (main only).
+      # Built artifacts of this commit (lot 4): production and test-harness builds.
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.sha }}
+          path: dist
+          if-no-files-found: error
+          retention-days: 14
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-test-${{ github.sha }}
+          path: dist-test
+          if-no-files-found: error
+          retention-days: 14

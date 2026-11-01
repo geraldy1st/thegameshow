@@ -22,7 +22,10 @@
     "test:e2e": "playwright test",
     "check:no-budget-fake": "node tools/check-no-budget-fake.mjs",
     "budget:home": "node tools/measure-home-budget.mjs dist",
-    "budget:gauge": "node tools/build-budget-fake.mjs && node tools/measure-home-budget.mjs dist-budget-fake --expect-fail"
+    "budget:gauge": "node tools/build-budget-fake.mjs && node tools/measure-home-budget.mjs dist-budget-fake --expect-fail",
+    "budget:work": "node tools/measure-budget.mjs dist --screen work && node tools/measure-budget.mjs dist --screen work --direct",
+    "budget:work:still": "node tools/measure-budget.mjs dist --screen work --still",
+    "budget:work:gauge": "node tools/build-budget-fake-work.mjs && node tools/measure-budget.mjs dist-budget-fake-work --screen work --expect-fail"
   },
   "dependencies": {
     "@fontsource/fredoka": "^5.3.0",
