@@ -114,7 +114,12 @@ test.describe('GS-V5-64: home and Paramètres', () => {
     await tile(page).click();
     await expect(page).toHaveURL(/#work$/);
     await expect(page.getByRole('heading', { level: 1, name: 'Travailler' })).toBeFocused();
-    await page.getByRole('button', { name: '← Accueil' }).click();
+    // 0.4.2 (3a, GS-V5-73): no « ← Accueil » on #work; « Accueil » of the tab bar is marked as
+    // the section (aria-current="true") and returns home.
+    await expect(page.getByRole('button', { name: '← Accueil' })).toHaveCount(0);
+    const home = page.getByRole('navigation').getByRole('button', { name: 'Accueil' });
+    await expect(home).toHaveAttribute('aria-current', 'true');
+    await home.click();
     await expect(page).toHaveURL(/#home$/);
   });
 
@@ -213,7 +218,8 @@ test.describe('GS-V5-5x: Travailler (harness build)', () => {
     await expect(page.locator('.work')).toBeVisible();
   }
   const game = (page: Page) => page.evaluate(() => window.__TGS_TEST__!.state()!);
-  const doc = (page: Page) => page.getByRole('button', { name: /^Écrire \(1 énergie/ });
+  // 0.4.2 (3d): the tap target is Aoi (« Écrire avec Aoi (1 énergie, +N pts) »).
+  const doc = (page: Page) => page.getByRole('button', { name: /^Écrire avec Aoi \(1 énergie/ });
 
   test('a tap costs 1 energy, gives points, counts once for « clic » and totalClicks (GS-V5-60)', async ({
     page,
@@ -281,18 +287,22 @@ test.describe('GS-V5-5x: Travailler (harness build)', () => {
       window.__TGS_TEST__!.setCursor(0.5);
     });
     await expect(work).toHaveAttribute('data-boost-phase', 'shown');
-    await page.getByRole('button', { name: /^Aoi — toucher/ }).click();
-    await expect(work).toHaveAttribute('data-boost-phase', 'active');
+    // 0.4.2 D3/D4: the same tap on Aoi writes (paid x1) and triggers the boost.
     const p0 = (await game(page)).work.points;
     await doc(page).click();
-    expect((await game(page)).work.points).toBe(p0 + 2);
+    await expect(work).toHaveAttribute('data-boost-phase', 'active');
+    expect((await game(page)).work.points).toBe(p0 + 1);
+    await doc(page).click();
+    expect((await game(page)).work.points).toBe(p0 + 3);
     await page.evaluate(() => window.__TGS_TEST__!.advance(5000));
     await expect(work).toHaveAttribute('data-boost-phase', 'cooldown');
     await doc(page).click();
-    expect((await game(page)).work.points).toBe(p0 + 3);
+    expect((await game(page)).work.points).toBe(p0 + 4);
   });
 
-  test('power boost: a miss and a hidden tab both lose the boost, without penalty', async ({
+  // 0.4.2 (R-P42-3): replaces « a miss … » (lot 4). Off the zone is no longer a miss: the tap
+  // is paid x1, no event, the gauge stays shown until 12 000 ms; a hidden tab still loses it.
+  test('power boost: off the zone is not a miss; a hidden tab loses the boost, without penalty', async ({
     page,
   }) => {
     await openWork(page);
@@ -301,14 +311,19 @@ test.describe('GS-V5-5x: Travailler (harness build)', () => {
       window.__TGS_TEST__!.boostShow();
       window.__TGS_TEST__!.setCursor(0.05);
     });
-    await page.getByRole('button', { name: /^Aoi — toucher/ }).click();
+    await expect(work).toHaveAttribute('data-boost-phase', 'shown');
+    const p0 = (await game(page)).work.points;
+    await doc(page).click();
+    await expect(work).toHaveAttribute('data-boost-phase', 'shown');
+    expect((await game(page)).work.points).toBe(p0 + 1);
+    await page.evaluate(() => window.__TGS_TEST__!.advance(12_000));
     await expect(work).toHaveAttribute('data-boost-phase', 'cooldown');
     // A boost active when the tab is hidden is lost (BALANCE.boost.hiddenTab): no joy at the end.
     await page.evaluate(() => {
       window.__TGS_TEST__!.boostShow();
       window.__TGS_TEST__!.setCursor(0.5);
     });
-    await page.getByRole('button', { name: /^Aoi — toucher/ }).click();
+    await doc(page).click();
     await expect(work).toHaveAttribute('data-boost-phase', 'active');
     await page.evaluate(() => {
       window.__TGS_TEST__!.setVisibility('hidden');

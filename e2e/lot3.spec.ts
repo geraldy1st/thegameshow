@@ -120,7 +120,8 @@ test.describe('navigation (GS-V5-04, GS-V5-17)', () => {
     await page.goBack();
     await expect(dialog).toBeHidden();
     await expect(page).toHaveURL(/#home$/);
-    await expect.poll(() => focusedText(page)).toBe('H1:Accueil');
+    // Patch 0.4.2 (GS-V5-66): the focus goes back to the opener, no longer to the h1.
+    await expect.poll(() => focusedText(page)).toBe('BUTTON:Quêtes du jour');
   });
 
   for (const [hash, check] of [

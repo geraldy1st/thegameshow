@@ -3,14 +3,24 @@
 // §2.4 non-regression (R-LOT4-2, adopted from Crypto's recette-lot4/scripts/cmp-final.mjs): the same
 // scenario played on two test-harness builds from the same lot 3 save; the final saves must match on
 // every field except the bookkeeping ones and the lot 4 `work`.
-// Usage: node tools/cmp-builds.mjs <reference dist-test> <candidate dist-test>
+// Usage: node tools/cmp-builds.mjs <reference dist-test> <candidate dist-test> [--work roman|presse]
+// Patch 0.4.2 (R-P42): with --work, the migrated save is given that work mode (presse: cursor
+// 7) and reloaded before the scenario, and `work` is compared too: roman → no field may
+// differ; presse → only work.mode and work.cursor may differ (0.4.2 normalises to roman, 0).
 // Example: node tools/cmp-builds.mjs ../tgs-031/dist-test dist-test   (5894cb8 vs this branch)
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 
-const [refDir, candDir] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const wi = args.indexOf('--work');
+const WORK = wi >= 0 ? args.splice(wi, 2)[1] : null;
+if (WORK && WORK !== 'roman' && WORK !== 'presse') {
+  console.error('--work must be roman or presse');
+  process.exit(2);
+}
+const [refDir, candDir] = args;
 if (!refDir || !candDir) {
   console.error('usage: cmp-builds.mjs <reference dist-test> <candidate dist-test>');
   process.exit(2);
@@ -82,6 +92,35 @@ for (const [dir, port] of [
   await p.goto(base + `?now=${NOW}`);
   await p.waitForFunction(() => !!window.__TGS_TEST__?.state());
   await p.waitForTimeout(2600);
+  if (WORK) {
+    // Leave the game first (its pagehide flush would overwrite the edit), rewrite the migrated
+    // save with the wanted work mode, then load it again.
+    await p.goto(base + 'favicon.svg');
+    await p.waitForTimeout(500);
+    await p.evaluate(
+      (mode) =>
+        new Promise((r) => {
+          const q = indexedDB.open('thegameshow');
+          q.onsuccess = () => {
+            const tx = q.result.transaction('saves', 'readwrite');
+            const st = tx.objectStore('saves');
+            const g = st.get('current');
+            g.onsuccess = () => {
+              const v = g.result;
+              v.work = { ...v.work, mode, cursor: mode === 'presse' ? 7 : 0 };
+              st.put(v, 'current');
+            };
+            tx.oncomplete = () => (q.result.close(), r());
+          };
+        }),
+      WORK,
+    );
+    await p.goto(base + `?now=${NOW}`);
+    await p.waitForFunction(() => !!window.__TGS_TEST__?.state());
+    await p.waitForTimeout(2600);
+    if (process.env.CMP_DEBUG)
+      console.log(dir, JSON.stringify(await p.evaluate(() => window.__TGS_TEST__.state().work)));
+  }
   await p.evaluate(() => window.__TGS_TEST__.seed(77));
   const rec = p.getByRole('button', { name: 'Récolter' });
   if (await rec.count()) await rec.first().click();
@@ -108,7 +147,9 @@ for (const [dir, port] of [
   await new Promise((ok) => server.close(ok));
 }
 await browser.close();
-const BOOK = new Set(['schemaVersion', 'work', 'revision', 'lastSeenAt']);
+const BOOK = new Set(
+  WORK ? ['revision', 'lastSeenAt'] : ['schemaVersion', 'work', 'revision', 'lastSeenAt'],
+);
 const sortK = (o) =>
   Array.isArray(o)
     ? o.map(sortK)
@@ -120,9 +161,18 @@ const sortK = (o) =>
         )
       : o;
 const [a, c] = out;
-const diff = Object.keys({ ...a, ...c }).filter(
-  (k) => !BOOK.has(k) && JSON.stringify(sortK(a[k])) !== JSON.stringify(sortK(c[k])),
-);
+const same = (x, y) => JSON.stringify(sortK(x)) === JSON.stringify(sortK(y));
+const diff = Object.keys({ ...a, ...c }).filter((k) => !BOOK.has(k) && !same(a[k], c[k]));
+if (WORK) {
+  const wd = Object.keys({ ...a.work, ...c.work }).filter((k) => !same(a.work?.[k], c.work?.[k]));
+  console.log(
+    `work ${WORK}: ref ${JSON.stringify({ mode: a.work?.mode, cursor: a.work?.cursor })}, cand ${JSON.stringify({ mode: c.work?.mode, cursor: c.work?.cursor })}, work fields differing: ${wd.join(', ') || 'none'}`,
+  );
+  const allowed = WORK === 'presse' ? ['mode', 'cursor'] : [];
+  const i = diff.indexOf('work');
+  if (i >= 0 && wd.every((k) => allowed.includes(k))) diff.splice(i, 1);
+  else if (i >= 0) diff[i] = `work(${wd.filter((k) => !allowed.includes(k)).join(',')})`;
+}
 console.log(
   `versions ${a.schemaVersion} -> ${c.schemaVersion}, tickets ${a.tickets}/${c.tickets}, pity ${a.gacha.pity}/${c.gacha.pity}, yen ${a.yenCents}/${c.yenCents}`,
 );

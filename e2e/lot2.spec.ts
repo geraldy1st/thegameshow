@@ -110,7 +110,8 @@ async function earnLikeHundredClicks(page: Page) {
       throw new Error('loadSave refused');
   });
   await page.getByRole('button', { name: 'Travailler', exact: true }).click();
-  const doc = page.locator('.doc');
+  // 0.4.2 (3d): Aoi is the tap target; the document is decoration.
+  const doc = page.getByRole('button', { name: /^Écrire avec Aoi \(1 énergie/ });
   for (let i = 1; i <= 100; i++) {
     await doc.click();
     if (i % 15 === 0) await page.evaluate(() => window.__TGS_TEST__!.advance(1000));
@@ -119,7 +120,8 @@ async function earnLikeHundredClicks(page: Page) {
   await expect
     .poll(() => page.evaluate(() => window.__TGS_TEST__!.state()!.quests.progress.click))
     .toBe(100);
-  await page.getByRole('button', { name: '← Accueil' }).click();
+  // 0.4.2 (3a): no « ← Accueil » on #work; the tab bar goes back home.
+  await page.getByRole('navigation').getByRole('button', { name: 'Accueil' }).click();
 }
 
 test.describe('harness build (lot 4, QA §2.4)', () => {
@@ -137,7 +139,8 @@ test.describe('harness build (lot 4, QA §2.4)', () => {
     await page.getByRole('button', { name: 'Passer du temps avec Mio' }).click();
 
     await page.getByRole('button', { name: /Quêtes du jour/ }).click();
-    await page.getByRole('button', { name: 'Répondre au quiz' }).click();
+    // 0.4.2 (1b): the unfinished quiz row is the button that opens the quiz.
+    await page.getByRole('button', { name: /^Quiz de Kyoko-sensei/ }).click();
     const quiz = page.getByRole('dialog', { name: 'Quiz de Kyoko-sensei' });
     await expect(quiz).toBeVisible();
     await expect(quiz.locator('.quiz-q')).not.toBeEmpty();
