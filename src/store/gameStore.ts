@@ -53,6 +53,8 @@ export interface GameStoreState {
   /** Set when IndexedDB refused a write that was not a revision conflict. */
   writeError: boolean;
   init(): Promise<void>;
+  /** Game clock (injectable; the harness clock in test builds). */
+  now(): number;
   tick(): void;
   /**
    * Lot 4: one tap on the Travailler document at the game clock. `mult` is the boost multiplier
@@ -307,6 +309,10 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         if (isWriter) {
           await persistNow();
         }
+      },
+
+      now() {
+        return deps.clock.now();
       },
 
       tick() {

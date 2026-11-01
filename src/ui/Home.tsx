@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { Modal } from './common';
+import { navigate } from './router';
 import { useStore, type StoreApi } from 'zustand';
 import { PITY_LIMIT, QUEST_IDS, STAT_IDS, MAX_STAT, BALANCE, xpNeed } from '../data/balance';
-import { clickValueYen, incomeCentsPerSecond } from '../core/economy';
+import { incomeCentsPerSecond } from '../core/economy';
 import { questDone } from '../core/quests';
 import { centsToYen } from '../core/numbers';
 import { t, type MessageKey } from '../i18n/fr';
@@ -11,7 +13,7 @@ import { formatDuration, formatRate, formatYen } from './format';
 type Store = StoreApi<GameStoreState>;
 const asset = (name: string) => `${import.meta.env.BASE_URL}game/home/${name}`;
 
-/** Activity tiles in the mockup order; none is delivered in lot 3 (GS-V5-03). */
+/** Activity tiles in the mockup order; only « Travailler » is delivered (lot 4). */
 const TILES_LEFT = ['tileWork', 'tileLearn', 'tileBike'] as const;
 const TILES_RIGHT = ['tileHouse', 'tileFree', 'tileDice'] as const;
 type TileKey = (typeof TILES_LEFT)[number] | (typeof TILES_RIGHT)[number];
@@ -25,11 +27,30 @@ const TILE_ICON: Record<TileKey, string> = {
 };
 
 /**
- * A locked tile: announced as locked, and a press only announces « bientôt »: no state write,
- * no hash change (GS-V5-03).
+ * Tiles. « Travailler » is active since lot 4 (GS-V5-64 b): accessible name exactly
+ * « Travailler », no padlock, opens #work. The other 5 stay locked: a press only announces
+ * « bientôt », no state write, no hash change (GS-V5-03).
  */
 function Tile({ store, id }: { store: Store; id: TileKey }) {
   const name = t(id);
+  const ill = (
+    <span className="hub-ill" aria-hidden="true">
+      {id === 'tileBike' ? (
+        <img className="ill-photo" src={asset('bike-160.webp')} alt="" width={80} height={80} />
+      ) : (
+        <span className="hub-emoji">{TILE_ICON[id]}</span>
+      )}
+      {id !== 'tileWork' && <span className="hub-lock">🔒</span>}
+    </span>
+  );
+  if (id === 'tileWork') {
+    return (
+      <button type="button" className="hub-btn is-open" onClick={() => navigate('work')}>
+        {ill}
+        <span className="hub-lbl">{name}</span>
+      </button>
+    );
+  }
   return (
     <button
       type="button"
@@ -38,14 +59,7 @@ function Tile({ store, id }: { store: Store; id: TileKey }) {
       aria-label={t('tileLocked', { name })}
       onClick={() => store.getState().announce(t('tileSoon', { name }))}
     >
-      <span className="hub-ill" aria-hidden="true">
-        {id === 'tileBike' ? (
-          <img className="ill-photo" src={asset('bike-160.webp')} alt="" width={80} height={80} />
-        ) : (
-          <span className="hub-emoji">{TILE_ICON[id]}</span>
-        )}
-        <span className="hub-lock">🔒</span>
-      </span>
+      {ill}
       <span className="hub-lbl" aria-hidden="true">
         {name}
       </span>
@@ -108,8 +122,6 @@ function Profile({ store }: { store: Store }) {
 
 function Hub({ store }: { store: Store }) {
   const outfit = useStore(store, (s) => s.game?.wardrobe.outfit ?? 'jean');
-  const value = useStore(store, (s) => (s.game ? clickValueYen(s.game) : 1));
-  const readonly = useStore(store, (s) => s.status !== 'ready');
   return (
     <section className="hub" aria-label={t('hubLabel')}>
       <div className="hub-bg" aria-hidden="true">
@@ -120,26 +132,19 @@ function Hub({ store }: { store: Store }) {
           <Tile key={id} store={store} id={id} />
         ))}
       </div>
-      {/* The lot 1 click stays on Aoi herself (« Travailler avec Aoi », lot 1/2 E2E). */}
-      <button
-        type="button"
-        className="hub-aoi"
-        onClick={() => store.getState().tap()}
-        aria-disabled={readonly}
-        aria-describedby="hub-aoi-desc"
-      >
+      {/* Lot 4 (OD-9, Geraldy 01/11): the yellow « Travailler avec Aoi » button is removed;
+          Aoi is a picture only, work happens on the Travailler screen. */}
+      <div className="hub-aoi">
         <span className="halo" aria-hidden="true" />
         {/* Only the jean asset exists until the wardrobe (lot 6). */}
-        <img src={asset('aoi-jean-720.webp')} alt="" width={184} height={720} draggable={false} />
-        {/* Accessible name = visible label (WCAG 2.5.3). */}
-        <span className="hub-aoi-lbl">{t('clickAoi')}</span>
-      </button>
-      <p id="hub-aoi-desc" className="hub-aoi-hint num">
-        <span className="visually-hidden">
-          {t('hubAoiAlt', { outfit: t(`outfit_${outfit}` as MessageKey) })}.{' '}
-        </span>
-        {t('clickHint', { n: value })}
-      </p>
+        <img
+          src={asset('aoi-jean-720.webp')}
+          alt={t('hubAoiAlt', { outfit: t(`outfit_${outfit}` as MessageKey) })}
+          width={184}
+          height={720}
+          draggable={false}
+        />
+      </div>
       <div className="hub-col r">
         {TILES_RIGHT.map((id) => (
           <Tile key={id} store={store} id={id} />
@@ -158,6 +163,7 @@ function Infos({ store }: { store: Store }) {
   const absence = useStore(store, (s) => s.absenceMs);
   const readonly = useStore(store, (s) => s.status !== 'ready');
   const stats = useStore(store, (s) => s.game?.stats);
+  const [statsOpen, setStatsOpen] = useState(false);
   const left = PITY_LIMIT - pity;
   const collect = async () => {
     await store.getState().collectOffline();
@@ -195,40 +201,51 @@ function Infos({ store }: { store: Store }) {
           </button>
         )}
       </article>
-      <details className="card info stats">
-        <summary>
-          <h2>{t('statsTitle')}</h2>
+      <article className="card info stats">
+        <button type="button" className="stats-open" onClick={() => setStatsOpen(true)}>
+          <span className="stats-t">{t('statsTitle')}</span>
           <span className="small">{t('statsSub')}</span>
-        </summary>
-        <ul>
-          {STAT_IDS.map((k) => {
-            const v = stats?.[k] ?? 0;
-            const label = t(`stat_${k}` as MessageKey);
-            return (
-              <li key={k}>
-                <span>{label}</span>
-                <span
-                  className="bar"
-                  role="progressbar"
-                  aria-label={label}
-                  aria-valuemin={0}
-                  aria-valuemax={MAX_STAT}
-                  aria-valuenow={v}
-                >
-                  <i style={{ transform: `scaleX(${v / MAX_STAT})` }} />
-                </span>
-                <b className="num">{v}</b>
-              </li>
-            );
-          })}
-        </ul>
-      </details>
+        </button>
+      </article>
+      <Modal open={statsOpen} onClose={() => setStatsOpen(false)} labelId="stats-title">
+        <h2 id="stats-title">{t('statsTitle')}</h2>
+        <div className="stats">
+          <ul>
+            {STAT_IDS.map((k) => {
+              const v = stats?.[k] ?? 0;
+              const label = t(`stat_${k}` as MessageKey);
+              return (
+                <li key={k}>
+                  <span>{label}</span>
+                  <span
+                    className="bar"
+                    role="progressbar"
+                    aria-label={label}
+                    aria-valuemin={0}
+                    aria-valuemax={MAX_STAT}
+                    aria-valuenow={v}
+                  >
+                    <i style={{ transform: `scaleX(${v / MAX_STAT})` }} />
+                  </span>
+                  <b className="num">{v}</b>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+        <button type="button" className="btn btn-secondary" onClick={() => setStatsOpen(false)}>
+          {t('close')}
+        </button>
+      </Modal>
     </section>
   );
 }
 
-/** Home v5 (lot 3): profile, hub with the 6 tiles and Aoi, info cards. */
-export function Home({ store, children }: { store: Store; children?: React.ReactNode }) {
+/**
+ * Home v5: profile, hub with the 6 tiles and Aoi, info cards. Lot 4: no save block (moved to
+ * Paramètres) and no scrolling on a phone (GS-V5-64 f).
+ */
+export function Home({ store }: { store: Store }) {
   useEffect(() => {
     // GS-V5-02: « accueil jouable » = h1 rendered, save loaded, tiles active.
     if (!performance.getEntriesByName('tgs:home-ready').length) performance.mark('tgs:home-ready');
@@ -241,7 +258,6 @@ export function Home({ store, children }: { store: Store; children?: React.React
       <Profile store={store} />
       <Hub store={store} />
       <Infos store={store} />
-      {children}
     </div>
   );
 }

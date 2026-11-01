@@ -8,8 +8,16 @@
  */
 import { useSyncExternalStore } from 'react';
 
-export type Route = 'home' | 'invest' | 'friends' | 'partners' | 'quests';
-export const ROUTES: readonly Route[] = ['home', 'invest', 'friends', 'partners', 'quests'];
+export type Route = 'home' | 'invest' | 'friends' | 'partners' | 'quests' | 'work' | 'settings';
+export const ROUTES: readonly Route[] = [
+  'home',
+  'invest',
+  'friends',
+  'partners',
+  'quests',
+  'work',
+  'settings',
+];
 const EVENT = 'tgs:route';
 
 export function parseRoute(hash: string): Route {

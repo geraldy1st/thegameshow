@@ -6,6 +6,7 @@ import { goHome, navigate, replaceRoute, useRoute, type Route } from './router';
 import { Partners } from './Partners';
 import { Friends } from './Friends';
 import { Quests } from './Quests';
+import { Work } from './work/Work';
 import { useStore, type StoreApi } from 'zustand';
 import { INVESTMENT_IDS, INVESTMENTS, type InvestmentId } from '../data/balance';
 import { canBuy, nextCostYen } from '../core/economy';
@@ -338,15 +339,34 @@ function BackupRestore({ store, slot }: { store: Store; slot: 'reset' | 'migrati
   );
 }
 
-type Tab = 'home' | 'invest' | 'friends' | 'partners';
-const TABS: readonly Tab[] = ['home', 'invest', 'friends', 'partners'];
+/** Lot 4 (GS-V5-64 e): Accueil, Investir, Amis, Associés, Menu (Menu opens #settings). */
+type Tab = 'home' | 'invest' | 'friends' | 'partners' | 'settings';
+const TABS: readonly Tab[] = ['home', 'invest', 'friends', 'partners', 'settings'];
 const TAB_LABEL = {
   home: 'tabHome',
   invest: 'tabInvest',
   friends: 'tabFriends',
   partners: 'tabPartners',
+  settings: 'tabMenu',
 } as const;
-const TAB_ICON = { home: '⌂', invest: '📈', friends: '♥', partners: '★' } as const;
+const TAB_ICON = { home: '⌂', invest: '📈', friends: '♥', partners: '★', settings: '☰' } as const;
+
+/**
+ * Paramètres (#settings, lot 4, GS-V5-64 d): the save block moved from the home screen, its
+ * logic unchanged (export, import, new game, previous game, pre-update restore).
+ */
+function Settings({ store }: { store: Store }) {
+  return (
+    <div className="settings">
+      <h1 id="settings-title" className="screen-title" tabIndex={-1}>
+        {t('settingsTitle')}
+      </h1>
+      <SaveMenu store={store} />
+      <BackupRestore store={store} slot="reset" />
+      <BackupRestore store={store} slot="migration" />
+    </div>
+  );
+}
 
 function TabBar({ route }: { route: Route }) {
   return (
@@ -452,7 +472,7 @@ export function App({ store }: { store: Store }) {
     );
   }
   return (
-    <div className="app">
+    <div className={`app is-${screen}`}>
       <TopBar store={store} onQuests={() => navigate('quests')} />
       {status === 'readonly' && (
         <p className="banner" role="alert">
@@ -465,14 +485,10 @@ export function App({ store }: { store: Store }) {
         </p>
       )}
       <main>
-        {(screen === 'home' || screen === 'quests') && (
-          <Home store={store}>
-            <SaveMenu store={store} />
-            <BackupRestore store={store} slot="reset" />
-            <BackupRestore store={store} slot="migration" />
-          </Home>
-        )}
-        {screen !== 'home' && screen !== 'quests' && <BackHome />}
+        {(screen === 'home' || screen === 'quests') && <Home store={store} />}
+        {screen !== 'home' && screen !== 'quests' && screen !== 'work' && <BackHome />}
+        {screen === 'work' && <Work store={store} />}
+        {screen === 'settings' && <Settings store={store} />}
         {screen === 'invest' && <Invest store={store} />}
         {screen === 'friends' && <Friends store={store} />}
         {screen === 'partners' && <Partners store={store} />}
