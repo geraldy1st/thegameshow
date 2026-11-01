@@ -271,7 +271,6 @@ export function Work({ store }: { store: Store }) {
         ref={docRef}
         type="button"
         className="doc"
-        aria-label={t('workDocLabel', { n: value })}
         aria-disabled={readonly}
         onPointerDown={(e) => {
           if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -292,6 +291,8 @@ export function Work({ store }: { store: Store }) {
           write(c.x, c.y);
         }}
       >
+        {/* Name from content (no aria-label: WCAG 2.5.3), the visible document is decoration. */}
+        <span className="visually-hidden">{t('workDocLabel', { n: value })}</span>
         <span className="doc-bar" aria-hidden="true">
           <i />
           <i />

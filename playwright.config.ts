@@ -24,10 +24,20 @@ export default defineConfig({
       use: { browserName: 'chromium', viewport: { width: 390, height: 844 } },
     },
   ],
-  webServer: {
-    command: 'npm run build && npx vite preview --port 4180 --strictPort',
-    url: 'http://localhost:4180/thegameshow/',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: [
+    {
+      command: 'npm run build && npx vite preview --port 4180 --strictPort',
+      url: 'http://localhost:4180/thegameshow/',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    // Lot 4 (QA §2.4): the harness build (never deployed) for the tests that need __TGS_TEST__.
+    {
+      command:
+        'npx vite build --mode test-harness --outDir dist-test && npx vite preview --outDir dist-test --port 4181 --strictPort',
+      url: 'http://localhost:4181/thegameshow/',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+  ],
 });

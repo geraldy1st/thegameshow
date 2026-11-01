@@ -24,7 +24,8 @@ test.afterEach(() => {
 });
 
 async function ready(page: Page) {
-  await expect(page.getByRole('button', { name: 'Travailler avec Aoi' })).toBeVisible();
+  // Lot 4 (QA §2.4): the « Travailler » tile replaces the removed yellow button.
+  await expect(page.getByRole('button', { name: 'Travailler', exact: true })).toBeVisible();
 }
 async function seed(page: Page, slots: Record<string, unknown>, marker?: string) {
   await page.goto('./__seed');
@@ -154,7 +155,7 @@ test.describe('navigation (GS-V5-04, GS-V5-17)', () => {
   });
 });
 
-test('GS-V5-03: the 6 tiles are announced locked; a press writes nothing, hash unchanged', async ({
+test('GS-V5-03 (lot 4: 5 tiles): the locked tiles are announced locked; a press writes nothing, hash unchanged', async ({
   page,
 }) => {
   await page.goto('./');
@@ -162,15 +163,8 @@ test('GS-V5-03: the 6 tiles are announced locked; a press writes nothing, hash u
   await page.waitForTimeout(300);
   const before = (await readSlot(page, 'current')) as { revision: number };
   const tiles = page.getByRole('button', { name: /— verrouillé, bientôt$/ });
-  await expect(tiles).toHaveCount(6);
-  for (const name of [
-    'Travailler',
-    'Apprendre',
-    'Course à vélo',
-    'Maison',
-    'Freelance',
-    'Dé du destin',
-  ]) {
+  await expect(tiles).toHaveCount(5);
+  for (const name of ['Apprendre', 'Course à vélo', 'Maison', 'Freelance', 'Dé du destin']) {
     const tile = page.getByRole('button', { name: `${name} — verrouillé, bientôt` });
     await expect(tile).toHaveAttribute('aria-disabled', 'true');
     // aria-disabled (not disabled) keeps the tile focusable; Playwright's click treats it as
@@ -214,8 +208,8 @@ test.describe('GS-V5-15 (DEF-GS-11): reveal marker keyed by createdAt:pull', () 
     await page.getByRole('button', { name: 'Tirer · 1 ticket' }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Passer' }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Continuer' }).click();
-    await page.getByRole('navigation').getByRole('button', { name: 'Accueil' }).click();
-    // New game, then its draw n°1 is interrupted by a reload.
+    // New game (lot 4: in Menu > Paramètres), then its draw n°1 is interrupted by a reload.
+    await page.getByRole('navigation').getByRole('button', { name: 'Menu' }).click();
     await page.getByRole('button', { name: 'Nouvelle partie' }).click();
     await page.getByRole('button', { name: 'Oui, recommencer' }).click();
     await page.getByRole('navigation').getByRole('button', { name: 'Associés' }).click();
@@ -280,7 +274,7 @@ test.describe('migration and recovery (GS-V5-05/06/08)', () => {
       .poll(
         async () => ((await readSlot(page, 'current')) as { schemaVersion: number }).schemaVersion,
       )
-      .toBe(3);
+      .toBe(4);
     expect(await readSlot(page, 'backup-before-migration')).toEqual(v2);
     const offline = page.getByRole('article', { name: 'Gains hors ligne' });
     await expect(offline.getByText(/^\+.+ ¥$/)).toBeVisible();
@@ -307,7 +301,7 @@ test.describe('migration and recovery (GS-V5-05/06/08)', () => {
   test('a future version is refused with the exact text and nothing is written', async ({
     page,
   }) => {
-    const future = { ...v2, schemaVersion: 4 };
+    const future = { ...v2, schemaVersion: 5 };
     await seed(page, { current: future });
     await page.goto('./');
     await expect(page.getByRole('heading', { name: 'Sauvegarde illisible' })).toBeVisible();
@@ -324,6 +318,7 @@ test.describe('migration and recovery (GS-V5-05/06/08)', () => {
     await seed(page, { current: v2 }, `${v2.createdAt}:${v2.gacha.last.pull}`);
     await page.goto('./');
     await ready(page);
+    await page.getByRole('navigation').getByRole('button', { name: 'Menu' }).click();
     await page
       .getByRole('button', { name: 'Restaurer la sauvegarde d’avant la mise à jour' })
       .click();
@@ -333,7 +328,7 @@ test.describe('migration and recovery (GS-V5-05/06/08)', () => {
       'Sauvegarde d’avant la mise à jour restaurée.',
     );
     const kept = (await readSlot(page, 'backup-before-restore')) as { schemaVersion: number };
-    expect(kept.schemaVersion).toBe(3);
+    expect(kept.schemaVersion).toBe(4);
     expect(await readSlot(page, 'backup-before-import')).toBeUndefined();
   });
 });

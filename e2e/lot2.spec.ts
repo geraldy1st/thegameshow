@@ -9,7 +9,7 @@ async function openTab(page: Page, name: string) {
 
 test.beforeEach(async ({ page }) => {
   await page.goto('./');
-  await expect(page.getByRole('button', { name: 'Travailler avec Aoi' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Travailler', exact: true })).toBeVisible();
 });
 
 test('every tab has no axe violations at 360x640 (GS-CA19)', async ({ page }) => {
@@ -79,38 +79,65 @@ test('a friend visit adds affinity', async ({ page }) => {
   await expect(page.getByText('Affinité : 5 sur 100').first()).toBeVisible();
 });
 
-test('the daily quiz is playable and all 7 daily tickets can be earned (DEF-GS-06)', async ({
-  page,
-}) => {
-  const tickets = page.locator('.pill-tickets span').last();
-  await expect(tickets).toHaveText('3');
-  const work = page.getByRole('button', { name: 'Travailler avec Aoi' });
-  for (let i = 0; i < 100; i++) await work.click();
-  await openTab(page, 'Investir');
-  for (let i = 0; i < 3; i++)
-    await page.getByRole('button', { name: /un niveau de Épargne/ }).click();
-  await openTab(page, 'Amis');
-  await page.getByRole('button', { name: 'Passer du temps avec Mio' }).click();
+// Lot 4 (QA §2.4, G-9): the home button « Travailler avec Aoi » (+1 ¥, quest « clic ») is gone.
+// Replacement of the old 100 clicks: +100 ¥ written through the harness (normal compare-and-set),
+// then 100 accepted taps on #work, with clock.advance(1000) every 15 taps (15/s cap) and
+// setEnergy(50) after the 50th. Same oracle: quest « clic » at 100, Épargne level 3, 10 tickets.
+async function earnLikeHundredClicks(page: Page) {
+  await page.waitForFunction(() => !!window.__TGS_TEST__?.state());
+  await page.evaluate(async () => {
+    const h = window.__TGS_TEST__!;
+    const g = h.state()!;
+    if (!(await h.loadSave({ ...g, yenCents: g.yenCents + 100_00 })))
+      throw new Error('loadSave refused');
+  });
+  await page.getByRole('button', { name: 'Travailler', exact: true }).click();
+  const doc = page.locator('.doc');
+  for (let i = 1; i <= 100; i++) {
+    await doc.click();
+    if (i % 15 === 0) await page.evaluate(() => window.__TGS_TEST__!.advance(1000));
+    if (i === 50) await page.evaluate(() => window.__TGS_TEST__!.setEnergy(50));
+  }
+  await expect
+    .poll(() => page.evaluate(() => window.__TGS_TEST__!.state()!.quests.progress.click))
+    .toBe(100);
+  await page.getByRole('button', { name: '← Accueil' }).click();
+}
 
-  await page.getByRole('button', { name: /Quêtes du jour/ }).click();
-  await page.getByRole('button', { name: 'Répondre au quiz' }).click();
-  const quiz = page.getByRole('dialog', { name: 'Quiz de Kyoko-sensei' });
-  await expect(quiz).toBeVisible();
-  await expect(quiz.locator('.quiz-q')).not.toBeEmpty();
-  await quiz.locator('.quiz-choices button').first().click();
-  await expect(quiz.locator('.quiz-why')).toContainText(/Bonne réponse|La bonne réponse/);
-  await page.waitForFunction(() =>
-    document.getAnimations().every((a) => a.playState !== 'running'),
-  );
-  expect(await axeViolations(page)).toEqual([]);
-  await quiz.getByRole('button', { name: 'Fermer' }).click();
-  await expect(quiz).toBeHidden();
-  const quests = page.getByRole('dialog', { name: 'Quêtes du jour' });
-  await expect(quests.locator('#quest-action-quiz')).toBeFocused();
-  for (let i = 0; i < 5; i++)
-    await quests.getByRole('button', { name: 'Récupérer' }).first().click();
-  await expect(quests.getByText('Récupéré ✓')).toHaveCount(5);
-  await expect(tickets).toHaveText('10'); // 3 at start + 7 for the day
+test.describe('harness build (lot 4, QA §2.4)', () => {
+  test.use({ baseURL: 'http://localhost:4181/thegameshow/' });
+  test('the daily quiz is playable and all 7 daily tickets can be earned (DEF-GS-06)', async ({
+    page,
+  }) => {
+    const tickets = page.locator('.pill-tickets span').last();
+    await expect(tickets).toHaveText('3');
+    await earnLikeHundredClicks(page);
+    await openTab(page, 'Investir');
+    for (let i = 0; i < 3; i++)
+      await page.getByRole('button', { name: /un niveau de Épargne/ }).click();
+    await openTab(page, 'Amis');
+    await page.getByRole('button', { name: 'Passer du temps avec Mio' }).click();
+
+    await page.getByRole('button', { name: /Quêtes du jour/ }).click();
+    await page.getByRole('button', { name: 'Répondre au quiz' }).click();
+    const quiz = page.getByRole('dialog', { name: 'Quiz de Kyoko-sensei' });
+    await expect(quiz).toBeVisible();
+    await expect(quiz.locator('.quiz-q')).not.toBeEmpty();
+    await quiz.locator('.quiz-choices button').first().click();
+    await expect(quiz.locator('.quiz-why')).toContainText(/Bonne réponse|La bonne réponse/);
+    await page.waitForFunction(() =>
+      document.getAnimations().every((a) => a.playState !== 'running'),
+    );
+    expect(await axeViolations(page)).toEqual([]);
+    await quiz.getByRole('button', { name: 'Fermer' }).click();
+    await expect(quiz).toBeHidden();
+    const quests = page.getByRole('dialog', { name: 'Quêtes du jour' });
+    await expect(quests.locator('#quest-action-quiz')).toBeFocused();
+    for (let i = 0; i < 5; i++)
+      await quests.getByRole('button', { name: 'Récupérer' }).first().click();
+    await expect(quests.getByText('Récupéré ✓')).toHaveCount(5);
+    await expect(tickets).toHaveText('10'); // 3 at start + 7 for the day
+  });
 });
 
 test('keyboard: focus returns to « Tirer » after the reveal (DEF-GS-09)', async ({ page }) => {
@@ -139,11 +166,12 @@ test('a reload during the reveal shows the saved result once, with no new draw (
   await dialog.getByRole('button', { name: 'Continuer' }).click();
   await expect(page.getByText('3 ★ garanti dans 49 tirages', { exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Travailler avec Aoi' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Travailler', exact: true })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
 test('reset confirmation tells the truth about the backup copy (DEF-GS-07)', async ({ page }) => {
+  await page.getByRole('navigation').getByRole('button', { name: 'Menu' }).click();
   await page.getByRole('button', { name: 'Nouvelle partie' }).click();
   const d = page.getByRole('dialog', { name: 'Recommencer de zéro ?' });
   await expect(d).toContainText('copie de secours');

@@ -26,7 +26,8 @@ test('main screen has no axe violations and no console errors (DEF-GS-02, DEF-GS
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   page.on('response', (r) => r.status() >= 400 && errors.push(`${r.status()} ${r.url()}`));
   await page.goto('./');
-  await expect(page.getByRole('button', { name: 'Travailler avec Aoi' })).toBeVisible();
+  // Lot 4 (QA §2.4): the home is ready when the « Travailler » tile is shown.
+  await expect(page.getByRole('button', { name: 'Travailler', exact: true })).toBeVisible();
   expect(await axeViolations(page)).toEqual([]);
   expect(errors).toEqual([]);
 });
@@ -35,6 +36,8 @@ test('the import label shows a focus ring when the file input is focused (DEF-GS
   page,
 }) => {
   await page.goto('./');
+  // Lot 4 (QA §2.4): the save actions live in Menu > Paramètres.
+  await page.getByRole('navigation').getByRole('button', { name: 'Menu' }).click();
   await page.locator('#import-file').focus();
   const outline = await page
     .locator('label[for="import-file"]')
@@ -44,7 +47,8 @@ test('the import label shows a focus ring when the file input is focused (DEF-GS
 
 test('starting over from an unreadable save needs a confirmation (DEF-GS-01)', async ({ page }) => {
   await page.goto('./');
-  await expect(page.getByRole('button', { name: 'Travailler avec Aoi' })).toBeVisible();
+  // Lot 4 (QA §2.4): the home is ready when the « Travailler » tile is shown.
+  await expect(page.getByRole('button', { name: 'Travailler', exact: true })).toBeVisible();
   await corruptSave(page);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Sauvegarde illisible' })).toBeVisible();

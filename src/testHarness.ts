@@ -7,6 +7,8 @@ import type { StoreApi } from 'zustand/vanilla';
 import type { ManualClock } from './core/clock';
 import { createRng } from './core/rng';
 import { BALANCE } from './data/balance';
+import type { GameState } from './core/types';
+import { serializeExport } from './save/exportImport';
 import type { GameStoreState } from './store/gameStore';
 import type { BoostPhase } from './core/boost';
 import { boostStore, forceShow, seedBoost } from './ui/work/boostStore';
@@ -95,7 +97,11 @@ export function installTestHook(store: StoreApi<GameStoreState>, clock: ManualCl
           updatedAt: clock.now(),
         },
       }),
-    loadSave: async (obj) => (await store.getState().importSave(JSON.stringify(obj))).ok,
+    loadSave: async (obj) => {
+      const r = await store.getState().importSave(serializeExport(obj as GameState));
+      if (!r.ok) console.warn(`loadSave refused: ${r.reason}`);
+      return r.ok;
+    },
     seedRng: (n) => seedBoost(n, clock.now()),
     setVisibility: (v) => {
       Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => v });
