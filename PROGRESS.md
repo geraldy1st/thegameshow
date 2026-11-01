@@ -10,3 +10,10 @@
 - Publication autorisée par Geraldy le 01/11 ; recette Crypto GO AVEC RÉSERVES sur 5894cb8.
 - `main` avancé en avance rapide de48a09 → 5894cb8 (aucun changement de contenu), déployé par pages.yml (run 41285073773 : build, check:no-test-hook, check:no-budget-fake, déploiement OK ; CI 41285073857 OK).
 - Fumée sur https://geraldy1st.github.io/thegameshow/ : 200, `h1` « Accueil », 0 réponse ≥ 400, 0 erreur console, aucune trace du harnais ni fichier de test, accueil 326,8 Ko transférés / 500 Ko.
+
+## 2026-11-01 — Lot 4 « Travailler » codé (0.4.0, branche `lot-4-work`)
+
+- GO AVEC RÉSERVES de Crypto (v1.2) ; docs v1.3 (copies v1.2 gardées hors dépôt).
+- Incréments : schéma v4 + migration ; cœur frappe/boost/conversion ; accueil sans défilement + Menu/Paramètres + écran Travailler + vidéos ; harnais lot 4 ; budgets + CI ; E2E lot 4 et suites adaptées (QA §2.4) ; docs.
+- Mesures locales : accueil 336,2 Ko / 500 ; Travailler 162,3 Ko / 200 hors socle (direct 346,2 / 530, fixe 22,4 / 150) ; jauges qui échouent comme prévu.
+- Reste : fixtures lot 4 de Crypto absentes (fixtures du dépôt utilisées), simulation 30 jours (`workSim`) non faite, script de comparaison d'état final (QA §2.4) non écrit, WebKit non lancé localement (CI), revue visuelle des tuiles à 360×640 sur iPhone.
