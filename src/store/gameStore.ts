@@ -3,7 +3,7 @@ import type { FriendId, InvestmentId, QuestId } from '../data/balance';
 import type { Clock } from '../core/clock';
 import { buy as coreBuy } from '../core/economy';
 import { convert as coreConvert } from '../core/conversion';
-import { setMode as coreSetMode, tap as coreTap } from '../core/work';
+import { normalizeWorkMode, tap as coreTap } from '../core/work';
 import type { TapWindow } from '../core/tapLimiter';
 import { collectOffline as coreCollect, settle } from '../core/idle';
 import { pull as corePull } from '../core/gacha';
@@ -17,7 +17,7 @@ import {
 import { createInitialState } from '../core/state';
 import { rechargeEnergy } from '../core/energy';
 import { t } from '../i18n/fr';
-import type { GameState, LastPull, WorkMode } from '../core/types';
+import type { GameState, LastPull } from '../core/types';
 import { migrateToCurrent } from '../save/migrations';
 import {
   RevisionConflictError,
@@ -62,7 +62,6 @@ export interface GameStoreState {
    * (totalClicks, « clic » quest). A read-only tab counts nothing.
    */
   tap(mult?: number): TapOutcome;
-  setWorkMode(mode: WorkMode): void;
   /** Converts the points (100 pts = 10 ¥, +1 Créativité); resolves the yen credited (0: none). */
   convertPoints(): Promise<number>;
   buy(id: InvestmentId): Promise<boolean>;
@@ -337,10 +336,6 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         return out;
       },
 
-      setWorkMode(mode) {
-        if (update((g) => coreSetMode(g, mode))) persistLater();
-      },
-
       async convertPoints() {
         let yen = 0;
         const stored = await committed((g) => {
@@ -453,10 +448,12 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         persistedRevision = await storedRevision();
         const now = deps.clock.now();
         // An imported save may come from another device clock: never let it block settlement.
+        // Patch 0.4.2 (R-P42-4): a 0.4.1 export in `presse` comes back as `roman`, written once.
+        const value = normalizeWorkMode(parsed.value);
         const imported: GameState = {
-          ...parsed.value,
-          maxSeenAt: Math.min(parsed.value.maxSeenAt, now),
-          lastSeenAt: Math.min(parsed.value.lastSeenAt, now),
+          ...value,
+          maxSeenAt: Math.min(value.maxSeenAt, now),
+          lastSeenAt: Math.min(value.lastSeenAt, now),
         };
         set({ game: imported, status: 'ready', recoveryReason: null, recoveryKind: null });
         await persistNow();

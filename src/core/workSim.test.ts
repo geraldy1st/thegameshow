@@ -91,12 +91,17 @@ const IN_SPEC: Record<string, Profile> = {
   actif: { sessions: 3, sessionMin: 10, rate: 15, hit: 0.6, reactS: 2 },
   idle: { sessions: 1, sessionMin: 5, rate: 3, hit: 0.3, reactS: 4 },
   'reduced-motion': { sessions: 3, sessionMin: 10, rate: 15, hit: 1, reactS: 1 },
+  // Patch 0.4.2 D3 (R-P42-1): taps and boost are one gesture on Aoi, so a player who keeps
+  // tapping catches every boost as soon as the cursor reaches the zone (0.35 × 1.3 s ≈ 0.46 s).
+  'tapeur continu': { sessions: 3, sessionMin: 10, rate: 15, hit: 1, reactS: 0.5 },
 };
 
 describe('GS-V5-24 work simulation, 30 days, seed 77 (Crypto, R-LOT4-2)', () => {
   for (const [name, p] of Object.entries(IN_SPEC)) {
     it(`${name}: boost adds at most 15 %`, () => {
-      expect(ratio(p)).toBeLessThanOrEqual(1.15);
+      const r = ratio(p);
+      console.info(`workSim ${name}: ${r.toFixed(3)}`);
+      expect(r).toBeLessThanOrEqual(1.15);
     });
   }
   it('hoard (out of spec, R-LOT4-3 open): recorded, above 1.15 with the current balance', () => {

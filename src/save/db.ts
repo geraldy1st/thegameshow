@@ -1,3 +1,4 @@
+import { normalizeWorkMode } from '../core/work';
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { GameState } from '../core/types';
 import { migrateToCurrent, type CurrentSave } from './migrations';
@@ -69,7 +70,17 @@ const versionOf = (v: unknown): number => {
  * A future version in `current` is refused without fallback, so no older state can overwrite
  * it. Never throws on bad data (recovery screen).
  */
+/**
+ * Every loaded save goes through `normalizeWorkMode` (patch 0.4.2, R-P42-4): the current slot,
+ * the 0.3.2 round trip (`restoreWorkAfterDowngrade`) and the backups. The store writes the
+ * result with its usual load write, so a `presse` save is rewritten once and stays `roman`.
+ */
 export async function loadSave(db: IDBPDatabase<TgsDB>): Promise<LoadResult> {
+  const r = await loadSaveRaw(db);
+  return r.kind === 'ok' ? { ...r, save: normalizeWorkMode(r.save) } : r;
+}
+
+async function loadSaveRaw(db: IDBPDatabase<TgsDB>): Promise<LoadResult> {
   const [cur, prev, mig3, mig] = await Promise.all([
     db.get('saves', 'current'),
     db.get('saves', 'previous'),

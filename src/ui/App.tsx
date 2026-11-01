@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Modal } from './common';
+import { Dot, Modal } from './common';
+import { pendingQuestsFor } from '../core/questTargets';
 import { download, claimableCount, revealPending } from './helpers';
 import { Home } from './Home';
 import { goHome, navigate, replaceRoute, useRoute, type Route } from './router';
@@ -368,21 +369,33 @@ function Settings({ store }: { store: Store }) {
   );
 }
 
-function TabBar({ route }: { route: Route }) {
+function TabBar({ store, route }: { store: Store; route: Route }) {
+  const todoInvest = useStore(store, (s) =>
+    s.game ? pendingQuestsFor('invest', s.game).length > 0 : false,
+  );
+  const todoFriends = useStore(store, (s) =>
+    s.game ? pendingQuestsFor('friends', s.game).length > 0 : false,
+  );
   return (
     <nav className="tabbar" aria-label={t('tabsLabel')}>
       {TABS.map((id) => {
-        const on = route === id || (id === 'home' && route === 'quests');
+        // Patch 0.4.2 (3a, R-P42-10): on #work, « Accueil » is the section the screen belongs
+        // to (aria-current="true"), not the current page.
+        const section = id === 'home' && route === 'work';
+        const on = route === id || (id === 'home' && route === 'quests') || section;
+        const todo = (id === 'invest' && todoInvest) || (id === 'friends' && todoFriends);
         return (
           <button
             key={id}
             type="button"
             className={`tab ${on ? 'on' : ''}`}
-            aria-current={on ? 'page' : undefined}
+            aria-current={section ? 'true' : on ? 'page' : undefined}
+            aria-describedby={todo ? `dot-tab-${id}` : undefined}
             onClick={() => (id === 'home' ? goHome() : navigate(id))}
           >
             <span aria-hidden="true">{TAB_ICON[id]}</span>
             {t(TAB_LABEL[id])}
+            {todo && <Dot id={`dot-tab-${id}`} label={t('questTodo')} />}
           </button>
         );
       })}
@@ -493,7 +506,7 @@ export function App({ store }: { store: Store }) {
         {screen === 'friends' && <Friends store={store} />}
         {screen === 'partners' && <Partners store={store} />}
       </main>
-      <TabBar route={route} />
+      <TabBar store={store} route={route} />
       <Quests store={store} open={route === 'quests'} onClose={() => goHome()} />
       {live}
     </div>

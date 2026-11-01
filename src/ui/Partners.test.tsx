@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ManualClock } from '../core/clock';
 import { openSaveDb } from '../save/db';
@@ -108,7 +108,10 @@ describe('daily quiz (DEF-GS-06)', () => {
   it('opens over the quests, accepts any answer, explains, credits the quest and refocuses', async () => {
     const store = await app('ui-quiz-1', '');
     fireEvent.click(screen.getByRole('button', { name: /Quêtes du jour/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Répondre au quiz' }));
+    // 0.4.2 (1b): the unfinished quiz row is itself the button that opens the quiz.
+    const row = screen.getByRole('button', { name: /^Quiz de Kyoko-sensei/ });
+    expect(row.getAttribute('aria-describedby')).toBe('quest-dot-quiz');
+    fireEvent.click(row);
     const quiz = screen.getByRole('dialog', { name: 'Quiz de Kyoko-sensei' });
     expect(screen.getByRole('dialog', { name: 'Quêtes du jour' })).toBeTruthy();
     const choices = quiz.querySelectorAll('.quiz-choices button');
@@ -119,7 +122,8 @@ describe('daily quiz (DEF-GS-06)', () => {
     });
     expect(quiz.querySelector('.quiz-why')?.textContent).toMatch(/Bonne réponse|La bonne réponse/);
     expect(store.getState().game!.quests.progress.quiz).toBe(1);
-    fireEvent.click(screen.getAllByRole('button', { name: 'Fermer' }).at(-1)!);
+    // R-P42-11: « Fermer » of the quiz dialog itself, not the last one in the document.
+    fireEvent.click(within(quiz).getByRole('button', { name: 'Fermer' }));
     const claim = document.getElementById('quest-action-quiz')!;
     expect(document.activeElement).toBe(claim);
     const before = store.getState().game!.tickets;

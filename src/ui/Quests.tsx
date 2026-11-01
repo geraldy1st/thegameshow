@@ -4,7 +4,9 @@ import { QUESTS, QUEST_IDS, type QuestId } from '../data/balance';
 import { questDone } from '../core/quests';
 import { t, type MessageKey } from '../i18n/fr';
 import type { GameStoreState } from '../store/gameStore';
-import { Modal, Portrait } from './common';
+import { QUEST_TARGET } from '../core/questTargets';
+import { Dot, Modal, Portrait } from './common';
+import { navigate } from './router';
 import { todayQuestion } from './helpers';
 
 type Store = StoreApi<GameStoreState>;
@@ -57,17 +59,41 @@ function QuestRow({ store, id, onQuiz }: { store: Store; id: QuestId; onQuiz: ()
   const p = Math.min(g.quests.progress[id], def.goal);
   const claimed = g.quests.claimed[id];
   const done = questDone(g, id);
+  const name = t(`quest${id}` as MessageKey);
+  const body = (
+    <>
+      <span className="quest-name">{name}</span>
+      <span className="num meta">
+        {t('questProgress', { a: p, b: def.goal })} ·{' '}
+        <span aria-hidden="true">{t('questReward', { n: def.reward })}</span>
+        <span className="visually-hidden">{t('questRewardLabel', { n: def.reward })}</span>
+      </span>
+      <progress max={def.goal} value={p} aria-hidden="true" />
+    </>
+  );
+  // Patch 0.4.2 (1b, 1c): an unfinished quest is one native button to its activity; a
+  // finished one is plain text, only « Réclamer » stays active.
+  const go = () => {
+    const target = QUEST_TARGET[id];
+    if (target.kind === 'quiz') onQuiz();
+    else navigate(target.route);
+  };
   return (
     <li className="quest card">
-      <div className="quest-text">
-        <p className="quest-name">{t(`quest${id}` as MessageKey)}</p>
-        <p className="num meta">
-          {t('questProgress', { a: p, b: def.goal })} ·{' '}
-          <span aria-hidden="true">{t('questReward', { n: def.reward })}</span>
-          <span className="visually-hidden">{t('questRewardLabel', { n: def.reward })}</span>
-        </p>
-        <progress max={def.goal} value={p} aria-label={t(`quest${id}` as MessageKey)} />
-      </div>
+      {!done ? (
+        <button
+          type="button"
+          id={`quest-action-${id}`}
+          className="quest-text quest-go"
+          aria-describedby={`quest-dot-${id}`}
+          onClick={go}
+        >
+          {body}
+          <Dot id={`quest-dot-${id}`} label={t('questRowTodo')} />
+        </button>
+      ) : (
+        <div className="quest-text">{body}</div>
+      )}
       {claimed ? (
         <span className="claimed" id={`quest-action-${id}`} tabIndex={-1}>
           {t('claimed')}
@@ -85,15 +111,6 @@ function QuestRow({ store, id, onQuiz }: { store: Store; id: QuestId; onQuiz: ()
           }
         >
           {t('claim')}
-        </button>
-      ) : id === 'quiz' ? (
-        <button
-          type="button"
-          id={`quest-action-${id}`}
-          className="btn btn-secondary"
-          onClick={onQuiz}
-        >
-          {t('quizOpen')}
         </button>
       ) : null}
     </li>
@@ -136,18 +153,21 @@ export function Quests({
         labelId="quests-title"
         initialFocusId="quests-title"
       >
-        <h2 id="quests-title" tabIndex={-1}>
-          {t('questsTitle')}
-        </h2>
+        {/* Patch 0.4.2 (1a, D2): « Fermer » top right, sticky while the list scrolls. */}
+        <div className="dlg-head">
+          <h2 id="quests-title" tabIndex={-1}>
+            {t('questsTitle')}
+          </h2>
+          <button type="button" className="btn btn-ghost dlg-close" onClick={onClose}>
+            {t('close')}
+          </button>
+        </div>
         <ul className="quests">
           {QUEST_IDS.map((id) => (
             <QuestRow key={id} store={store} id={id} onQuiz={() => setQuiz(true)} />
           ))}
         </ul>
         <p className="meta">{t('noStreak')}</p>
-        <button type="button" className="btn btn-ghost" onClick={onClose}>
-          {t('close')}
-        </button>
       </Modal>
       {open && quiz && <Quiz store={store} onClose={closeQuiz} />}
     </>

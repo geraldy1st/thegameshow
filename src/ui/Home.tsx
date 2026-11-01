@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Modal } from './common';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Dot, Modal } from './common';
+import { pendingQuests, pendingQuestsFor } from '../core/questTargets';
 import { navigate } from './router';
 import { useStore, type StoreApi } from 'zustand';
 import { PITY_LIMIT, QUEST_IDS, STAT_IDS, MAX_STAT, BALANCE, xpNeed } from '../data/balance';
@@ -43,14 +44,7 @@ function Tile({ store, id }: { store: Store; id: TileKey }) {
       {id !== 'tileWork' && <span className="hub-lock">🔒</span>}
     </span>
   );
-  if (id === 'tileWork') {
-    return (
-      <button type="button" className="hub-btn is-open" onClick={() => navigate('work')}>
-        {ill}
-        <span className="hub-lbl">{name}</span>
-      </button>
-    );
-  }
+  if (id === 'tileWork') return <WorkTile store={store} ill={ill} name={name} />;
   return (
     <button
       type="button"
@@ -63,6 +57,25 @@ function Tile({ store, id }: { store: Store; id: TileKey }) {
       <span className="hub-lbl" aria-hidden="true">
         {name}
       </span>
+    </button>
+  );
+}
+
+/** « Travailler » keeps the exact name; the pending « clic » quest is a description (D7). */
+function WorkTile({ store, ill, name }: { store: Store; ill: ReactNode; name: string }) {
+  const todo = useStore(store, (s) =>
+    s.game ? pendingQuestsFor('work', s.game).length > 0 : false,
+  );
+  return (
+    <button
+      type="button"
+      className="hub-btn is-open"
+      aria-describedby={todo ? 'dot-tile-work' : undefined}
+      onClick={() => navigate('work')}
+    >
+      {ill}
+      <span className="hub-lbl">{name}</span>
+      {todo && <Dot id="dot-tile-work" label={t('questTodo')} />}
     </button>
   );
 }
@@ -163,6 +176,7 @@ function Infos({ store }: { store: Store }) {
   const absence = useStore(store, (s) => s.absenceMs);
   const readonly = useStore(store, (s) => s.status !== 'ready');
   const stats = useStore(store, (s) => s.game?.stats);
+  const todo = useStore(store, (s) => (s.game ? pendingQuests(s.game).length > 0 : false));
   const [statsOpen, setStatsOpen] = useState(false);
   const left = PITY_LIMIT - pity;
   const collect = async () => {
@@ -180,7 +194,12 @@ function Infos({ store }: { store: Store }) {
         <p className="small num">{t('goalSub', { n: pity })}</p>
       </article>
       {/* Not a button: « Quêtes du jour » lives in the top bar (one control per action). */}
-      <article className="card info" aria-labelledby="quests-card-title">
+      <article
+        className="card info has-dot"
+        aria-labelledby="quests-card-title"
+        aria-describedby={todo ? 'dot-quests-card' : undefined}
+      >
+        {todo && <Dot id="dot-quests-card" label={t('questTodo')} />}
         <h2 id="quests-card-title">{t('questsCardTitle')}</h2>
         <p className="info-big num">{t('questsCardBig', { a: done, b: QUEST_IDS.length })}</p>
         <p className="small">{t('questsCardSub')}</p>

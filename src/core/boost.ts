@@ -16,7 +16,7 @@ export interface BoostState {
   endedHidden: boolean;
   rng: RngState;
 }
-export type BoostEvent = 'shown' | 'hit' | 'miss' | 'expired' | 'ended' | null;
+export type BoostEvent = 'shown' | 'hit' | 'expired' | 'ended' | null;
 
 function gap(rng: RngState): [number, RngState] {
   const { minGapMs, maxGapMs } = BALANCE.boost;
@@ -95,8 +95,9 @@ export function tickBoost(
 }
 
 /**
- * Touch on Aoi (or « Activer le boost » with `cursor` = 0.5 in reduced-motion). Outside
- * `shown`: nothing happens (help message, no penalty).
+ * Touch on Aoi (patch 0.4.2 D3; `cursor` = 0.5 with still images). Inside the zone, bounds
+ * included: `hit`. Outside the zone, or outside `shown`: no event and no state change (not a
+ * miss: the gauge stays until its 12 s are over, R-P42-1).
  */
 export function touchAoi(
   s0: BoostState,
@@ -120,7 +121,7 @@ export function touchAoi(
       event: 'hit',
     };
   }
-  return { state: toCooldown(s, now), event: 'miss' };
+  return t;
 }
 
 /** The tab became hidden: an active boost ends without « joy » (G-5 'lost'). */

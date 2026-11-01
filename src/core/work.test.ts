@@ -18,7 +18,7 @@ import { addXp } from './level';
 import { createRng } from './rng';
 import { createInitialState } from './state';
 import { acceptTap } from './tapLimiter';
-import { clickValuePoints, setMode, tap } from './work';
+import { clickValuePoints, normalizeWorkMode, tap } from './work';
 import type { GameState } from './types';
 
 const T0 = Date.UTC(2026, 10, 1, 10, 0, 0);
@@ -128,10 +128,14 @@ describe('tap (GS-V5-46, 47, 58)', () => {
       { numRuns: 1000, seed: 77 },
     );
   });
-  it('setMode resets the cursor, keeps points', () => {
-    const g = { ...fresh(), work: { ...fresh().work, cursor: 42, points: 7 } };
-    expect(setMode(g, 'presse').work).toMatchObject({ mode: 'presse', cursor: 0, points: 7 });
-    expect(setMode(g, 'roman')).toBe(g);
+  it('normalizeWorkMode (0.4.2, R-P42-4): presse → roman, cursor 0, the rest untouched', () => {
+    const w = { ...fresh().work, cursor: 42, points: 7, pointsTotal: 900, taps: 55 };
+    const presse = { ...fresh(), totalClicks: 55, work: { ...w, mode: 'presse' as const } };
+    const n = normalizeWorkMode(presse);
+    expect(n.work).toEqual({ ...w, mode: 'roman', cursor: 0 });
+    expect({ ...n, work: null }).toEqual({ ...presse, work: null });
+    const roman = { ...fresh(), work: { ...w, mode: 'roman' as const } };
+    expect(normalizeWorkMode(roman)).toBe(roman); // same object: nothing to write
   });
 });
 
@@ -192,15 +196,29 @@ describe('boost machine (GS-V5-51)', () => {
       event: 'shown',
     });
   });
-  it.each([
-    [0.349, 'miss'],
-    [0.35, 'hit'],
-    [0.65, 'hit'],
-    [0.651, 'miss'],
-  ])('shown → p = %s → %s', (p, ev) => {
+  // 0.4.2 D3 (R-P42-1, R-P42-3): [0.349,'miss'] and [0.651,'miss'] become « no event, state
+  // unchanged »; the gauge then stays until 12 000 ms and the multiplier stays x1.
+  it.each([0.35, 0.5, 0.65])('shown → p = %s (in the zone, bounds included) → hit', (p) => {
     const r = touchAoi(shown(), T0 + 100, true, p);
-    expect(r.event).toBe(ev);
-    expect(r.state.phase).toBe(ev === 'hit' ? 'active' : 'cooldown');
+    expect(r.event).toBe('hit');
+    expect(r.state).toMatchObject({ phase: 'active', boostEnd: T0 + 100 + 5000 });
+    expect(boostMult(r.state, T0 + 100 + 4999)).toBe(2);
+    expect(boostMult(r.state, T0 + 100 + 5000)).toBe(1);
+  });
+  it.each([0.349, 0.651, 0, 1])('shown → p = %s (off the zone) → no event, unchanged', (p) => {
+    const s = shown();
+    const r = touchAoi(s, T0 + 100, true, p);
+    expect(r.event).toBeNull();
+    expect(r.state).toBe(s);
+    expect(boostMult(r.state, T0 + 100)).toBe(1);
+    // Many off-zone touches: the gauge is still shown at 11 999 ms, cooldown at 12 000 ms.
+    let st = r.state;
+    for (let t = T0 + 200; t < T0 + 12_000; t += 250) st = touchAoi(st, t, true, p).state;
+    expect(tickBoost(st, T0 + 11_999, true).state.phase).toBe('shown');
+    expect(tickBoost(st, T0 + 12_000, true)).toMatchObject({
+      state: { phase: 'cooldown' },
+      event: 'expired',
+    });
   });
   it('shown 11 999 ms visible, hidden at 12 000 without a miss message', () => {
     expect(tickBoost(shown(), T0 + 11_999, true).state.phase).toBe('shown');
@@ -223,7 +241,7 @@ describe('boost machine (GS-V5-51)', () => {
     expect(isDoubled(a, T0 + 4999)).toBe(true);
     expect(tickBoost(a, T0 + 6000, true).state.joyPending).toBe(false);
   });
-  it('no stacking: touching during active changes nothing; a miss has no penalty', () => {
+  it('no stacking: touching during active changes nothing; outside shown no event', () => {
     const a = touchAoi(shown(), T0, true, 0.5).state;
     expect(touchAoi(a, T0 + 100, true, 0.5).state).toEqual(a);
     expect(touchAoi(start(), T0, true, 0.5).event).toBeNull();

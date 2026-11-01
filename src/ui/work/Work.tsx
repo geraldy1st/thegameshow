@@ -4,18 +4,15 @@ import { BALANCE } from '../../data/balance';
 import { WORK_TEXTS } from '../../data/workTexts';
 import { boostMult, cursorAt, secondsLeft } from '../../core/boost';
 import { clickValuePoints } from '../../core/work';
-import type { WorkMode } from '../../core/types';
 import { t } from '../../i18n/fr';
 import type { GameStoreState } from '../../store/gameStore';
 import { formatYen } from '../format';
-import { goHome } from '../router';
 import { AoiVideo, type AoiState } from './AoiVideo';
 import { boostStore, resetBoost, setVisible, takeJoy, tick, touch } from './boostStore';
 import { FloatingPoints, type FloatingHandle } from './FloatingPoints';
 import { onMediaOverride, readMediaEnv, shouldUseStill } from './media';
 
 type Store = StoreApi<GameStoreState>;
-const MODES: readonly WorkMode[] = ['roman', 'presse'];
 
 function useStill(store: Store): boolean {
   const setting = useStore(store, (s) => s.game?.settings.reducedMotion ?? 'auto');
@@ -33,40 +30,6 @@ function useStill(store: Store): boolean {
     };
   }, [setting]);
   return still;
-}
-
-function ModeSwitch({ store }: { store: Store }) {
-  const mode = useStore(store, (s) => s.game?.work.mode ?? 'roman');
-  const refs = useRef<Array<HTMLButtonElement | null>>([]);
-  const pick = (m: WorkMode, focus = false) => {
-    store.getState().setWorkMode(m);
-    if (focus) refs.current[MODES.indexOf(m)]?.focus();
-  };
-  return (
-    <div className="seg" role="radiogroup" aria-label={t('workModeLabel')}>
-      {MODES.map((m, i) => (
-        <button
-          key={m}
-          ref={(el) => {
-            refs.current[i] = el;
-          }}
-          type="button"
-          role="radio"
-          aria-checked={mode === m}
-          tabIndex={mode === m ? 0 : -1}
-          onClick={() => pick(m)}
-          onKeyDown={(e) => {
-            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
-              e.preventDefault();
-              pick(MODES[(i + 1) % MODES.length]!, true);
-            }
-          }}
-        >
-          {t(m === 'roman' ? 'workRoman' : 'workPresse')}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 /**
@@ -160,21 +123,26 @@ export function Work({ store }: { store: Store }) {
     }
     if (out.milestone) joy();
   };
-  const docRef = useRef<HTMLButtonElement>(null);
+  const aoiRef = useRef<HTMLButtonElement>(null);
   const centre = () => {
-    const d = docRef.current;
+    const d = aoiRef.current;
     return d ? { x: d.offsetLeft + d.offsetWidth / 2, y: d.offsetTop + 30 } : { x: 0, y: 0 };
   };
+  /** Time of the last pointerdown: the click that follows it is the same gesture (R-P42-2). */
+  const lastPointer = useRef(-Infinity);
 
-  const onAoi = (cursor?: number) => {
+  /**
+   * One gesture on Aoi (patch 0.4.2, 3d and 3e): write first, at the multiplier in force
+   * before the gesture (D4: the triggering tap is paid x1), then try the boost while the
+   * gauge is shown (D3). A refused tap (rate or energy) writes nothing but may still catch
+   * the boost (D5). Outside the zone nothing happens: no miss, no announcement (R-P42-1).
+   */
+  const gesture = (x: number, y: number) => {
     const n = store.getState().now();
+    write(x, y);
     tick(n);
-    if (boostStore.getState().boost.phase !== 'shown') {
-      announce(t('workAoiHelp'));
-      return;
-    }
-    const ev = touch(n, still ? BALANCE.boost.reducedCursor : cursor);
-    if (ev === 'miss') announce(t('boostMiss'));
+    if (boostStore.getState().boost.phase === 'shown')
+      touch(n, still ? BALANCE.boost.reducedCursor : undefined);
   };
 
   const convert = async () => {
@@ -195,7 +163,7 @@ export function Work({ store }: { store: Store }) {
   const value = clickValuePoints(game);
   const aoi: AoiState =
     now < joyUntil ? 'joy' : energy.value < max * BALANCE.work.thinkBelowRatio ? 'think' : 'work';
-  const text = WORK_TEXTS[work.mode].repeat(4);
+  const text = WORK_TEXTS.roman.repeat(4);
   const shown = text.slice(Math.max(0, work.cursor - 150), work.cursor);
   const left = secondsLeft(boost, now);
   const active = boost.phase === 'active' && left > 0;
@@ -209,12 +177,6 @@ export function Work({ store }: { store: Store }) {
       data-still={still ? 'true' : 'false'}
     >
       <AoiVideo state={aoi} still={still} />
-      <div className="work-top">
-        <button type="button" className="btn btn-ghost back" onClick={() => goHome()}>
-          {t('backHome')}
-        </button>
-        <ModeSwitch store={store} />
-      </div>
       <h1 id="work-title" className="visually-hidden screen-title" tabIndex={-1}>
         {t('workTitle')}
       </h1>
@@ -236,11 +198,38 @@ export function Work({ store }: { store: Store }) {
         {t(aoi === 'joy' ? 'workStateJoy' : aoi === 'think' ? 'workStateThink' : 'workStateWork')}
       </p>
       <button
+        ref={aoiRef}
         type="button"
         className="aoi-hit"
-        aria-label={t('workAoiLabel')}
-        onClick={() => onAoi()}
-      />
+        aria-disabled={readonly}
+        aria-describedby={boost.phase === 'shown' ? 'boost-desc' : undefined}
+        onPointerDown={(e) => {
+          if (e.pointerType === 'mouse' && e.button !== 0) return;
+          lastPointer.current = performance.now();
+          const box = e.currentTarget.parentElement!.getBoundingClientRect();
+          gesture(e.clientX - box.left, e.clientY - box.top - 20);
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault(); // no synthetic click
+          if (e.repeat) return;
+          const c = centre();
+          gesture(c.x, c.y);
+        }}
+        onClick={(e) => {
+          // A pointer already counted on pointerdown (detail ≥ 1, or a late click right after
+          // it on touch screens). detail 0 without a recent pointerdown = assistive tech.
+          if (e.detail !== 0 || performance.now() - lastPointer.current < 1000) return;
+          const c = centre();
+          gesture(c.x, c.y);
+        }}
+      >
+        {/* Name from content (no aria-label: WCAG 2.5.3). */}
+        <span className="visually-hidden">{t('workDocLabel', { n: value })}</span>
+      </button>
+      <span id="boost-desc" className="visually-hidden">
+        {t('boostDesc')}
+      </span>
       {boost.phase === 'shown' && (
         <div className={`boost ${still ? 'still' : ''}`}>
           <div className="b-head">
@@ -251,15 +240,6 @@ export function Work({ store }: { store: Store }) {
             <span className="b-zone" />
             <span className="b-cur" ref={cursorEl} style={{ left: '50%' }} />
           </div>
-          {still && (
-            <button
-              type="button"
-              className="btn btn-primary sm b-act"
-              onClick={() => onAoi(BALANCE.boost.reducedCursor)}
-            >
-              {t('boostActivate')}
-            </button>
-          )}
         </div>
       )}
       {active && (
@@ -267,46 +247,20 @@ export function Work({ store }: { store: Store }) {
           <b>{t('boostHit')}</b> <span>{t('boostLeft', { n: left })}</span>
         </p>
       )}
-      <button
-        ref={docRef}
-        type="button"
-        className="doc"
-        aria-disabled={readonly}
-        onPointerDown={(e) => {
-          if (e.pointerType === 'mouse' && e.button !== 0) return;
-          const box = e.currentTarget.parentElement!.getBoundingClientRect();
-          write(e.clientX - box.left, e.clientY - box.top - 20);
-        }}
-        onKeyDown={(e) => {
-          if (e.key !== 'Enter' && e.key !== ' ') return;
-          e.preventDefault(); // no synthetic click
-          if (e.repeat) return;
-          const c = centre();
-          write(c.x, c.y);
-        }}
-        onClick={(e) => {
-          // A pointer already counted on pointerdown (detail ≥ 1). detail 0 = assistive tech.
-          if (e.detail !== 0) return;
-          const c = centre();
-          write(c.x, c.y);
-        }}
-      >
-        {/* Name from content (no aria-label: WCAG 2.5.3), the visible document is decoration. */}
-        <span className="visually-hidden">{t('workDocLabel', { n: value })}</span>
-        <span className="doc-bar" aria-hidden="true">
+      {/* The document is decoration only since 0.4.2 (3d): Aoi is the target. */}
+      <div className="doc" aria-hidden="true">
+        <span className="doc-bar">
           <i />
           <i />
           <i />
-          <b>{t(work.mode === 'roman' ? 'workDocRoman' : 'workDocPresse')}</b>
+          <b>{t('workDocRoman')}</b>
         </span>
-        <span className="doc-body" aria-hidden="true">
+        <span className="doc-body">
           <span>{shown}</span>
           <span className="caret" />
         </span>
-        <span className="doc-hint" aria-hidden="true">
-          {t('workDocHint')}
-        </span>
-      </button>
+        <span className="doc-hint">{t('workDocHint')}</span>
+      </div>
       <FloatingPoints ref={fx} />
       <div className="work-panel card">
         <p className="pts">

@@ -1679,3 +1679,189 @@ dialog .stats .bar i {
     font-size: 9px;
   }
 }
+
+/* ---- Patch 0.4.2 (MVP-PATCH-042 v1.1) ---- */
+
+/* Point 2 / D8 / R-P42-9: pending-quest dot, static (no animation, no number), top right. */
+.dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--alert);
+  box-shadow: 0 0 0 2px var(--ink);
+  pointer-events: none;
+}
+.tab,
+.hub-btn,
+.info.has-dot,
+.quest-go {
+  position: relative;
+}
+.tab .dot {
+  top: 4px;
+  right: calc(50% - 22px);
+}
+.hub-btn .dot {
+  top: 4px;
+  right: 4px;
+}
+/* The quests card keeps its text clear of the dot (no overlap, R-P42 Q2). */
+.info.has-dot {
+  padding-right: 22px;
+}
+/* GS-V5-70: the quests and goal cards were cut at 360×640 in 0.4.1; they wrap on two lines. */
+.app.is-home .infos .info > h2,
+.app.is-home .infos .info > .info-big,
+.app.is-quests .infos .info > h2,
+.app.is-quests .infos .info > .info-big {
+  white-space: normal;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  line-height: 1.15;
+}
+
+/* Point 1a / D2: the quests dialog title and « Fermer » stay at the top while the list scrolls. */
+.dlg-head {
+  position: sticky;
+  top: calc(-1 * var(--s-5));
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  margin: calc(-1 * var(--s-5)) calc(-1 * var(--s-5)) var(--s-3);
+  padding: var(--s-3) var(--s-5);
+  background: var(--card);
+  border-bottom: 1px solid var(--line-ink);
+}
+.dlg-head h2 {
+  margin: 0;
+}
+.dlg-head .dlg-close {
+  margin: 0;
+  min-height: 44px;
+  flex: none;
+}
+/* Point 1b: an unfinished quest is one native button (name, progress, reward). */
+.card .quest-go,
+.card div.quest-text {
+  display: grid;
+  gap: 2px;
+  min-height: 44px;
+  padding: 0 18px 0 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.card div.quest-text {
+  cursor: default;
+  padding-right: 0;
+}
+.card .quest-go .dot {
+  top: 2px;
+  right: 0;
+}
+.card .quest-go .quest-name {
+  font-weight: 700;
+}
+.card .quest-text progress {
+  width: 100%;
+}
+
+/* Points 3a–3e: no « ← Accueil », no Roman / Presse; Aoi is the target, the document is
+   decoration only. R-P42-2: one gesture = one tap (no double-tap zoom, no text selection). */
+.aoi-hit {
+  left: 6%;
+  top: 22%;
+  width: 62%;
+  height: 56%;
+  border-radius: 24px;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.aoi-hit:active {
+  box-shadow: inset 0 0 0 3px rgba(245, 184, 61, 0.6);
+}
+.doc {
+  top: auto;
+  bottom: 76px;
+  right: 8px;
+  width: 38%;
+  min-height: 0;
+  pointer-events: none;
+  cursor: default;
+  box-shadow: none;
+  border-width: 2px;
+  opacity: 0.92;
+}
+.doc-body {
+  max-height: 52px;
+  font-size: var(--fs-xs);
+}
+.doc-hint {
+  font-size: var(--fs-xs);
+  padding: 2px 4px;
+}
+.work-e {
+  top: 10px;
+}
+.ws-label {
+  top: 44px;
+}
+/* GS-V5-77: the gauge sits lower than in 0.4.1 (top 128 px), clear of the energy bar. */
+.boost,
+.b-on {
+  top: 148px;
+}
+/* Point 5 / D9: the whole frame of Aoi (contain), anchored at the bottom, side bands in
+   --bg-deep. No re-encoding, no new media. */
+.work .ws {
+  object-fit: contain;
+  object-position: 50% 100%;
+  background: var(--bg-deep);
+}
+/* Point 3c: « Convertir en yen » on one line, 44 px button, 22 px figure. */
+.work-panel {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 6px 10px;
+  gap: 2px 10px;
+}
+.work-panel .pts b {
+  font-size: 22px;
+}
+.work-panel .btn {
+  grid-column: auto;
+  min-height: 44px;
+  padding: 0 12px;
+  margin: 0;
+}
+
+/* Point 6 / R-P42-5: Aoi's stats in one column of full rows, ≥ 14 px, no ellipsis. */
+dialog .stats ul {
+  grid-template-columns: minmax(0, 1fr);
+}
+dialog .stats li {
+  grid-template-columns: minmax(0, 1fr) 72px 3ch;
+  font-size: max(14px, var(--fs-sm));
+}
+dialog .stats li span:first-child {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+dialog .stats li b {
+  font-size: inherit;
+}
+dialog:has(.stats) .btn {
+  min-height: 44px;
+}

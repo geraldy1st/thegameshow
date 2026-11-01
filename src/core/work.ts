@@ -5,7 +5,7 @@ import { rechargeEnergy } from './energy';
 import { addXp } from './level';
 import { bumpQuest } from './quests';
 import { acceptTap, type TapWindow } from './tapLimiter';
-import type { GameState, WorkMode } from './types';
+import type { GameState } from './types';
 
 /** Points per accepted tap: level × click bonus, at least 1 (mockup `clickVal`). */
 export function clickValuePoints(g: GameState): number {
@@ -67,8 +67,13 @@ export function tap(g0: GameState, window: TapWindow, now: number, mult = 1): Ta
   };
 }
 
-/** Roman / Presse (GS-V5-49): the text cursor goes back to 0, points are untouched. */
-export function setMode(g: GameState, mode: WorkMode): GameState {
-  if (g.work.mode === mode) return g;
-  return { ...g, work: { ...g.work, mode, cursor: 0 } };
+/**
+ * Patch 0.4.2 (point 3b): only « roman » is left. A v4 save in `presse` (0.4.1) becomes
+ * `roman` with the text cursor at 0; points, totals and taps are untouched. A `roman` save
+ * is returned as the same object (no change, no extra write). The schema still accepts
+ * `presse` (0.4.1 and the 0.3.2 round trip).
+ */
+export function normalizeWorkMode<S extends { work: GameState['work'] }>(g: S): S {
+  if (g.work.mode === 'roman') return g;
+  return { ...g, work: { ...g.work, mode: 'roman', cursor: 0 } };
 }

@@ -61,3 +61,20 @@ export function Portrait(props: { id: PortraitId; alt: string; className?: strin
     </picture>
   );
 }
+
+/**
+ * Pending-quest dot (patch 0.4.2 point 2, D7, D8, R-P42-9): static, no number, no animation.
+ * The dot is decoration; the information is the hidden description `id` (aria-describedby on
+ * the owner). Both are rendered by this component, so they appear and disappear together,
+ * without any live announcement (R-P42-7).
+ */
+export function Dot({ id, label }: { id: string; label: string }) {
+  return (
+    <>
+      <span className="dot" aria-hidden="true" data-testid="dot" />
+      <span id={id} className="visually-hidden">
+        {label}
+      </span>
+    </>
+  );
+}
