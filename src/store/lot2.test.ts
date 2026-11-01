@@ -116,7 +116,7 @@ describe('two tabs (GS-CA15)', () => {
     await b.getState().init();
     await b.getState().claimQuest('click'); // nothing to claim: no write
     await b.getState().answerQuiz(1); // B writes
-    for (let i = 0; i < 10; i++) a.store.getState().click();
+    for (let i = 0; i < 10; i++) a.store.getState().tap();
     expect(a.store.getState().game?.totalClicks).toBe(10);
     await a.store.getState().flush();
     expect(a.store.getState().status).toBe('readonly');

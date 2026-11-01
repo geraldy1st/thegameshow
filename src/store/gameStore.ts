@@ -1,7 +1,10 @@
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { FriendId, InvestmentId, QuestId } from '../data/balance';
 import type { Clock } from '../core/clock';
-import { buy as coreBuy, click as coreClick } from '../core/economy';
+import { buy as coreBuy } from '../core/economy';
+import { convert as coreConvert } from '../core/conversion';
+import { setMode as coreSetMode, tap as coreTap } from '../core/work';
+import type { TapWindow } from '../core/tapLimiter';
 import { collectOffline as coreCollect, settle } from '../core/idle';
 import { pull as corePull } from '../core/gacha';
 import {
@@ -14,7 +17,7 @@ import {
 import { createInitialState } from '../core/state';
 import { rechargeEnergy } from '../core/energy';
 import { t } from '../i18n/fr';
-import type { GameState, LastPull } from '../core/types';
+import type { GameState, LastPull, WorkMode } from '../core/types';
 import { migrateToCurrent } from '../save/migrations';
 import {
   RevisionConflictError,
@@ -32,6 +35,10 @@ import { parseImport, serializeExport } from '../save/exportImport';
 
 export type Status = 'loading' | 'ready' | 'readonly' | 'recovery';
 
+export type TapOutcome =
+  | { accepted: true; gained: number; levelUp: boolean; milestone: boolean }
+  | { accepted: false; reason: 'rate' | 'energy' | 'readonly' };
+
 export interface GameStoreState {
   status: Status;
   game: GameState | null;
@@ -47,7 +54,15 @@ export interface GameStoreState {
   writeError: boolean;
   init(): Promise<void>;
   tick(): void;
-  click(): void;
+  /**
+   * Lot 4: one tap on the Travailler document at the game clock. `mult` is the boost multiplier
+   * decided by the caller from `isDoubled(now)` (points only). Only accepted taps count
+   * (totalClicks, « clic » quest). A read-only tab counts nothing.
+   */
+  tap(mult?: number): TapOutcome;
+  setWorkMode(mode: WorkMode): void;
+  /** Converts the points (100 pts = 10 ¥, +1 Créativité); resolves the yen credited (0: none). */
+  convertPoints(): Promise<number>;
   buy(id: InvestmentId): Promise<boolean>;
   collectOffline(): Promise<void>;
   exportSave(): string | null;
@@ -137,6 +152,8 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
   let persistedRevision = -1;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let chain: Promise<void> = Promise.resolve();
+  /** Sliding-window tap limiter (memory only, §4.2). */
+  let tapWindow: TapWindow = [];
 
   return createStore<GameStoreState>()((set, get) => {
     /**
@@ -296,8 +313,32 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         if (update((g) => g)) persistLater();
       },
 
-      click() {
-        if (update(coreClick)) persistLater();
+      tap(mult = 1) {
+        let out: TapOutcome = { accepted: false, reason: 'readonly' };
+        const ok = update((g) => {
+          const r = coreTap(g, tapWindow, deps.clock.now(), mult);
+          tapWindow = r.window;
+          out = r.accepted
+            ? { accepted: true, gained: r.gained, levelUp: r.levelUp, milestone: r.milestone }
+            : { accepted: false, reason: r.reason };
+          return r.state;
+        });
+        if (ok && out.accepted) persistLater();
+        return out;
+      },
+
+      setWorkMode(mode) {
+        if (update((g) => coreSetMode(g, mode))) persistLater();
+      },
+
+      async convertPoints() {
+        let yen = 0;
+        const stored = await committed((g) => {
+          const r = coreConvert(g);
+          yen = r.yen;
+          return r.state;
+        });
+        return stored ? yen : 0;
       },
 
       async buy(id) {

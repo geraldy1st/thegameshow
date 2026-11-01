@@ -8,12 +8,29 @@ it('freezes the validated v5 balance values', () => {
     {
       "BALANCE": {
         "boost": {
+          "durationMs": 5000,
           "hiddenTab": "lost",
+          "maxGapMs": 60000,
+          "minGapMs": 40000,
+          "mult": 2,
+          "periodMs": 2600,
+          "reducedCursor": 0.5,
+          "visibleMs": 12000,
+          "zone": [
+            0.35,
+            0.65,
+          ],
         },
         "energy": {
           "initial": 50,
           "max": 50,
           "perSecond": 1,
+        },
+        "fx": {
+          "announceEveryMs": 5000,
+          "floatMs": 900,
+          "poolSize": 20,
+          "reducedMs": 600,
         },
         "initialStats": 0,
         "metro": {
@@ -27,6 +44,18 @@ it('freezes the validated v5 balance values', () => {
         },
         "quiz": {
           "midnightRule": "end-day",
+        },
+        "work": {
+          "creativityPerConversion": 1,
+          "energyPerTap": 1,
+          "joyMs": 4000,
+          "maxTapsPerSecond": 15,
+          "milestonePoints": 100,
+          "noEnergyMessageMs": 5000,
+          "pointsPerConversion": 100,
+          "thinkBelowRatio": 0.2,
+          "xpPerTap": 1,
+          "yenPerConversion": 10,
         },
       },
       "OFFLINE_CAP_MS": 28800000,

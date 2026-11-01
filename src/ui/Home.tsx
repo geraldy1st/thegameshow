@@ -124,7 +124,7 @@ function Hub({ store }: { store: Store }) {
       <button
         type="button"
         className="hub-aoi"
-        onClick={() => store.getState().click()}
+        onClick={() => store.getState().tap()}
         aria-disabled={readonly}
         aria-describedby="hub-aoi-desc"
       >

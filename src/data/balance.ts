@@ -139,8 +139,38 @@ export const BALANCE = {
   initialStats: 0,
   profile: { initialLevel: 1, initialXp: 0, initialOutfit: 'jean' as OutfitId },
   energy: { max: 50, initial: 50, perSecond: 1 },
-  /** G-5: a boost running while the tab is hidden is lost (wall clock). Lot 4. */
-  boost: { hiddenTab: 'lost' as const },
+  /**
+   * Lot 4 power boost (ARCHITECTURE-LOT4 §5). G-5: a boost running while the tab is hidden is
+   * lost (wall clock). x2 on points only, 5 s; shown every 40-60 s for 12 s; the cursor runs a
+   * triangle wave of 2.6 s; golden zone 35-65 %.
+   */
+  boost: {
+    hiddenTab: 'lost' as const,
+    mult: 2,
+    durationMs: 5000,
+    minGapMs: 40_000,
+    maxGapMs: 60_000,
+    visibleMs: 12_000,
+    periodMs: 2600,
+    zone: [0.35, 0.65] as const,
+    reducedCursor: 0.5,
+  },
+  /** Lot 4 Travailler screen. */
+  work: {
+    energyPerTap: 1,
+    maxTapsPerSecond: 15,
+    pointsPerConversion: 100,
+    yenPerConversion: 10,
+    creativityPerConversion: 1,
+    milestonePoints: 100,
+    xpPerTap: 1,
+    /** think below 20 % of max energy (10/50: work, 9/50: think). */
+    thinkBelowRatio: 0.2,
+    joyMs: 4000,
+    noEnergyMessageMs: 5000,
+  },
+  /** Lot 4 floating points and announcements. */
+  fx: { floatMs: 900, reducedMs: 600, poolSize: 20, announceEveryMs: 5000 },
   /** G-6: a quiz spanning midnight pays on the day it ends. Lot 5. */
   quiz: { midnightRule: 'end-day' as const },
   /** G-7: metro mini-game daily cap. Lot 6. */

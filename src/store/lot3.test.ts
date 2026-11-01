@@ -65,7 +65,7 @@ describe('lot 3 store: migration v2 → v4 (chain)', () => {
     const { store, name } = setup();
     await seed(name, { current: midgame });
     await store.getState().init();
-    store.getState().click();
+    store.getState().tap();
     const db = await openSaveDb(name);
     const importBackup = await db.get('saves', 'backup-before-import');
     expect(await store.getState().restoreMigrationBackup()).toBe(true);

@@ -42,7 +42,7 @@ describe('game store', () => {
     const { store } = setup(undefined, false);
     await store.getState().init();
     expect(store.getState().status).toBe('readonly');
-    store.getState().click();
+    store.getState().tap();
     expect(store.getState().game?.totalClicks).toBe(0);
   });
 
@@ -74,7 +74,7 @@ describe('game store', () => {
   it('import validates, backs up the current save and replaces it', async () => {
     const { store, name } = setup();
     await store.getState().init();
-    store.getState().click();
+    store.getState().tap();
     const text = store.getState().exportSave()!;
     expect((await store.getState().importSave('{"bad":1}')).ok).toBe(false);
     await store.getState().buy('save');
