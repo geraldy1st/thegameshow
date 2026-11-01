@@ -32,6 +32,8 @@ jobs:
       # <= 150 KB, all blocking (Google Chrome: H.264); then the 600 KB fake video must fail.
       - run: npm run budget:work
       - run: npm run budget:work:still
+      - name: Install ffmpeg (fake video for the gauge)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: npm run budget:work:gauge
       - run: npm run test:e2e
         env:
