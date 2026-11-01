@@ -1,5 +1,22 @@
 import { expect, test, type Page } from '@playwright/test';
 import { axeViolations } from './axe';
+import { ASSOCIATES } from '../src/data/balance';
+
+/**
+ * DEF-GS-15: the e2e seed is random, so the first draw is a natural 3-rarity associate a few
+ * percent of the time (pity correctly back to 0, « garanti dans 50 »). The oracle reads the
+ * saved result and expects 49 after a 1-2 rarity draw, 50 after a 3-rarity one.
+ */
+async function expectedPityAfterFirstDraw(page: Page): Promise<string> {
+  const line =
+    (await page
+      .locator('.pity')
+      .getByText(/^Dernier tirage/)
+      .textContent()) ?? '';
+  const def = ASSOCIATES.find((a) => new RegExp(`\\b${a.id}\\b`, 'i').test(line));
+  expect(def, `associate in « ${line} »`).toBeDefined();
+  return `3 ★ garanti dans ${def!.rarity === 3 ? 50 : 49} tirages`;
+}
 
 // Navigation helper (lot 3, GS-V5-13): the v5 hub replaces the "Jouer" tab by "Accueil".
 async function openTab(page: Page, name: string) {
@@ -58,10 +75,11 @@ test('a draw is saved before the reveal, can be skipped, and survives a reload',
   );
   expect(await axeViolations(page)).toEqual([]);
   await reveal.getByRole('button', { name: 'Continuer' }).click();
-  await expect(page.getByText('3 ★ garanti dans 49 tirages', { exact: true })).toBeVisible();
+  const pity = await expectedPityAfterFirstDraw(page);
+  await expect(page.getByText(pity, { exact: true })).toBeVisible();
   await page.reload();
   await openTab(page, 'Associés');
-  await expect(page.getByText('3 ★ garanti dans 49 tirages', { exact: true })).toBeVisible();
+  await expect(page.getByText(pity, { exact: true })).toBeVisible();
   await expect(page.getByText('Collection : 1 sur 9')).toBeVisible();
 });
 
@@ -164,7 +182,9 @@ test('a reload during the reveal shows the saved result once, with no new draw (
   await expect(dialog).toContainText('Dernier tirage (déjà enregistré');
   await expect(page.locator('.pill-tickets span').last()).toHaveText('2');
   await dialog.getByRole('button', { name: 'Continuer' }).click();
-  await expect(page.getByText('3 ★ garanti dans 49 tirages', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(await expectedPityAfterFirstDraw(page), { exact: true }),
+  ).toBeVisible();
   await page.reload();
   await expect(page.getByRole('button', { name: 'Travailler', exact: true })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);

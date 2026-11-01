@@ -146,6 +146,9 @@ export async function webLocksWriter(
   return false;
 }
 
+/** Gap between clearing and rewriting a repeated announcement (DEF-GS-16). */
+export const ANNOUNCE_REPEAT_GAP_MS = 100;
+
 export const randomSeed = (): number => crypto.getRandomValues(new Uint32Array(1))[0] ?? 1;
 
 export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
@@ -156,6 +159,7 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
   let chain: Promise<void> = Promise.resolve();
   /** Sliding-window tap limiter (memory only, §4.2). */
   let tapWindow: TapWindow = [];
+  let announceTimer: ReturnType<typeof setTimeout> | null = null;
 
   return createStore<GameStoreState>()((set, get) => {
     /**
@@ -483,6 +487,19 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
       },
 
       announce(message) {
+        // DEF-GS-16: a live region only speaks when its DOM really changes. Repeating the same
+        // text (e.g. « Plus d'énergie » every 5 s) is done as empty -> text on the next task, so
+        // every occurrence is a real mutation and is read again.
+        if (announceTimer) clearTimeout(announceTimer);
+        announceTimer = null;
+        if (message !== '' && get().announcement === message) {
+          set({ announcement: '' });
+          announceTimer = setTimeout(() => {
+            announceTimer = null;
+            set({ announcement: message });
+          }, ANNOUNCE_REPEAT_GAP_MS);
+          return;
+        }
         set({ announcement: message });
       },
     };

@@ -37,6 +37,54 @@ async function expectNoScroll(page: Page, label: string) {
   if (process.env.SHOTS || r.hidden.length)
     await page.screenshot({ path: `test-results/noscroll-${label}.png` });
   expect(r, label).toEqual({ doc: 0, inner: [], hidden: [] });
+  await expectTilesSeparate(page, label);
+}
+/**
+ * DEF-GS-17 (GS-V5-64 reinforced): the hub is overflow hidden, so "no scroll" cannot see tiles
+ * that overlap or are cut. Each tile's box is the union of its painted descendants (lock, ring,
+ * label, illustration); the boxes must not intersect each other and must lie inside the hub.
+ * Aoi in the centre is a decorative backdrop (not a tile) and is not measured.
+ */
+async function expectTilesSeparate(page: Page, label: string) {
+  const r = await page.evaluate(() => {
+    const hub = document.querySelector('.hub')!.getBoundingClientRect();
+    const tiles = [...document.querySelectorAll<HTMLElement>('.hub-btn')].map((t) => {
+      const rs = [t, ...t.querySelectorAll<HTMLElement>('*')]
+        .filter((e) => getComputedStyle(e).visibility !== 'hidden')
+        .map((e) => e.getBoundingClientRect())
+        .filter((b) => b.width > 0 && b.height > 0);
+      return {
+        name: (t.getAttribute('aria-label') ?? t.textContent ?? '').trim().slice(0, 24),
+        l: Math.min(...rs.map((b) => b.left)),
+        t: Math.min(...rs.map((b) => b.top)),
+        r: Math.max(...rs.map((b) => b.right)),
+        b: Math.max(...rs.map((b) => b.bottom)),
+      };
+    });
+    const overlaps: string[] = [];
+    for (let i = 0; i < tiles.length; i++)
+      for (let j = i + 1; j < tiles.length; j++) {
+        const a = tiles[i]!;
+        const c = tiles[j]!;
+        const w = Math.min(a.r, c.r) - Math.max(a.l, c.l);
+        const h = Math.min(a.b, c.b) - Math.max(a.t, c.t);
+        if (w > 0.5 && h > 0.5)
+          overlaps.push(`${a.name} × ${c.name} (${w.toFixed(1)}×${h.toFixed(1)})`);
+      }
+    const cut = tiles
+      .filter(
+        (x) =>
+          x.t < hub.top - 0.5 ||
+          x.b > hub.bottom + 0.5 ||
+          x.l < hub.left - 0.5 ||
+          x.r > hub.right + 0.5,
+      )
+      .map((x) => x.name);
+    return { overlaps, cut };
+  });
+  if (process.env.SHOTS || r.overlaps.length || r.cut.length)
+    await page.screenshot({ path: `test-results/tiles-${label}.png` });
+  expect(r, `tiles ${label}`).toEqual({ overlaps: [], cut: [] });
 }
 async function safeAreas(page: Page) {
   await page.addStyleTag({ content: ':root{--safe-top:47px;--safe-bottom:34px}' });
@@ -191,6 +239,35 @@ test.describe('GS-V5-5x: Travailler (harness build)', () => {
     expect(after.work.points).toBe(before.work.points);
     expect(after.quests.progress.click).toBe(before.quests.progress.click);
     await expect(page.locator('.work')).toHaveAttribute('data-aoi-state', 'think');
+  });
+
+  test('no energy: « Plus d’énergie » is a new live-region write at each occurrence (DEF-GS-16)', async ({
+    page,
+  }) => {
+    // Still image (no <video>): the announcement does not depend on the media path.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openWork(page);
+    await page.evaluate(() => {
+      const w = window as unknown as { __liveWrites: string[] };
+      w.__liveWrites = [];
+      const live = document.querySelector('[aria-live]')!;
+      new MutationObserver(() => w.__liveWrites.push(live.textContent ?? '')).observe(live, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
+    });
+    // 20 taps at energy 0 over 10 s of game clock: one message every 5 s => 2 real writes.
+    for (let i = 0; i < 20; i++) {
+      await page.evaluate(() => window.__TGS_TEST__!.setEnergy(0));
+      await doc(page).click();
+      await page.evaluate(() => window.__TGS_TEST__!.advance(500));
+    }
+    await page.waitForTimeout(300);
+    const writes = await page.evaluate(
+      () => (window as unknown as { __liveWrites: string[] }).__liveWrites,
+    );
+    expect(writes.filter((w) => w.startsWith('Plus d’énergie'))).toHaveLength(2);
   });
 
   test('power boost: hit in the golden zone doubles the taps for 5 s (game clock)', async ({

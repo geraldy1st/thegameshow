@@ -1,7 +1,8 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { GameState } from '../core/types';
 import { migrateToCurrent, type CurrentSave } from './migrations';
-import { CURRENT_SCHEMA_VERSION } from './schema';
+import { DOWNGRADE_SLOT, restoreWorkAfterDowngrade } from './downgrade';
+import { CURRENT_SCHEMA_VERSION, validateSaveV4 } from './schema';
 
 /**
  * IndexedDB persistence (ARCHITECTURE, SPEC-ADDENDUM RES-2, RES-3, RES-7d).
@@ -18,7 +19,9 @@ export type Slot =
   /** Lot 4 (R-L4-1): raw v3 record before the v3 → v4 migration; never overwritten by v1/v2. */
   | 'backup-before-migration-v3'
   /** Lot 3 (R12): current state before a manual restore; one copy, replaced each time. */
-  | 'backup-before-restore';
+  | 'backup-before-restore'
+  /** OD-18 / R-L4-17: raw v4 record kept by the 0.3.2 app before it downgraded `current`. */
+  | typeof DOWNGRADE_SLOT;
 
 interface TgsDB extends DBSchema {
   saves: { key: Slot; value: unknown };
@@ -76,7 +79,17 @@ export async function loadSave(db: IDBPDatabase<TgsDB>): Promise<LoadResult> {
   if (cur === undefined && prev === undefined) return { kind: 'empty' };
   if (versionOf(cur) > CURRENT_SCHEMA_VERSION) return { kind: 'future', version: versionOf(cur) };
   const c = migrateToCurrent(cur);
-  if (c.ok) return { kind: 'ok', save: c.value, from: 'current' };
+  if (c.ok) {
+    // Back from the 0.3.2 app (OD-18): a v3 `current` that was downgraded from v4 gets its
+    // `work` back from `backup-before-downgrade-v4` when the v3 fields are unchanged.
+    if (versionOf(cur) === 3) {
+      const kept = await db.get('saves', DOWNGRADE_SLOT);
+      const r = restoreWorkAfterDowngrade(c.value, cur, kept);
+      const v = r.restored ? validateSaveV4(r.save) : null;
+      if (v?.ok) return { kind: 'ok', save: v.value, from: 'current' };
+    }
+    return { kind: 'ok', save: c.value, from: 'current' };
+  }
   const p = migrateToCurrent(prev);
   if (p.ok) return { kind: 'ok', save: p.value, from: 'previous' };
   if (mig3 !== undefined) {

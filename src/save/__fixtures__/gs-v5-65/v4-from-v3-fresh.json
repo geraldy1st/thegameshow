@@ -1,0 +1,299 @@
+{
+  "source": "v3-fresh opened by lot 4 (0.4.1), 5 taps",
+  "marker": null,
+  "slots": {
+    "backup-before-migration-v3": {
+      "schemaVersion": 3,
+      "profile": {
+        "level": 1,
+        "xp": 0
+      },
+      "energy": {
+        "value": 50,
+        "updatedAt": 1793505630013
+      },
+      "stats": {
+        "bonheur": 0,
+        "social": 0,
+        "intel": 0,
+        "chance": 0,
+        "sante": 0,
+        "disc": 0,
+        "nego": 0,
+        "charisme": 0,
+        "crea": 0,
+        "repu": 0
+      },
+      "wardrobe": {
+        "outfit": "jean"
+      },
+      "revision": 2,
+      "createdAt": 1793505630013,
+      "lastSeenAt": 1793505630013,
+      "maxSeenAt": 1793505630013,
+      "rng": {
+        "seed": 1,
+        "state": 1
+      },
+      "yenCents": 12500,
+      "pendingOfflineCents": 0,
+      "tickets": 3,
+      "totalClicks": 5,
+      "investments": {
+        "save": 0,
+        "stock": 0,
+        "estate": 0
+      },
+      "gacha": {
+        "pity": 0,
+        "pulls": 0,
+        "stars": {},
+        "last": null
+      },
+      "quests": {
+        "day": "2026-11-01",
+        "progress": {
+          "quiz": 0,
+          "save": 0,
+          "invest": 0,
+          "visit": 0,
+          "click": 5
+        },
+        "claimed": {
+          "quiz": false,
+          "save": false,
+          "invest": false,
+          "visit": false,
+          "click": false
+        },
+        "quizChoice": null
+      },
+      "friends": {
+        "ren": {
+          "affinity": 0,
+          "scenesSeen": [],
+          "visitsToday": 0
+        },
+        "mio": {
+          "affinity": 0,
+          "scenesSeen": [],
+          "visitsToday": 0
+        },
+        "sora": {
+          "affinity": 0,
+          "scenesSeen": [],
+          "visitsToday": 0
+        }
+      },
+      "backup": {
+        "lastExportAt": null,
+        "reminderDismissedAt": null
+      },
+      "settings": {
+        "lang": "fr",
+        "sound": true,
+        "reducedMotion": "auto"
+      }
+    },
+    "current": {
+      "schemaVersion": 4,
+      "profile": {
+        "level": 1,
+        "xp": 5
+      },
+      "energy": {
+        "value": 45,
+        "updatedAt": 1793505631113
+      },
+      "stats": {
+        "bonheur": 0,
+        "social": 0,
+        "intel": 0,
+        "chance": 0,
+        "sante": 0,
+        "disc": 0,
+        "nego": 0,
+        "charisme": 0,
+        "crea": 0,
+        "repu": 0
+      },
+      "wardrobe": {
+        "outfit": "jean"
+      },
+      "revision": 4,
+      "createdAt": 1793505630013,
+      "lastSeenAt": 1793505631513,
+      "maxSeenAt": 1793505631513,
+      "rng": {
+        "seed": 1,
+        "state": 1
+      },
+      "yenCents": 12500,
+      "pendingOfflineCents": 0,
+      "tickets": 3,
+      "totalClicks": 10,
+      "investments": {
+        "save": 0,
+        "stock": 0,
+        "estate": 0
+      },
+      "gacha": {
+        "pity": 0,
+        "pulls": 0,
+        "stars": {},
+        "last": null
+      },
+      "quests": {
+        "day": "2026-11-01",
+        "progress": {
+          "quiz": 0,
+          "save": 0,
+          "invest": 0,
+          "visit": 0,
+          "click": 10
+        },
+        "claimed": {
+          "quiz": false,
+          "save": false,
+          "invest": false,
+          "visit": false,
+          "click": false
+        },
+        "quizChoice": null
+      },
+      "friends": {
+        "ren": {
+          "affinity": 0,
+          "scenesSeen": [],
+          "visitsToday": 0
+        },
+        "mio": {
+          "affinity": 0,
+          "scenesSeen": [],
+          "visitsToday": 0
+        },
+        "sora": {
+          "affinity": 0,
+          "scenesSeen": [],
+          "visitsToday": 0
+        }
+      },
+      "backup": {
+        "lastExportAt": null,
+        "reminderDismissedAt": null
+      },
+      "settings": {
+        "lang": "fr",
+        "sound": true,
+        "reducedMotion": "auto"
+      },
+      "work": {
+        "mode": "roman",
+        "points": 5,
+        "pointsTotal": 5,
+        "cursor": 30,
+        "taps": 5
+      }
+    },
+    "previous": {
+      "schemaVersion": 4,
+      "profile": {
+        "level": 1,
+        "xp": 0
+      },
+      "energy": {
+        "value": 50,
+        "updatedAt": 1793505630013
+      },
+      "stats": {
+        "bonheur": 0,
+        "social": 0,
+        "intel": 0,
+        "chance": 0,
+        "sante": 0,
+        "disc": 0,
+        "nego": 0,
+        "charisme": 0,
+        "crea": 0,
+        "repu": 0
+      },
+      "wardrobe": {
+        "outfit": "jean"
+      },
+      "revision": 3,
+      "createdAt": 1793505630013,
+      "lastSeenAt": 1793505631013,
+      "maxSeenAt": 1793505631013,
+      "rng": {
+        "seed": 1,
+        "state": 1
+      },
+      "yenCents": 12500,
+      "pendingOfflineCents": 0,
+      "tickets": 3,
+      "totalClicks": 5,
+      "investments": {
+        "save": 0,
+        "stock": 0,
+        "estate": 0
+      },
+      "gacha": {
+        "pity": 0,
+        "pulls": 0,
+        "stars": {},
+        "last": null
+      },
+      "quests": {
+        "day": "2026-11-01",
+        "progress": {
+          "quiz": 0,
+          "save": 0,
+          "invest": 0,
+          "visit": 0,
+          "click": 5
+        },
+        "claimed": {
+          "quiz": false,
+          "save": false,
+          "invest": false,
+          "visit": false,
+          "click": false
+        },
+        "quizChoice": null
+      },
+      "friends": {
+        "ren": {
+          "affinity": 0,
+          "scenesSeen": [],
+          "visitsToday": 0
+        },
+        "mio": {
+          "affinity": 0,
+          "scenesSeen": [],
+          "visitsToday": 0
+        },
+        "sora": {
+          "affinity": 0,
+          "scenesSeen": [],
+          "visitsToday": 0
+        }
+      },
+      "backup": {
+        "lastExportAt": null,
+        "reminderDismissedAt": null
+      },
+      "settings": {
+        "lang": "fr",
+        "sound": true,
+        "reducedMotion": "auto"
+      },
+      "work": {
+        "mode": "roman",
+        "points": 0,
+        "pointsTotal": 0,
+        "cursor": 0,
+        "taps": 0
+      }
+    }
+  }
+}

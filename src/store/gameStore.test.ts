@@ -1,8 +1,8 @@
 import 'fake-indexeddb/auto';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ManualClock } from '../core/clock';
 import { openSaveDb } from '../save/db';
-import { createGameStore } from './gameStore';
+import { ANNOUNCE_REPEAT_GAP_MS, createGameStore } from './gameStore';
 
 const T0 = Date.UTC(2026, 9, 25, 12, 0, 0);
 let n = 0;
@@ -105,5 +105,30 @@ describe('game store', () => {
     });
     expect(store.getState().status).toBe('ready');
     expect(((await db.get('saves', 'current')) as { revision: number }).revision).toBe(5);
+  });
+});
+
+describe('announce repeats are real DOM changes (DEF-GS-16)', () => {
+  it('the same message twice goes through an empty state, then is written again', async () => {
+    vi.useFakeTimers();
+    try {
+      const store = createGameStore({
+        clock: new ManualClock(0),
+        openDb: () => openSaveDb('announce-repeat'),
+        newSeed: () => 1,
+        acquireWriterLock: async () => true,
+      });
+      const seen: string[] = [];
+      store.subscribe((s, p) => {
+        if (s.announcement !== p.announcement) seen.push(s.announcement);
+      });
+      store.getState().announce('Plus d’énergie');
+      store.getState().announce('Plus d’énergie');
+      vi.advanceTimersByTime(ANNOUNCE_REPEAT_GAP_MS);
+      store.getState().announce('autre');
+      expect(seen).toEqual(['Plus d’énergie', '', 'Plus d’énergie', 'autre']);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

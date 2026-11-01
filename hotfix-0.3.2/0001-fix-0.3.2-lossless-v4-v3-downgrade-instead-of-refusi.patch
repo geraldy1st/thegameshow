@@ -1,0 +1,2603 @@
+From 37c418efdcb76742e7a323e5c625c7b2cd4dd2b5 Mon Sep 17 00:00:00 2001
+From: geraldy1st <geraldy1st@users.noreply.github.com>
+Date: Sun, 1 Nov 2026 16:58:25 +0000
+Subject: [PATCH] fix(0.3.2): lossless v4 -> v3 downgrade instead of refusing a
+ lot 4 save (OD-18, GS-V5-65)
+
+---
+ CHANGELOG.md                                  |  11 +
+ e2e/downgrade.spec.ts                         |  86 +++
+ e2e/lot2.spec.ts                              |  26 +-
+ e2e/lot3.spec.ts                              |   2 +-
+ package.json                                  |   2 +-
+ playwright.config.ts                          |  22 +-
+ .../gs-v5-65/v4-from-v3-after-restore.json    | 532 ++++++++++++++++++
+ .../gs-v5-65/v4-from-v3-fresh.json            | 299 ++++++++++
+ .../gs-v5-65/v4-from-v3-interrupted.json      | 429 ++++++++++++++
+ .../gs-v5-65/v4-from-v3-midgame-migrated.json | 425 ++++++++++++++
+ .../gs-v5-65/v4-from-v4-fresh.json            | 206 +++++++
+ src/save/db.ts                                |  67 ++-
+ src/save/downgrade.test.ts                    | 108 ++++
+ src/save/downgrade.ts                         | 121 ++++
+ src/save/save.test.ts                         |   4 +-
+ src/store/gameStore.ts                        |   9 +
+ src/store/lot3.test.ts                        |   3 +-
+ 17 files changed, 2327 insertions(+), 25 deletions(-)
+ create mode 100644 e2e/downgrade.spec.ts
+ create mode 100644 src/save/__fixtures__/gs-v5-65/v4-from-v3-after-restore.json
+ create mode 100644 src/save/__fixtures__/gs-v5-65/v4-from-v3-fresh.json
+ create mode 100644 src/save/__fixtures__/gs-v5-65/v4-from-v3-interrupted.json
+ create mode 100644 src/save/__fixtures__/gs-v5-65/v4-from-v3-midgame-migrated.json
+ create mode 100644 src/save/__fixtures__/gs-v5-65/v4-from-v4-fresh.json
+ create mode 100644 src/save/downgrade.test.ts
+ create mode 100644 src/save/downgrade.ts
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 1a97026..cf1e844 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,17 @@
+ 
+ Format : fichier / fait / pourquoi / à épurer / risque.
+ 
++## 0.3.2 — Correctif de retour arrière du lot 4 (OD-18 v1.3, GS-V5-65) — préparé, non publié
++
++| Fichier                                                                                  | Fait                                                                                                                                                                                                                                                                                                                                                                             | Pourquoi                                 | À épurer                                      | Risque |
++| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------- | ------ |
++| `src/save/downgrade.ts` (identique au lot 4)                                             | Rétrogradation v4 → v3 sans perte : `work` retiré, `schemaVersion` 3, champs v3 gardés tels quels ; la v4 brute est copiée d'abord dans `backup-before-downgrade-v4`, dans la même transaction (révision + 1)                                                                                                                                                                    | R-L4-17 / R-LOT4-1                       | Retirer quand le lot 4 est publié durablement | —      |
++| `src/save/db.ts`, `src/store/gameStore.ts`                                               | Une sauvegarde v4 n'est plus refusée : lue par la rétrogradation (onglet écrivain : écrite ; onglet lecteur : en mémoire, rien d'écrit) ; annonce « Sauvegarde ramenée à la version précédente du jeu » une seule fois ; repli `previous` (v4 brute aussi gardée), puis `backup-before-migration-v3`, puis `backup-before-migration` ; v5 et plus restent refusées sans écriture | OD-18                                    | —                                             | —      |
++| `src/save/downgrade.test.ts`, `e2e/downgrade.spec.ts`, `src/save/__fixtures__/gs-v5-65/` | GS-V5-65 : les 4 sauvegardes de Crypto passées en v4 par le lot 4 (5 frappes) + une partie neuve v4 ; égalité profonde des champs v3, `work` absent, copie brute exacte, annonce exacte, rechargement sans 2e annonce ; E2E sur le build test-harness (horloge figée) Chromium + WebKit                                                                                          | GS-V5-65                                 | —                                             | —      |
++| `src/save/save.test.ts`, `src/store/lot3.test.ts`, `e2e/lot3.spec.ts`                    | La « version future » des tests passe de 4 à 5                                                                                                                                                                                                                                                                                                                                   | v4 est désormais rétrogradée             | —                                             | —      |
++| `e2e/lot2.spec.ts`                                                                       | Oracle de pitié lu depuis le résultat enregistré (49 après un 1–2★, 50 après un associé de rareté 3)                                                                                                                                                                                                                                                                             | DEF-GS-15 : faux échec, graine aléatoire | —                                             | —      |
++| `playwright.config.ts`                                                                   | 2e serveur (build test-harness, port 4181)                                                                                                                                                                                                                                                                                                                                       | E2E à horloge figée                      | —                                             | —      |
++
+ ## 0.3.1 — Corrections recette lot 3 (2026-10-31)
+ 
+ | Fichier                                                                                     | Fait                                                                                                                                                                                                                                                                                      | Pourquoi                                           | À épurer                | Risque                                                                                                                                                                               |
+diff --git a/e2e/downgrade.spec.ts b/e2e/downgrade.spec.ts
+new file mode 100644
+index 0000000..052416c
+--- /dev/null
++++ b/e2e/downgrade.spec.ts
+@@ -0,0 +1,86 @@
++import { readdirSync, readFileSync } from 'node:fs';
++import { expect, test, type Page } from '@playwright/test';
++
++/**
++ * GS-V5-65 (OD-18 v1.3) on the 0.3.2 build: Crypto's 4 saves passed to v4 by lot 4 (5 taps of
++ * `work`) and a new v4 game are downgraded without loss, announced once, raw v4 kept.
++ */
++const DIR = 'src/save/__fixtures__/gs-v5-65';
++test.use({ baseURL: 'http://localhost:4181/thegameshow/' });
++type Fx = { slots: Record<string, Record<string, unknown>>; marker: string | null };
++
++async function seed(page: Page, fx: Fx) {
++  await page.goto('./__seed');
++  await page.evaluate(
++    ({ slots, marker }) =>
++      new Promise<void>((resolve, reject) => {
++        if (marker) localStorage.setItem('tgs-reveal-seen', marker);
++        const req = indexedDB.open('thegameshow', 1);
++        req.onupgradeneeded = () => req.result.createObjectStore('saves');
++        req.onerror = () => reject(req.error);
++        req.onsuccess = () => {
++          const tx = req.result.transaction('saves', 'readwrite');
++          for (const [k, v] of Object.entries(slots)) tx.objectStore('saves').put(v, k);
++          tx.oncomplete = () => {
++            req.result.close();
++            resolve();
++          };
++        };
++      }),
++    fx,
++  );
++}
++const slot = (page: Page, key: string) =>
++  page.evaluate(
++    (key) =>
++      new Promise<unknown>((resolve) => {
++        const req = indexedDB.open('thegameshow', 1);
++        req.onsuccess = () => {
++          const g = req.result.transaction('saves').objectStore('saves').get(key);
++          g.onsuccess = () => {
++            req.result.close();
++            resolve(g.result);
++          };
++        };
++      }),
++    key,
++  );
++const BOOK = ['schemaVersion', 'revision', 'lastSeenAt', 'maxSeenAt', 'work'];
++const v3Fields = (o: unknown) =>
++  Object.fromEntries(
++    Object.entries(o as Record<string, unknown>).filter(([k]) => !BOOK.includes(k)),
++  );
++
++test.beforeEach(async ({ page }) => {
++  await page.route('**/thegameshow/__seed', (r) =>
++    r.fulfill({ contentType: 'text/html', body: '<!doctype html><title>seed</title>' }),
++  );
++});
++
++for (const f of readdirSync(DIR)) {
++  test(`GS-V5-65 ${f}: downgraded without loss, announced, raw v4 kept`, async ({ page }) => {
++    const fx = JSON.parse(readFileSync(`${DIR}/${f}`, 'utf8')) as Fx;
++    // Test-harness build with the clock frozen at the save's own time: no absence credited and
++    // no idle income while the test reads, so the stored v3 is compared field by field.
++    const v4 = fx.slots.current!;
++    await seed(page, fx);
++    await page.goto(`./?now=${v4.maxSeenAt as number}`);
++    await expect(page.getByRole('status')).toHaveText(
++      'Sauvegarde ramenée à la version précédente du jeu',
++    );
++    await expect(page.getByRole('button', { name: 'Travailler avec Aoi' })).toBeVisible();
++    await expect
++      .poll(async () => (await slot(page, 'current')) as object)
++      .toMatchObject({
++        schemaVersion: 3,
++      });
++    const cur = (await slot(page, 'current')) as Record<string, unknown>;
++    expect(cur.work).toBeUndefined();
++    expect(v3Fields(cur)).toEqual(v3Fields(v4));
++    expect(await slot(page, 'backup-before-downgrade-v4')).toEqual(v4);
++    await page.reload();
++    await expect(page.getByRole('button', { name: 'Travailler avec Aoi' })).toBeVisible();
++    await expect(page.getByRole('status')).toHaveText('');
++    expect(await slot(page, 'backup-before-downgrade-v4')).toEqual(v4);
++  });
++}
+diff --git a/e2e/lot2.spec.ts b/e2e/lot2.spec.ts
+index 2eef216..5d0f84d 100644
+--- a/e2e/lot2.spec.ts
++++ b/e2e/lot2.spec.ts
+@@ -1,5 +1,22 @@
+ import { expect, test, type Page } from '@playwright/test';
+ import { axeViolations } from './axe';
++import { ASSOCIATES } from '../src/data/balance';
++
++/**
++ * DEF-GS-15: the e2e seed is random, so the first draw is a natural 3-rarity associate a few
++ * percent of the time (pity correctly back to 0, « garanti dans 50 »). The oracle reads the
++ * saved result and expects 49 after a 1-2 rarity draw, 50 after a 3-rarity one.
++ */
++async function expectedPityAfterFirstDraw(page: Page): Promise<string> {
++  const line =
++    (await page
++      .locator('.pity')
++      .getByText(/^Dernier tirage/)
++      .textContent()) ?? '';
++  const def = ASSOCIATES.find((a) => new RegExp(`\\b${a.id}\\b`, 'i').test(line));
++  expect(def, `associate in « ${line} »`).toBeDefined();
++  return `3 ★ garanti dans ${def!.rarity === 3 ? 50 : 49} tirages`;
++}
+ 
+ // Navigation helper (lot 3, GS-V5-13): the v5 hub replaces the "Jouer" tab by "Accueil".
+ async function openTab(page: Page, name: string) {
+@@ -58,10 +75,11 @@ test('a draw is saved before the reveal, can be skipped, and survives a reload',
+   );
+   expect(await axeViolations(page)).toEqual([]);
+   await reveal.getByRole('button', { name: 'Continuer' }).click();
+-  await expect(page.getByText('3 ★ garanti dans 49 tirages', { exact: true })).toBeVisible();
++  const pity = await expectedPityAfterFirstDraw(page);
++  await expect(page.getByText(pity, { exact: true })).toBeVisible();
+   await page.reload();
+   await openTab(page, 'Associés');
+-  await expect(page.getByText('3 ★ garanti dans 49 tirages', { exact: true })).toBeVisible();
++  await expect(page.getByText(pity, { exact: true })).toBeVisible();
+   await expect(page.getByText('Collection : 1 sur 9')).toBeVisible();
+ });
+ 
+@@ -137,7 +155,9 @@ test('a reload during the reveal shows the saved result once, with no new draw (
+   await expect(dialog).toContainText('Dernier tirage (déjà enregistré');
+   await expect(page.locator('.pill-tickets span').last()).toHaveText('2');
+   await dialog.getByRole('button', { name: 'Continuer' }).click();
+-  await expect(page.getByText('3 ★ garanti dans 49 tirages', { exact: true })).toBeVisible();
++  await expect(
++    page.getByText(await expectedPityAfterFirstDraw(page), { exact: true }),
++  ).toBeVisible();
+   await page.reload();
+   await expect(page.getByRole('button', { name: 'Travailler avec Aoi' })).toBeVisible();
+   await expect(page.getByRole('dialog')).toHaveCount(0);
+diff --git a/e2e/lot3.spec.ts b/e2e/lot3.spec.ts
+index e910793..b16f3f4 100644
+--- a/e2e/lot3.spec.ts
++++ b/e2e/lot3.spec.ts
+@@ -307,7 +307,7 @@ test.describe('migration and recovery (GS-V5-05/06/08)', () => {
+   test('a future version is refused with the exact text and nothing is written', async ({
+     page,
+   }) => {
+-    const future = { ...v2, schemaVersion: 4 };
++    const future = { ...v2, schemaVersion: 5 };
+     await seed(page, { current: future });
+     await page.goto('./');
+     await expect(page.getByRole('heading', { name: 'Sauvegarde illisible' })).toBeVisible();
+diff --git a/package.json b/package.json
+index 16abf91..21017a1 100644
+--- a/package.json
++++ b/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "thegameshow",
+   "private": true,
+-  "version": "0.3.1",
++  "version": "0.3.2",
+   "type": "module",
+   "engines": {
+     "node": ">=22.12.0"
+diff --git a/playwright.config.ts b/playwright.config.ts
+index c46f2b7..036b8b1 100644
+--- a/playwright.config.ts
++++ b/playwright.config.ts
+@@ -24,10 +24,20 @@ export default defineConfig({
+       use: { browserName: 'chromium', viewport: { width: 390, height: 844 } },
+     },
+   ],
+-  webServer: {
+-    command: 'npm run build && npx vite preview --port 4180 --strictPort',
+-    url: 'http://localhost:4180/thegameshow/',
+-    reuseExistingServer: !process.env.CI,
+-    timeout: 120_000,
+-  },
++  webServer: [
++    {
++      command: 'npm run build && npx vite preview --port 4180 --strictPort',
++      url: 'http://localhost:4180/thegameshow/',
++      reuseExistingServer: !process.env.CI,
++      timeout: 120_000,
++    },
++    // 0.3.2 (GS-V5-65): test-harness build, so the downgrade runs on a frozen clock.
++    {
++      command:
++        'npm run build:test-harness && npx vite preview --outDir dist-test --port 4181 --strictPort',
++      url: 'http://localhost:4181/thegameshow/',
++      reuseExistingServer: !process.env.CI,
++      timeout: 120_000,
++    },
++  ],
+ });
+diff --git a/src/save/__fixtures__/gs-v5-65/v4-from-v3-after-restore.json b/src/save/__fixtures__/gs-v5-65/v4-from-v3-after-restore.json
+new file mode 100644
+index 0000000..3c274c9
+--- /dev/null
++++ b/src/save/__fixtures__/gs-v5-65/v4-from-v3-after-restore.json
+@@ -0,0 +1,532 @@
++{
++  "source": "v3-after-restore opened by lot 4 (0.4.1), 5 taps",
++  "marker": "1793484030013:12",
++  "slots": {
++    "backup-before-migration": {
++      "schemaVersion": 2,
++      "revision": 22,
++      "createdAt": 1793484030013,
++      "lastSeenAt": 1793487630013,
++      "maxSeenAt": 1793487630013,
++      "rng": {
++        "seed": 424242,
++        "state": 1008330794
++      },
++      "yenCents": 9500,
++      "pendingOfflineCents": 0,
++      "tickets": 48,
++      "totalClicks": 150,
++      "investments": {
++        "save": 3,
++        "stock": 0,
++        "estate": 0
++      },
++      "gacha": {
++        "pity": 8,
++        "pulls": 12,
++        "stars": {
++          "noa": 3,
++          "yuu": 1,
++          "lila": 3,
++          "omar": 1,
++          "nana": 1,
++          "daichi": 3
++        },
++        "last": {
++          "id": "noa",
++          "stars": 3,
++          "isNew": false,
++          "wasted": false,
++          "forced": false,
++          "pull": 12
++        }
++      },
++      "quests": {
++        "day": "2026-10-31",
++        "progress": {
++          "quiz": 0,
++          "save": 1,
++          "invest": 3,
++          "visit": 1,
++          "click": 100
++        },
++        "claimed": {
++          "quiz": false,
++          "save": false,
++          "invest": false,
++          "visit": false,
++          "click": false
++        },
++        "quizChoice": null
++      },
++      "friends": {
++        "ren": {
++          "affinity": 5,
++          "scenesSeen": [],
++          "visitsToday": 1
++        },
++        "mio": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "sora": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        }
++      },
++      "backup": {
++        "lastExportAt": null,
++        "reminderDismissedAt": null
++      },
++      "settings": {
++        "lang": "fr",
++        "sound": true,
++        "reducedMotion": "auto"
++      }
++    },
++    "backup-before-migration-v3": {
++      "schemaVersion": 3,
++      "revision": 27,
++      "createdAt": 1793484030013,
++      "lastSeenAt": 1793505630013,
++      "maxSeenAt": 1793505630013,
++      "rng": {
++        "seed": 424242,
++        "state": 1008330794
++      },
++      "yenCents": 9500,
++      "pendingOfflineCents": 4050000,
++      "tickets": 48,
++      "totalClicks": 150,
++      "investments": {
++        "save": 3,
++        "stock": 0,
++        "estate": 0
++      },
++      "gacha": {
++        "pity": 8,
++        "pulls": 12,
++        "stars": {
++          "noa": 3,
++          "yuu": 1,
++          "lila": 3,
++          "omar": 1,
++          "nana": 1,
++          "daichi": 3
++        },
++        "last": {
++          "id": "noa",
++          "stars": 3,
++          "isNew": false,
++          "wasted": false,
++          "forced": false,
++          "pull": 12
++        }
++      },
++      "quests": {
++        "day": "2026-11-01",
++        "progress": {
++          "quiz": 0,
++          "save": 0,
++          "invest": 0,
++          "visit": 0,
++          "click": 0
++        },
++        "claimed": {
++          "quiz": false,
++          "save": false,
++          "invest": false,
++          "visit": false,
++          "click": false
++        },
++        "quizChoice": null
++      },
++      "friends": {
++        "ren": {
++          "affinity": 5,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "mio": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "sora": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        }
++      },
++      "backup": {
++        "lastExportAt": null,
++        "reminderDismissedAt": null
++      },
++      "settings": {
++        "lang": "fr",
++        "sound": true,
++        "reducedMotion": "auto"
++      },
++      "profile": {
++        "level": 1,
++        "xp": 0
++      },
++      "energy": {
++        "value": 50,
++        "updatedAt": 1793505630013
++      },
++      "stats": {
++        "bonheur": 0,
++        "social": 0,
++        "intel": 0,
++        "chance": 0,
++        "sante": 0,
++        "disc": 0,
++        "nego": 0,
++        "charisme": 0,
++        "crea": 0,
++        "repu": 0
++      },
++      "wardrobe": {
++        "outfit": "jean"
++      }
++    },
++    "backup-before-restore": {
++      "schemaVersion": 3,
++      "revision": 25,
++      "createdAt": 1793484030013,
++      "lastSeenAt": 1793505630013,
++      "maxSeenAt": 1793505630013,
++      "rng": {
++        "seed": 424242,
++        "state": 1008330794
++      },
++      "yenCents": 9500,
++      "pendingOfflineCents": 4050000,
++      "tickets": 48,
++      "totalClicks": 150,
++      "investments": {
++        "save": 3,
++        "stock": 0,
++        "estate": 0
++      },
++      "gacha": {
++        "pity": 8,
++        "pulls": 12,
++        "stars": {
++          "noa": 3,
++          "yuu": 1,
++          "lila": 3,
++          "omar": 1,
++          "nana": 1,
++          "daichi": 3
++        },
++        "last": {
++          "id": "noa",
++          "stars": 3,
++          "isNew": false,
++          "wasted": false,
++          "forced": false,
++          "pull": 12
++        }
++      },
++      "quests": {
++        "day": "2026-11-01",
++        "progress": {
++          "quiz": 0,
++          "save": 0,
++          "invest": 0,
++          "visit": 0,
++          "click": 0
++        },
++        "claimed": {
++          "quiz": false,
++          "save": false,
++          "invest": false,
++          "visit": false,
++          "click": false
++        },
++        "quizChoice": null
++      },
++      "friends": {
++        "ren": {
++          "affinity": 5,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "mio": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "sora": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        }
++      },
++      "backup": {
++        "lastExportAt": null,
++        "reminderDismissedAt": null
++      },
++      "settings": {
++        "lang": "fr",
++        "sound": true,
++        "reducedMotion": "auto"
++      },
++      "profile": {
++        "level": 1,
++        "xp": 0
++      },
++      "energy": {
++        "value": 50,
++        "updatedAt": 1793505630013
++      },
++      "stats": {
++        "bonheur": 0,
++        "social": 0,
++        "intel": 0,
++        "chance": 0,
++        "sante": 0,
++        "disc": 0,
++        "nego": 0,
++        "charisme": 0,
++        "crea": 0,
++        "repu": 0
++      },
++      "wardrobe": {
++        "outfit": "jean"
++      }
++    },
++    "current": {
++      "schemaVersion": 4,
++      "revision": 29,
++      "createdAt": 1793484030013,
++      "lastSeenAt": 1793505631513,
++      "maxSeenAt": 1793505631513,
++      "rng": {
++        "seed": 424242,
++        "state": 1008330794
++      },
++      "yenCents": 9835,
++      "pendingOfflineCents": 4050000,
++      "tickets": 48,
++      "totalClicks": 155,
++      "investments": {
++        "save": 3,
++        "stock": 0,
++        "estate": 0
++      },
++      "gacha": {
++        "pity": 8,
++        "pulls": 12,
++        "stars": {
++          "noa": 3,
++          "yuu": 1,
++          "lila": 3,
++          "omar": 1,
++          "nana": 1,
++          "daichi": 3
++        },
++        "last": {
++          "id": "noa",
++          "stars": 3,
++          "isNew": false,
++          "wasted": false,
++          "forced": false,
++          "pull": 12
++        }
++      },
++      "quests": {
++        "day": "2026-11-01",
++        "progress": {
++          "quiz": 0,
++          "save": 0,
++          "invest": 0,
++          "visit": 0,
++          "click": 5
++        },
++        "claimed": {
++          "quiz": false,
++          "save": false,
++          "invest": false,
++          "visit": false,
++          "click": false
++        },
++        "quizChoice": null
++      },
++      "friends": {
++        "ren": {
++          "affinity": 5,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "mio": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "sora": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        }
++      },
++      "backup": {
++        "lastExportAt": null,
++        "reminderDismissedAt": null
++      },
++      "settings": {
++        "lang": "fr",
++        "sound": true,
++        "reducedMotion": "auto"
++      },
++      "profile": {
++        "level": 1,
++        "xp": 5
++      },
++      "energy": {
++        "value": 45,
++        "updatedAt": 1793505631113
++      },
++      "stats": {
++        "bonheur": 0,
++        "social": 0,
++        "intel": 0,
++        "chance": 0,
++        "sante": 0,
++        "disc": 0,
++        "nego": 0,
++        "charisme": 0,
++        "crea": 0,
++        "repu": 0
++      },
++      "wardrobe": {
++        "outfit": "jean"
++      },
++      "work": {
++        "mode": "roman",
++        "points": 5,
++        "pointsTotal": 5,
++        "cursor": 30,
++        "taps": 5
++      }
++    },
++    "previous": {
++      "schemaVersion": 4,
++      "revision": 28,
++      "createdAt": 1793484030013,
++      "lastSeenAt": 1793505631013,
++      "maxSeenAt": 1793505631013,
++      "rng": {
++        "seed": 424242,
++        "state": 1008330794
++      },
++      "yenCents": 9725,
++      "pendingOfflineCents": 4050000,
++      "tickets": 48,
++      "totalClicks": 150,
++      "investments": {
++        "save": 3,
++        "stock": 0,
++        "estate": 0
++      },
++      "gacha": {
++        "pity": 8,
++        "pulls": 12,
++        "stars": {
++          "noa": 3,
++          "yuu": 1,
++          "lila": 3,
++          "omar": 1,
++          "nana": 1,
++          "daichi": 3
++        },
++        "last": {
++          "id": "noa",
++          "stars": 3,
++          "isNew": false,
++          "wasted": false,
++          "forced": false,
++          "pull": 12
++        }
++      },
++      "quests": {
++        "day": "2026-11-01",
++        "progress": {
++          "quiz": 0,
++          "save": 0,
++          "invest": 0,
++          "visit": 0,
++          "click": 0
++        },
++        "claimed": {
++          "quiz": false,
++          "save": false,
++          "invest": false,
++          "visit": false,
++          "click": false
++        },
++        "quizChoice": null
++      },
++      "friends": {
++        "ren": {
++          "affinity": 5,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "mio": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "sora": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        }
++      },
++      "backup": {
++        "lastExportAt": null,
++        "reminderDismissedAt": null
++      },
++      "settings": {
++        "lang": "fr",
++        "sound": true,
++        "reducedMotion": "auto"
++      },
++      "profile": {
++        "level": 1,
++        "xp": 0
++      },
++      "energy": {
++        "value": 50,
++        "updatedAt": 1793505630013
++      },
++      "stats": {
++        "bonheur": 0,
++        "social": 0,
++        "intel": 0,
++        "chance": 0,
++        "sante": 0,
++        "disc": 0,
++        "nego": 0,
++        "charisme": 0,
++        "crea": 0,
++        "repu": 0
++      },
++      "wardrobe": {
++        "outfit": "jean"
++      },
++      "work": {
++        "mode": "roman",
++        "points": 0,
++        "pointsTotal": 0,
++        "cursor": 0,
++        "taps": 0
++      }
++    }
++  }
++}
+diff --git a/src/save/__fixtures__/gs-v5-65/v4-from-v3-fresh.json b/src/save/__fixtures__/gs-v5-65/v4-from-v3-fresh.json
+new file mode 100644
+index 0000000..7036915
+--- /dev/null
++++ b/src/save/__fixtures__/gs-v5-65/v4-from-v3-fresh.json
+@@ -0,0 +1,299 @@
++{
++  "source": "v3-fresh opened by lot 4 (0.4.1), 5 taps",
++  "marker": null,
++  "slots": {
++    "backup-before-migration-v3": {
++      "schemaVersion": 3,
++      "profile": {
++        "level": 1,
++        "xp": 0
++      },
++      "energy": {
++        "value": 50,
++        "updatedAt": 1793505630013
++      },
++      "stats": {
++        "bonheur": 0,
++        "social": 0,
++        "intel": 0,
++        "chance": 0,
++        "sante": 0,
++        "disc": 0,
++        "nego": 0,
++        "charisme": 0,
++        "crea": 0,
++        "repu": 0
++      },
++      "wardrobe": {
++        "outfit": "jean"
++      },
++      "revision": 2,
++      "createdAt": 1793505630013,
++      "lastSeenAt": 1793505630013,
++      "maxSeenAt": 1793505630013,
++      "rng": {
++        "seed": 1,
++        "state": 1
++      },
++      "yenCents": 12500,
++      "pendingOfflineCents": 0,
++      "tickets": 3,
++      "totalClicks": 5,
++      "investments": {
++        "save": 0,
++        "stock": 0,
++        "estate": 0
++      },
++      "gacha": {
++        "pity": 0,
++        "pulls": 0,
++        "stars": {},
++        "last": null
++      },
++      "quests": {
++        "day": "2026-11-01",
++        "progress": {
++          "quiz": 0,
++          "save": 0,
++          "invest": 0,
++          "visit": 0,
++          "click": 5
++        },
++        "claimed": {
++          "quiz": false,
++          "save": false,
++          "invest": false,
++          "visit": false,
++          "click": false
++        },
++        "quizChoice": null
++      },
++      "friends": {
++        "ren": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "mio": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "sora": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        }
++      },
++      "backup": {
++        "lastExportAt": null,
++        "reminderDismissedAt": null
++      },
++      "settings": {
++        "lang": "fr",
++        "sound": true,
++        "reducedMotion": "auto"
++      }
++    },
++    "current": {
++      "schemaVersion": 4,
++      "profile": {
++        "level": 1,
++        "xp": 5
++      },
++      "energy": {
++        "value": 45,
++        "updatedAt": 1793505631113
++      },
++      "stats": {
++        "bonheur": 0,
++        "social": 0,
++        "intel": 0,
++        "chance": 0,
++        "sante": 0,
++        "disc": 0,
++        "nego": 0,
++        "charisme": 0,
++        "crea": 0,
++        "repu": 0
++      },
++      "wardrobe": {
++        "outfit": "jean"
++      },
++      "revision": 4,
++      "createdAt": 1793505630013,
++      "lastSeenAt": 1793505631513,
++      "maxSeenAt": 1793505631513,
++      "rng": {
++        "seed": 1,
++        "state": 1
++      },
++      "yenCents": 12500,
++      "pendingOfflineCents": 0,
++      "tickets": 3,
++      "totalClicks": 10,
++      "investments": {
++        "save": 0,
++        "stock": 0,
++        "estate": 0
++      },
++      "gacha": {
++        "pity": 0,
++        "pulls": 0,
++        "stars": {},
++        "last": null
++      },
++      "quests": {
++        "day": "2026-11-01",
++        "progress": {
++          "quiz": 0,
++          "save": 0,
++          "invest": 0,
++          "visit": 0,
++          "click": 10
++        },
++        "claimed": {
++          "quiz": false,
++          "save": false,
++          "invest": false,
++          "visit": false,
++          "click": false
++        },
++        "quizChoice": null
++      },
++      "friends": {
++        "ren": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "mio": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "sora": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        }
++      },
++      "backup": {
++        "lastExportAt": null,
++        "reminderDismissedAt": null
++      },
++      "settings": {
++        "lang": "fr",
++        "sound": true,
++        "reducedMotion": "auto"
++      },
++      "work": {
++        "mode": "roman",
++        "points": 5,
++        "pointsTotal": 5,
++        "cursor": 30,
++        "taps": 5
++      }
++    },
++    "previous": {
++      "schemaVersion": 4,
++      "profile": {
++        "level": 1,
++        "xp": 0
++      },
++      "energy": {
++        "value": 50,
++        "updatedAt": 1793505630013
++      },
++      "stats": {
++        "bonheur": 0,
++        "social": 0,
++        "intel": 0,
++        "chance": 0,
++        "sante": 0,
++        "disc": 0,
++        "nego": 0,
++        "charisme": 0,
++        "crea": 0,
++        "repu": 0
++      },
++      "wardrobe": {
++        "outfit": "jean"
++      },
++      "revision": 3,
++      "createdAt": 1793505630013,
++      "lastSeenAt": 1793505631013,
++      "maxSeenAt": 1793505631013,
++      "rng": {
++        "seed": 1,
++        "state": 1
++      },
++      "yenCents": 12500,
++      "pendingOfflineCents": 0,
++      "tickets": 3,
++      "totalClicks": 5,
++      "investments": {
++        "save": 0,
++        "stock": 0,
++        "estate": 0
++      },
++      "gacha": {
++        "pity": 0,
++        "pulls": 0,
++        "stars": {},
++        "last": null
++      },
++      "quests": {
++        "day": "2026-11-01",
++        "progress": {
++          "quiz": 0,
++          "save": 0,
++          "invest": 0,
++          "visit": 0,
++          "click": 5
++        },
++        "claimed": {
++          "quiz": false,
++          "save": false,
++          "invest": false,
++          "visit": false,
++          "click": false
++        },
++        "quizChoice": null
++      },
++      "friends": {
++        "ren": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "mio": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "sora": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        }
++      },
++      "backup": {
++        "lastExportAt": null,
++        "reminderDismissedAt": null
++      },
++      "settings": {
++        "lang": "fr",
++        "sound": true,
++        "reducedMotion": "auto"
++      },
++      "work": {
++        "mode": "roman",
++        "points": 0,
++        "pointsTotal": 0,
++        "cursor": 0,
++        "taps": 0
++      }
++    }
++  }
++}
+diff --git a/src/save/__fixtures__/gs-v5-65/v4-from-v3-interrupted.json b/src/save/__fixtures__/gs-v5-65/v4-from-v3-interrupted.json
+new file mode 100644
+index 0000000..f1d3d44
+--- /dev/null
++++ b/src/save/__fixtures__/gs-v5-65/v4-from-v3-interrupted.json
+@@ -0,0 +1,429 @@
++{
++  "source": "v3-interrupted opened by lot 4 (0.4.1), 5 taps",
++  "marker": "1793484030013:13",
++  "slots": {
++    "backup-before-migration": {
++      "schemaVersion": 2,
++      "revision": 23,
++      "createdAt": 1793484030013,
++      "lastSeenAt": 1793487630013,
++      "maxSeenAt": 1793487630013,
++      "rng": {
++        "seed": 424242,
++        "state": 376495124
++      },
++      "yenCents": 9500,
++      "pendingOfflineCents": 0,
++      "tickets": 47,
++      "totalClicks": 150,
++      "investments": {
++        "save": 3,
++        "stock": 0,
++        "estate": 0
++      },
++      "gacha": {
++        "pity": 9,
++        "pulls": 13,
++        "stars": {
++          "noa": 3,
++          "yuu": 1,
++          "lila": 3,
++          "omar": 1,
++          "nana": 1,
++          "daichi": 3,
++          "kei": 1
++        },
++        "last": {
++          "id": "kei",
++          "stars": 1,
++          "isNew": true,
++          "wasted": false,
++          "forced": false,
++          "pull": 13
++        }
++      },
++      "quests": {
++        "day": "2026-10-31",
++        "progress": {
++          "quiz": 0,
++          "save": 1,
++          "invest": 3,
++          "visit": 1,
++          "click": 100
++        },
++        "claimed": {
++          "quiz": false,
++          "save": false,
++          "invest": false,
++          "visit": false,
++          "click": false
++        },
++        "quizChoice": null
++      },
++      "friends": {
++        "ren": {
++          "affinity": 5,
++          "scenesSeen": [],
++          "visitsToday": 1
++        },
++        "mio": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "sora": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        }
++      },
++      "backup": {
++        "lastExportAt": null,
++        "reminderDismissedAt": null
++      },
++      "settings": {
++        "lang": "fr",
++        "sound": true,
++        "reducedMotion": "auto"
++      }
++    },
++    "backup-before-migration-v3": {
++      "schemaVersion": 3,
++      "revision": 25,
++      "createdAt": 1793484030013,
++      "lastSeenAt": 1793505630013,
++      "maxSeenAt": 1793505630013,
++      "rng": {
++        "seed": 424242,
++        "state": 376495124
++      },
++      "yenCents": 9500,
++      "pendingOfflineCents": 4050000,
++      "tickets": 47,
++      "totalClicks": 150,
++      "investments": {
++        "save": 3,
++        "stock": 0,
++        "estate": 0
++      },
++      "gacha": {
++        "pity": 9,
++        "pulls": 13,
++        "stars": {
++          "noa": 3,
++          "yuu": 1,
++          "lila": 3,
++          "omar": 1,
++          "nana": 1,
++          "daichi": 3,
++          "kei": 1
++        },
++        "last": {
++          "id": "kei",
++          "stars": 1,
++          "isNew": true,
++          "wasted": false,
++          "forced": false,
++          "pull": 13
++        }
++      },
++      "quests": {
++        "day": "2026-11-01",
++        "progress": {
++          "quiz": 0,
++          "save": 0,
++          "invest": 0,
++          "visit": 0,
++          "click": 0
++        },
++        "claimed": {
++          "quiz": false,
++          "save": false,
++          "invest": false,
++          "visit": false,
++          "click": false
++        },
++        "quizChoice": null
++      },
++      "friends": {
++        "ren": {
++          "affinity": 5,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "mio": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "sora": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        }
++      },
++      "backup": {
++        "lastExportAt": null,
++        "reminderDismissedAt": null
++      },
++      "settings": {
++        "lang": "fr",
++        "sound": true,
++        "reducedMotion": "auto"
++      },
++      "profile": {
++        "level": 1,
++        "xp": 0
++      },
++      "energy": {
++        "value": 50,
++        "updatedAt": 1793505630013
++      },
++      "stats": {
++        "bonheur": 0,
++        "social": 0,
++        "intel": 0,
++        "chance": 0,
++        "sante": 0,
++        "disc": 0,
++        "nego": 0,
++        "charisme": 0,
++        "crea": 0,
++        "repu": 0
++      },
++      "wardrobe": {
++        "outfit": "jean"
++      }
++    },
++    "current": {
++      "schemaVersion": 4,
++      "revision": 27,
++      "createdAt": 1793484030013,
++      "lastSeenAt": 1793505631513,
++      "maxSeenAt": 1793505631513,
++      "rng": {
++        "seed": 424242,
++        "state": 376495124
++      },
++      "yenCents": 9835,
++      "pendingOfflineCents": 4050000,
++      "tickets": 47,
++      "totalClicks": 155,
++      "investments": {
++        "save": 3,
++        "stock": 0,
++        "estate": 0
++      },
++      "gacha": {
++        "pity": 9,
++        "pulls": 13,
++        "stars": {
++          "noa": 3,
++          "yuu": 1,
++          "lila": 3,
++          "omar": 1,
++          "nana": 1,
++          "daichi": 3,
++          "kei": 1
++        },
++        "last": {
++          "id": "kei",
++          "stars": 1,
++          "isNew": true,
++          "wasted": false,
++          "forced": false,
++          "pull": 13
++        }
++      },
++      "quests": {
++        "day": "2026-11-01",
++        "progress": {
++          "quiz": 0,
++          "save": 0,
++          "invest": 0,
++          "visit": 0,
++          "click": 5
++        },
++        "claimed": {
++          "quiz": false,
++          "save": false,
++          "invest": false,
++          "visit": false,
++          "click": false
++        },
++        "quizChoice": null
++      },
++      "friends": {
++        "ren": {
++          "affinity": 5,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "mio": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "sora": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        }
++      },
++      "backup": {
++        "lastExportAt": null,
++        "reminderDismissedAt": null
++      },
++      "settings": {
++        "lang": "fr",
++        "sound": true,
++        "reducedMotion": "auto"
++      },
++      "profile": {
++        "level": 1,
++        "xp": 5
++      },
++      "energy": {
++        "value": 45,
++        "updatedAt": 1793505631113
++      },
++      "stats": {
++        "bonheur": 0,
++        "social": 0,
++        "intel": 0,
++        "chance": 0,
++        "sante": 0,
++        "disc": 0,
++        "nego": 0,
++        "charisme": 0,
++        "crea": 0,
++        "repu": 0
++      },
++      "wardrobe": {
++        "outfit": "jean"
++      },
++      "work": {
++        "mode": "roman",
++        "points": 5,
++        "pointsTotal": 5,
++        "cursor": 30,
++        "taps": 5
++      }
++    },
++    "previous": {
++      "schemaVersion": 4,
++      "revision": 26,
++      "createdAt": 1793484030013,
++      "lastSeenAt": 1793505631013,
++      "maxSeenAt": 1793505631013,
++      "rng": {
++        "seed": 424242,
++        "state": 376495124
++      },
++      "yenCents": 9725,
++      "pendingOfflineCents": 4050000,
++      "tickets": 47,
++      "totalClicks": 150,
++      "investments": {
++        "save": 3,
++        "stock": 0,
++        "estate": 0
++      },
++      "gacha": {
++        "pity": 9,
++        "pulls": 13,
++        "stars": {
++          "noa": 3,
++          "yuu": 1,
++          "lila": 3,
++          "omar": 1,
++          "nana": 1,
++          "daichi": 3,
++          "kei": 1
++        },
++        "last": {
++          "id": "kei",
++          "stars": 1,
++          "isNew": true,
++          "wasted": false,
++          "forced": false,
++          "pull": 13
++        }
++      },
++      "quests": {
++        "day": "2026-11-01",
++        "progress": {
++          "quiz": 0,
++          "save": 0,
++          "invest": 0,
++          "visit": 0,
++          "click": 0
++        },
++        "claimed": {
++          "quiz": false,
++          "save": false,
++          "invest": false,
++          "visit": false,
++          "click": false
++        },
++        "quizChoice": null
++      },
++      "friends": {
++        "ren": {
++          "affinity": 5,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "mio": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "sora": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        }
++      },
++      "backup": {
++        "lastExportAt": null,
++        "reminderDismissedAt": null
++      },
++      "settings": {
++        "lang": "fr",
++        "sound": true,
++        "reducedMotion": "auto"
++      },
++      "profile": {
++        "level": 1,
++        "xp": 0
++      },
++      "energy": {
++        "value": 50,
++        "updatedAt": 1793505630013
++      },
++      "stats": {
++        "bonheur": 0,
++        "social": 0,
++        "intel": 0,
++        "chance": 0,
++        "sante": 0,
++        "disc": 0,
++        "nego": 0,
++        "charisme": 0,
++        "crea": 0,
++        "repu": 0
++      },
++      "wardrobe": {
++        "outfit": "jean"
++      },
++      "work": {
++        "mode": "roman",
++        "points": 0,
++        "pointsTotal": 0,
++        "cursor": 0,
++        "taps": 0
++      }
++    }
++  }
++}
+diff --git a/src/save/__fixtures__/gs-v5-65/v4-from-v3-midgame-migrated.json b/src/save/__fixtures__/gs-v5-65/v4-from-v3-midgame-migrated.json
+new file mode 100644
+index 0000000..754fed7
+--- /dev/null
++++ b/src/save/__fixtures__/gs-v5-65/v4-from-v3-midgame-migrated.json
+@@ -0,0 +1,425 @@
++{
++  "source": "v3-midgame-migrated opened by lot 4 (0.4.1), 5 taps",
++  "marker": "1793484030013:12",
++  "slots": {
++    "backup-before-migration": {
++      "schemaVersion": 2,
++      "revision": 22,
++      "createdAt": 1793484030013,
++      "lastSeenAt": 1793487630013,
++      "maxSeenAt": 1793487630013,
++      "rng": {
++        "seed": 424242,
++        "state": 1008330794
++      },
++      "yenCents": 9500,
++      "pendingOfflineCents": 0,
++      "tickets": 48,
++      "totalClicks": 150,
++      "investments": {
++        "save": 3,
++        "stock": 0,
++        "estate": 0
++      },
++      "gacha": {
++        "pity": 8,
++        "pulls": 12,
++        "stars": {
++          "noa": 3,
++          "yuu": 1,
++          "lila": 3,
++          "omar": 1,
++          "nana": 1,
++          "daichi": 3
++        },
++        "last": {
++          "id": "noa",
++          "stars": 3,
++          "isNew": false,
++          "wasted": false,
++          "forced": false,
++          "pull": 12
++        }
++      },
++      "quests": {
++        "day": "2026-10-31",
++        "progress": {
++          "quiz": 0,
++          "save": 1,
++          "invest": 3,
++          "visit": 1,
++          "click": 100
++        },
++        "claimed": {
++          "quiz": false,
++          "save": false,
++          "invest": false,
++          "visit": false,
++          "click": false
++        },
++        "quizChoice": null
++      },
++      "friends": {
++        "ren": {
++          "affinity": 5,
++          "scenesSeen": [],
++          "visitsToday": 1
++        },
++        "mio": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "sora": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        }
++      },
++      "backup": {
++        "lastExportAt": null,
++        "reminderDismissedAt": null
++      },
++      "settings": {
++        "lang": "fr",
++        "sound": true,
++        "reducedMotion": "auto"
++      }
++    },
++    "backup-before-migration-v3": {
++      "schemaVersion": 3,
++      "revision": 24,
++      "createdAt": 1793484030013,
++      "lastSeenAt": 1793505630013,
++      "maxSeenAt": 1793505630013,
++      "rng": {
++        "seed": 424242,
++        "state": 1008330794
++      },
++      "yenCents": 9500,
++      "pendingOfflineCents": 4050000,
++      "tickets": 48,
++      "totalClicks": 150,
++      "investments": {
++        "save": 3,
++        "stock": 0,
++        "estate": 0
++      },
++      "gacha": {
++        "pity": 8,
++        "pulls": 12,
++        "stars": {
++          "noa": 3,
++          "yuu": 1,
++          "lila": 3,
++          "omar": 1,
++          "nana": 1,
++          "daichi": 3
++        },
++        "last": {
++          "id": "noa",
++          "stars": 3,
++          "isNew": false,
++          "wasted": false,
++          "forced": false,
++          "pull": 12
++        }
++      },
++      "quests": {
++        "day": "2026-11-01",
++        "progress": {
++          "quiz": 0,
++          "save": 0,
++          "invest": 0,
++          "visit": 0,
++          "click": 0
++        },
++        "claimed": {
++          "quiz": false,
++          "save": false,
++          "invest": false,
++          "visit": false,
++          "click": false
++        },
++        "quizChoice": null
++      },
++      "friends": {
++        "ren": {
++          "affinity": 5,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "mio": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "sora": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        }
++      },
++      "backup": {
++        "lastExportAt": null,
++        "reminderDismissedAt": null
++      },
++      "settings": {
++        "lang": "fr",
++        "sound": true,
++        "reducedMotion": "auto"
++      },
++      "profile": {
++        "level": 1,
++        "xp": 0
++      },
++      "energy": {
++        "value": 50,
++        "updatedAt": 1793505630013
++      },
++      "stats": {
++        "bonheur": 0,
++        "social": 0,
++        "intel": 0,
++        "chance": 0,
++        "sante": 0,
++        "disc": 0,
++        "nego": 0,
++        "charisme": 0,
++        "crea": 0,
++        "repu": 0
++      },
++      "wardrobe": {
++        "outfit": "jean"
++      }
++    },
++    "current": {
++      "schemaVersion": 4,
++      "revision": 26,
++      "createdAt": 1793484030013,
++      "lastSeenAt": 1793505631513,
++      "maxSeenAt": 1793505631513,
++      "rng": {
++        "seed": 424242,
++        "state": 1008330794
++      },
++      "yenCents": 9835,
++      "pendingOfflineCents": 4050000,
++      "tickets": 48,
++      "totalClicks": 155,
++      "investments": {
++        "save": 3,
++        "stock": 0,
++        "estate": 0
++      },
++      "gacha": {
++        "pity": 8,
++        "pulls": 12,
++        "stars": {
++          "noa": 3,
++          "yuu": 1,
++          "lila": 3,
++          "omar": 1,
++          "nana": 1,
++          "daichi": 3
++        },
++        "last": {
++          "id": "noa",
++          "stars": 3,
++          "isNew": false,
++          "wasted": false,
++          "forced": false,
++          "pull": 12
++        }
++      },
++      "quests": {
++        "day": "2026-11-01",
++        "progress": {
++          "quiz": 0,
++          "save": 0,
++          "invest": 0,
++          "visit": 0,
++          "click": 5
++        },
++        "claimed": {
++          "quiz": false,
++          "save": false,
++          "invest": false,
++          "visit": false,
++          "click": false
++        },
++        "quizChoice": null
++      },
++      "friends": {
++        "ren": {
++          "affinity": 5,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "mio": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "sora": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        }
++      },
++      "backup": {
++        "lastExportAt": null,
++        "reminderDismissedAt": null
++      },
++      "settings": {
++        "lang": "fr",
++        "sound": true,
++        "reducedMotion": "auto"
++      },
++      "profile": {
++        "level": 1,
++        "xp": 5
++      },
++      "energy": {
++        "value": 45,
++        "updatedAt": 1793505631113
++      },
++      "stats": {
++        "bonheur": 0,
++        "social": 0,
++        "intel": 0,
++        "chance": 0,
++        "sante": 0,
++        "disc": 0,
++        "nego": 0,
++        "charisme": 0,
++        "crea": 0,
++        "repu": 0
++      },
++      "wardrobe": {
++        "outfit": "jean"
++      },
++      "work": {
++        "mode": "roman",
++        "points": 5,
++        "pointsTotal": 5,
++        "cursor": 30,
++        "taps": 5
++      }
++    },
++    "previous": {
++      "schemaVersion": 4,
++      "revision": 25,
++      "createdAt": 1793484030013,
++      "lastSeenAt": 1793505631013,
++      "maxSeenAt": 1793505631013,
++      "rng": {
++        "seed": 424242,
++        "state": 1008330794
++      },
++      "yenCents": 9725,
++      "pendingOfflineCents": 4050000,
++      "tickets": 48,
++      "totalClicks": 150,
++      "investments": {
++        "save": 3,
++        "stock": 0,
++        "estate": 0
++      },
++      "gacha": {
++        "pity": 8,
++        "pulls": 12,
++        "stars": {
++          "noa": 3,
++          "yuu": 1,
++          "lila": 3,
++          "omar": 1,
++          "nana": 1,
++          "daichi": 3
++        },
++        "last": {
++          "id": "noa",
++          "stars": 3,
++          "isNew": false,
++          "wasted": false,
++          "forced": false,
++          "pull": 12
++        }
++      },
++      "quests": {
++        "day": "2026-11-01",
++        "progress": {
++          "quiz": 0,
++          "save": 0,
++          "invest": 0,
++          "visit": 0,
++          "click": 0
++        },
++        "claimed": {
++          "quiz": false,
++          "save": false,
++          "invest": false,
++          "visit": false,
++          "click": false
++        },
++        "quizChoice": null
++      },
++      "friends": {
++        "ren": {
++          "affinity": 5,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "mio": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "sora": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        }
++      },
++      "backup": {
++        "lastExportAt": null,
++        "reminderDismissedAt": null
++      },
++      "settings": {
++        "lang": "fr",
++        "sound": true,
++        "reducedMotion": "auto"
++      },
++      "profile": {
++        "level": 1,
++        "xp": 0
++      },
++      "energy": {
++        "value": 50,
++        "updatedAt": 1793505630013
++      },
++      "stats": {
++        "bonheur": 0,
++        "social": 0,
++        "intel": 0,
++        "chance": 0,
++        "sante": 0,
++        "disc": 0,
++        "nego": 0,
++        "charisme": 0,
++        "crea": 0,
++        "repu": 0
++      },
++      "wardrobe": {
++        "outfit": "jean"
++      },
++      "work": {
++        "mode": "roman",
++        "points": 0,
++        "pointsTotal": 0,
++        "cursor": 0,
++        "taps": 0
++      }
++    }
++  }
++}
+diff --git a/src/save/__fixtures__/gs-v5-65/v4-from-v4-fresh.json b/src/save/__fixtures__/gs-v5-65/v4-from-v4-fresh.json
+new file mode 100644
+index 0000000..e2037c4
+--- /dev/null
++++ b/src/save/__fixtures__/gs-v5-65/v4-from-v4-fresh.json
+@@ -0,0 +1,206 @@
++{
++  "source": "v4-fresh opened by lot 4 (0.4.1), 5 taps",
++  "marker": null,
++  "slots": {
++    "current": {
++      "schemaVersion": 4,
++      "profile": {
++        "level": 1,
++        "xp": 5
++      },
++      "energy": {
++        "value": 45,
++        "updatedAt": 1793505631113
++      },
++      "stats": {
++        "bonheur": 0,
++        "social": 0,
++        "intel": 0,
++        "chance": 0,
++        "sante": 0,
++        "disc": 0,
++        "nego": 0,
++        "charisme": 0,
++        "crea": 0,
++        "repu": 0
++      },
++      "wardrobe": {
++        "outfit": "jean"
++      },
++      "work": {
++        "mode": "roman",
++        "points": 5,
++        "pointsTotal": 5,
++        "cursor": 30,
++        "taps": 5
++      },
++      "revision": 4,
++      "createdAt": 1793505630013,
++      "lastSeenAt": 1793505631513,
++      "maxSeenAt": 1793505631513,
++      "rng": {
++        "seed": 1,
++        "state": 1
++      },
++      "yenCents": 12000,
++      "pendingOfflineCents": 0,
++      "tickets": 3,
++      "totalClicks": 5,
++      "investments": {
++        "save": 0,
++        "stock": 0,
++        "estate": 0
++      },
++      "gacha": {
++        "pity": 0,
++        "pulls": 0,
++        "stars": {},
++        "last": null
++      },
++      "quests": {
++        "day": "2026-11-01",
++        "progress": {
++          "quiz": 0,
++          "save": 0,
++          "invest": 0,
++          "visit": 0,
++          "click": 5
++        },
++        "claimed": {
++          "quiz": false,
++          "save": false,
++          "invest": false,
++          "visit": false,
++          "click": false
++        },
++        "quizChoice": null
++      },
++      "friends": {
++        "ren": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "mio": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "sora": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        }
++      },
++      "backup": {
++        "lastExportAt": null,
++        "reminderDismissedAt": null
++      },
++      "settings": {
++        "lang": "fr",
++        "sound": true,
++        "reducedMotion": "auto"
++      }
++    },
++    "previous": {
++      "schemaVersion": 4,
++      "profile": {
++        "level": 1,
++        "xp": 0
++      },
++      "energy": {
++        "value": 50,
++        "updatedAt": 1793505630013
++      },
++      "stats": {
++        "bonheur": 0,
++        "social": 0,
++        "intel": 0,
++        "chance": 0,
++        "sante": 0,
++        "disc": 0,
++        "nego": 0,
++        "charisme": 0,
++        "crea": 0,
++        "repu": 0
++      },
++      "wardrobe": {
++        "outfit": "jean"
++      },
++      "work": {
++        "mode": "roman",
++        "points": 0,
++        "pointsTotal": 0,
++        "cursor": 0,
++        "taps": 0
++      },
++      "revision": 3,
++      "createdAt": 1793505630013,
++      "lastSeenAt": 1793505631013,
++      "maxSeenAt": 1793505631013,
++      "rng": {
++        "seed": 1,
++        "state": 1
++      },
++      "yenCents": 12000,
++      "pendingOfflineCents": 0,
++      "tickets": 3,
++      "totalClicks": 0,
++      "investments": {
++        "save": 0,
++        "stock": 0,
++        "estate": 0
++      },
++      "gacha": {
++        "pity": 0,
++        "pulls": 0,
++        "stars": {},
++        "last": null
++      },
++      "quests": {
++        "day": "2026-11-01",
++        "progress": {
++          "quiz": 0,
++          "save": 0,
++          "invest": 0,
++          "visit": 0,
++          "click": 0
++        },
++        "claimed": {
++          "quiz": false,
++          "save": false,
++          "invest": false,
++          "visit": false,
++          "click": false
++        },
++        "quizChoice": null
++      },
++      "friends": {
++        "ren": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "mio": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        },
++        "sora": {
++          "affinity": 0,
++          "scenesSeen": [],
++          "visitsToday": 0
++        }
++      },
++      "backup": {
++        "lastExportAt": null,
++        "reminderDismissedAt": null
++      },
++      "settings": {
++        "lang": "fr",
++        "sound": true,
++        "reducedMotion": "auto"
++      }
++    }
++  }
++}
+diff --git a/src/save/db.ts b/src/save/db.ts
+index b7c179b..696d043 100644
+--- a/src/save/db.ts
++++ b/src/save/db.ts
+@@ -1,6 +1,7 @@
+ import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+ import type { SaveV3 } from '../core/types';
+ import { migrateToCurrent, type CurrentSave } from './migrations';
++import { DOWNGRADE_SLOT, downgradeV4ToV3 } from './downgrade';
+ import { CURRENT_SCHEMA_VERSION } from './schema';
+ 
+ /**
+@@ -16,7 +17,11 @@ export type Slot =
+   /** Lot 3: raw record as it was before the v2 → v3 migration (MVP v1.3 step 2). */
+   | 'backup-before-migration'
+   /** Lot 3 (R12): current state before a manual restore; one copy, replaced each time. */
+-  | 'backup-before-restore';
++  | 'backup-before-restore'
++  /** Lot 4 slot: raw v3 record before the v3 → v4 migration (read as a fallback only). */
++  | 'backup-before-migration-v3'
++  /** 0.3.2 (OD-18): raw v4 record kept before `current` is downgraded to v3. */
++  | typeof DOWNGRADE_SLOT;
+ 
+ interface TgsDB extends DBSchema {
+   saves: { key: Slot; value: unknown };
+@@ -47,7 +52,9 @@ export type LoadResult =
+   | {
+       kind: 'ok';
+       save: CurrentSave;
+-      from: 'current' | 'previous' | 'backup-before-migration';
++      from: 'current' | 'previous' | 'backup-before-migration-v3' | 'backup-before-migration';
++      /** 0.3.2: the record read was a lot 4 (v4) save, downgraded in memory. */
++      downgraded?: boolean;
+     }
+   | { kind: 'corrupt'; reason: string }
+   /** `current` comes from a newer app: refused, nothing is written (MVP v1.3 step 7). */
+@@ -58,23 +65,53 @@ const versionOf = (v: unknown): number => {
+   return typeof n === 'number' ? n : -1;
+ };
+ 
++/** v1-v3 through the migration chain; a lot 4 (v4) record through the lossless downgrade. */
++function readAny(
++  v: unknown,
++): { ok: true; value: CurrentSave; downgraded: boolean } | { ok: false; reason: string } {
++  if (versionOf(v) === 4) {
++    const d = downgradeV4ToV3(v);
++    return d.ok ? { ok: true, value: d.value, downgraded: true } : d;
++  }
++  const m = migrateToCurrent(v);
++  return m.ok ? { ok: true, value: m.value, downgraded: false } : m;
++}
++
+ /**
+- * Loads `current`, falls back to `previous`, then to `backup-before-migration` (re-migrated).
+- * A future version in `current` is refused without fallback, so no older state can overwrite
+- * it. Never throws on bad data (recovery screen).
++ * Loads `current`, falls back to `previous`, then to the lot 4 `backup-before-migration-v3`,
++ * then to `backup-before-migration` (re-migrated). 0.3.2 (OD-18): a v4 record from lot 4 is
++ * downgraded without loss (its `work` dropped) instead of refused; v5 and later stay refused
++ * without fallback, so no older state can overwrite them. Never throws on bad data.
+  */
+ export async function loadSave(db: IDBPDatabase<TgsDB>): Promise<LoadResult> {
+-  const [cur, prev, mig] = await Promise.all([
++  const [cur, prev, mig3, mig] = await Promise.all([
+     db.get('saves', 'current'),
+     db.get('saves', 'previous'),
++    db.get('saves', 'backup-before-migration-v3'),
+     db.get('saves', 'backup-before-migration'),
+   ]);
+   if (cur === undefined && prev === undefined) return { kind: 'empty' };
+-  if (versionOf(cur) > CURRENT_SCHEMA_VERSION) return { kind: 'future', version: versionOf(cur) };
+-  const c = migrateToCurrent(cur);
+-  if (c.ok) return { kind: 'ok', save: c.value, from: 'current' };
+-  const p = migrateToCurrent(prev);
+-  if (p.ok) return { kind: 'ok', save: p.value, from: 'previous' };
++  if (versionOf(cur) > 4) return { kind: 'future', version: versionOf(cur) };
++  const c = readAny(cur);
++  if (c.ok)
++    return {
++      kind: 'ok',
++      save: c.value,
++      from: 'current',
++      ...(c.downgraded ? { downgraded: true } : {}),
++    };
++  const p = readAny(prev);
++  if (p.ok)
++    return {
++      kind: 'ok',
++      save: p.value,
++      from: 'previous',
++      ...(p.downgraded ? { downgraded: true } : {}),
++    };
++  if (mig3 !== undefined) {
++    const m = migrateToCurrent(mig3);
++    if (m.ok) return { kind: 'ok', save: m.value, from: 'backup-before-migration-v3' };
++  }
+   if (mig !== undefined) {
+     const m = migrateToCurrent(mig);
+     if (m.ok) return { kind: 'ok', save: m.value, from: 'backup-before-migration' };
+@@ -172,3 +209,11 @@ export async function readRevision(db: IDBPDatabase<TgsDB>): Promise<number> {
+ }
+ 
+ export type SaveDb = IDBPDatabase<TgsDB>;
++
++/** 0.3.2: keeps the raw v4 `previous` (current unreadable) before it is replaced. */
++export async function keepPreviousBeforeDowngrade(db: IDBPDatabase<TgsDB>): Promise<void> {
++  const tx = db.transaction('saves', 'readwrite');
++  const prev = await tx.store.get('previous');
++  if (versionOf(prev) === 4) await tx.store.put(prev, DOWNGRADE_SLOT);
++  await tx.done;
++}
+diff --git a/src/save/downgrade.test.ts b/src/save/downgrade.test.ts
+new file mode 100644
+index 0000000..e6df765
+--- /dev/null
++++ b/src/save/downgrade.test.ts
+@@ -0,0 +1,108 @@
++import 'fake-indexeddb/auto';
++import { describe, expect, it } from 'vitest';
++import { ManualClock } from '../core/clock';
++import { createGameStore } from '../store/gameStore';
++import { openSaveDb, type SaveDb } from './db';
++import { DOWNGRADE_ANNOUNCEMENT, DOWNGRADE_SLOT, sameV3Fields } from './downgrade';
++import { validateSaveV3 } from './schema';
++
++/**
++ * GS-V5-65 on the 0.3.2 build (OD-18 v1.3): Crypto's 4 v3 saves passed to v4 by lot 4 (with 5
++ * taps of `work`) plus a new v4 game. The 0.3.2 app downgrades instead of refusing.
++ */
++type Fx = { slots: Record<string, Record<string, unknown>> };
++const FX = Object.fromEntries(
++  Object.entries(
++    import.meta.glob<Fx>('./__fixtures__/gs-v5-65/*.json', { eager: true, import: 'default' }),
++  ).map(([p, v]) => [p.split('/').pop()!, v]),
++);
++let n = 0;
++
++async function seed(fx: Fx): Promise<{ name: string; db: SaveDb }> {
++  const name = `hotfix-${++n}`;
++  const db = await openSaveDb(name);
++  for (const [slot, v] of Object.entries(fx.slots)) await db.put('saves', v, slot as never);
++  return { name, db };
++}
++const app032 = (name: string, now: number, writer = true) =>
++  createGameStore({
++    clock: new ManualClock(now),
++    openDb: () => openSaveDb(name),
++    newSeed: () => 1,
++    acquireWriterLock: async () => writer,
++    debounceMs: 5,
++  });
++
++describe('GS-V5-65: the 0.3.2 app downgrades a lot 4 save without loss', () => {
++  for (const f of Object.keys(FX)) {
++    it(f, async () => {
++      const fx = structuredClone(FX[f]!);
++      const v4 = fx.slots.current!;
++      expect(v4.schemaVersion).toBe(4);
++      const { name, db } = await seed(fx);
++      const s = app032(name, v4.maxSeenAt as number);
++      await s.getState().init();
++      expect(s.getState().status).toBe('ready');
++      expect(s.getState().announcement).toBe(DOWNGRADE_ANNOUNCEMENT);
++      expect(s.getState().announcement).toBe('Sauvegarde ramenée à la version précédente du jeu');
++      // In memory and stored: every v3 field deep-equal, `work` dropped, schemaVersion 3.
++      const g = s.getState().game!;
++      expect(sameV3Fields(g, v4)).toBe(true);
++      const v3expected: Record<string, unknown> = { ...v4 };
++      delete v3expected.work;
++      expect({ ...g, revision: 0, lastSeenAt: 0, maxSeenAt: 0 }).toEqual({
++        ...v3expected,
++        schemaVersion: 3,
++        revision: 0,
++        lastSeenAt: 0,
++        maxSeenAt: 0,
++      });
++      const cur = (await db.get('saves', 'current')) as Record<string, unknown>;
++      expect(cur.schemaVersion).toBe(3);
++      expect(validateSaveV3(cur).ok).toBe(true);
++      expect(sameV3Fields(cur, v4)).toBe(true);
++      expect(await db.get('saves', DOWNGRADE_SLOT)).toEqual(v4);
++      // Reload: no second announcement, nothing rewritten in the kept copy.
++      const s2 = app032(name, v4.maxSeenAt as number);
++      await s2.getState().init();
++      expect(s2.getState().announcement).toBe('');
++      expect(await db.get('saves', DOWNGRADE_SLOT)).toEqual(v4);
++      db.close();
++    });
++  }
++
++  it('a read-only tab downgrades in memory and writes nothing', async () => {
++    const fx = structuredClone(FX['v4-from-v4-fresh.json']!);
++    const { name, db } = await seed(fx);
++    const s = app032(name, fx.slots.current!.maxSeenAt as number, false);
++    await s.getState().init();
++    expect(s.getState().status).toBe('readonly');
++    expect(s.getState().game!.schemaVersion).toBe(3);
++    expect(await db.get('saves', 'current')).toEqual(fx.slots.current);
++    expect(await db.get('saves', DOWNGRADE_SLOT)).toBeUndefined();
++    db.close();
++  });
++
++  it('v5 is still refused without any write', async () => {
++    const fx = structuredClone(FX['v4-from-v4-fresh.json']!);
++    const v5 = { ...fx.slots.current, schemaVersion: 5 };
++    const { name, db } = await seed({ slots: { current: v5 } });
++    const s = app032(name, 0);
++    await s.getState().init();
++    expect(s.getState().recoveryKind).toBe('future');
++    expect(await db.get('saves', 'current')).toEqual(v5);
++    db.close();
++  });
++
++  it('unreadable current with a v4 previous: downgraded, raw v4 kept', async () => {
++    const fx = structuredClone(FX['v4-from-v4-fresh.json']!);
++    const { name, db } = await seed({
++      slots: { current: { junk: true } as never, previous: fx.slots.current! },
++    });
++    const s = app032(name, fx.slots.current!.maxSeenAt as number);
++    await s.getState().init();
++    expect(s.getState().game!.schemaVersion).toBe(3);
++    expect(await db.get('saves', DOWNGRADE_SLOT)).toEqual(fx.slots.current);
++    db.close();
++  });
++});
+diff --git a/src/save/downgrade.ts b/src/save/downgrade.ts
+new file mode 100644
+index 0000000..e8e3149
+--- /dev/null
++++ b/src/save/downgrade.ts
+@@ -0,0 +1,121 @@
++import type { SaveV3 } from '../core/types';
++import { validateSaveV3, type ValidationResult } from './schema';
++
++/**
++ * Lossless v4 -> v3 downgrade (OD-18 v1.3, R-L4-17, GS-V5-65).
++ *
++ * This file is self-contained on purpose: the same code runs in the 0.3.2 fix of the lot 3 app
++ * (which downgrades a lot 4 save instead of refusing it) and in lot 4 (which restores `work`
++ * when the player comes back). It only depends on `validateSaveV3`, present in both.
++ *
++ * - The raw v4 record is kept first in `backup-before-downgrade-v4`.
++ * - `current` becomes the v4 record minus `work`, with schemaVersion 3: every v3 field is kept
++ *   as is (deep equality).
++ * - Going back to lot 4 restores `work` from that slot when its v3 fields are identical to the
++ *   ones of `current` (bookkeeping excluded: revision, lastSeenAt, maxSeenAt), otherwise `work`
++ *   starts at its initial value (QA-REQUEST-LOT4 §6 bis).
++ */
++export const DOWNGRADE_SLOT = 'backup-before-downgrade-v4' as const;
++
++/** Announcement shown once by the 0.3.2 app after a downgrade (QA-REQUEST-LOT4 §6 bis). */
++export const DOWNGRADE_ANNOUNCEMENT = 'Sauvegarde ramenée à la version précédente du jeu';
++
++const isObject = (v: unknown): v is Record<string, unknown> =>
++  typeof v === 'object' && v !== null && !Array.isArray(v);
++
++/** v4 record minus `work`, schemaVersion 3, validated with the v3 rules. Never throws. */
++export function downgradeV4ToV3(input: unknown): ValidationResult<SaveV3> {
++  if (!isObject(input) || input.schemaVersion !== 4)
++    return { ok: false, reason: 'downgrade: v4 object expected' };
++  if (!isObject(input.work)) return { ok: false, reason: 'downgrade: save.work missing' };
++  const rest: Record<string, unknown> = structuredClone(input);
++  delete rest.work;
++  return validateSaveV3({ ...rest, schemaVersion: 3 });
++}
++
++/** Fields that change on every write or open, not progress: ignored by the comparison. */
++const BOOKKEEPING = new Set(['schemaVersion', 'revision', 'lastSeenAt', 'maxSeenAt', 'work']);
++
++/** Canonical JSON (sorted keys), so key order never makes two equal saves differ. */
++function canonical(v: unknown): string {
++  if (Array.isArray(v)) return `[${v.map(canonical).join(',')}]`;
++  if (isObject(v))
++    return `{${Object.keys(v)
++      .sort()
++      .map((k) => `${JSON.stringify(k)}:${canonical(v[k])}`)
++      .join(',')}}`;
++  return JSON.stringify(v);
++}
++
++/** True when two saves (any of v3/v4) have the same v3 progress fields. */
++export function sameV3Fields(a: unknown, b: unknown): boolean {
++  if (!isObject(a) || !isObject(b)) return false;
++  const pick = (o: Record<string, unknown>) =>
++    Object.fromEntries(Object.entries(o).filter(([k]) => !BOOKKEEPING.has(k)));
++  return canonical(pick(a)) === canonical(pick(b));
++}
++
++/**
++ * Lot 4 side: `migrated` is the v4 state obtained from a v3 `current`; `rawSourceV3` is that v3
++ * record. When `backup-before-downgrade-v4` holds a v4 record with the same v3 fields, its
++ * `work` is restored; otherwise `migrated` is returned unchanged (`work` initial).
++ */
++export function restoreWorkAfterDowngrade<S extends { work: unknown }>(
++  migrated: S,
++  rawSourceV3: unknown,
++  rawDowngradeBackup: unknown,
++): { save: S; restored: boolean } {
++  if (!isObject(rawDowngradeBackup) || rawDowngradeBackup.schemaVersion !== 4)
++    return { save: migrated, restored: false };
++  if (!isObject(rawDowngradeBackup.work) || !sameV3Fields(rawSourceV3, rawDowngradeBackup))
++    return { save: migrated, restored: false };
++  return {
++    save: { ...migrated, work: structuredClone(rawDowngradeBackup.work) as S['work'] },
++    restored: true,
++  };
++}
++
++/** The few IndexedDB calls the downgrade needs (works with idb's typed database). */
++export interface DowngradeDb {
++  transaction(
++    store: 'saves',
++    mode: 'readwrite',
++  ): {
++    objectStore(name: 'saves'): {
++      get(key: string): Promise<unknown>;
++      put(value: unknown, key: string): Promise<unknown>;
++    };
++    done: Promise<void>;
++    abort(): void;
++  };
++}
++
++/**
++ * 0.3.2 side, writer tab only: in ONE readwrite transaction, keeps the raw v4 `current` in
++ * `backup-before-downgrade-v4`, then writes the downgraded v3 (revision + 1, so a lot 4 tab
++ * still open loses its compare-and-set and becomes read-only). Nothing is written when
++ * `current` is not v4 or cannot be downgraded (the loader then falls back as usual).
++ */
++export async function downgradeCurrentInDb(
++  db: DowngradeDb,
++): Promise<
++  { kind: 'none' } | { kind: 'invalid'; reason: string } | { kind: 'downgraded'; save: SaveV3 }
++> {
++  const tx = db.transaction('saves', 'readwrite');
++  const store = tx.objectStore('saves');
++  const cur = await store.get('current');
++  if (!isObject(cur) || cur.schemaVersion !== 4) {
++    await tx.done;
++    return { kind: 'none' };
++  }
++  const d = downgradeV4ToV3(cur);
++  if (!d.ok) {
++    await tx.done;
++    return { kind: 'invalid', reason: d.reason };
++  }
++  const save: SaveV3 = { ...d.value, revision: d.value.revision + 1 };
++  await store.put(cur, DOWNGRADE_SLOT);
++  await store.put(save, 'current');
++  await tx.done;
++  return { kind: 'downgraded', save };
++}
+diff --git a/src/save/save.test.ts b/src/save/save.test.ts
+index 3868512..c4f1bc8 100644
+--- a/src/save/save.test.ts
++++ b/src/save/save.test.ts
+@@ -300,8 +300,8 @@ describe('migration backups (lot 3, MVP v1.3 steps 2, 6, 7, 8 and R12)', () => {
+   it('refuses a future version without falling back', async () => {
+     const db = await freshDb();
+     await db.put('saves', midgame, 'previous');
+-    await db.put('saves', { ...midgameV3, schemaVersion: 4 }, 'current');
+-    expect(await loadSave(db)).toEqual({ kind: 'future', version: 4 });
++    await db.put('saves', { ...midgameV3, schemaVersion: 5 }, 'current');
++    expect(await loadSave(db)).toEqual({ kind: 'future', version: 5 });
+   });
+   it('backup-before-restore copies current and leaves backup-before-import unchanged (R12)', async () => {
+     const db = await freshDb();
+diff --git a/src/store/gameStore.ts b/src/store/gameStore.ts
+index 0356b71..52512bd 100644
+--- a/src/store/gameStore.ts
++++ b/src/store/gameStore.ts
+@@ -16,6 +16,7 @@ import { rechargeEnergy } from '../core/energy';
+ import { t } from '../i18n/fr';
+ import type { GameState, LastPull } from '../core/types';
+ import { migrateToCurrent } from '../save/migrations';
++import { DOWNGRADE_ANNOUNCEMENT, downgradeCurrentInDb, type DowngradeDb } from '../save/downgrade';
+ import {
+   RevisionConflictError,
+   backupBeforeImport,
+@@ -25,6 +26,7 @@ import {
+   type SaveDb,
+   backupBeforeReset,
+   backupBeforeMigration,
++  keepPreviousBeforeDowngrade,
+   backupBeforeRestore,
+   readRawSlot,
+ } from '../save/db';
+@@ -266,6 +268,11 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
+         // tab migrates in memory for display and never writes.
+         if (isWriter && loaded.kind === 'ok' && loaded.from === 'current')
+           await backupBeforeMigration(db);
++        // 0.3.2 (OD-18, GS-V5-65): a lot 4 save is downgraded without loss, raw v4 kept first.
++        if (isWriter && loaded.kind === 'ok' && loaded.downgraded) {
++          if (loaded.from === 'current') await downgradeCurrentInDb(db as unknown as DowngradeDb);
++          else await keepPreviousBeforeDowngrade(db);
++        }
+         const now = deps.clock.now();
+         const base = loaded.kind === 'ok' ? loaded.save : createInitialState(now, deps.newSeed());
+         persistedRevision = await storedRevision();
+@@ -277,6 +284,8 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
+         });
+         if (loaded.kind === 'ok' && loaded.from !== 'current')
+           set({ announcement: t('restoredFromBackup') });
++        else if (loaded.kind === 'ok' && loaded.downgraded)
++          set({ announcement: DOWNGRADE_ANNOUNCEMENT });
+         if (isWriter) {
+           await persistNow();
+         }
+diff --git a/src/store/lot3.test.ts b/src/store/lot3.test.ts
+index 66fade0..cbd9b03 100644
+--- a/src/store/lot3.test.ts
++++ b/src/store/lot3.test.ts
+@@ -44,7 +44,8 @@ describe('lot 3 store: migration v2 → v3', () => {
+   });
+   it('a future version shows the recovery screen and writes nothing', async () => {
+     const { store, name } = setup();
+-    const future = { ...midgame, schemaVersion: 4 };
++    // 0.3.2: v4 is downgraded (OD-18); v5 is the first future version.
++    const future = { ...midgame, schemaVersion: 5 };
+     await seed(name, { current: future });
+     await store.getState().init();
+     expect(store.getState().status).toBe('recovery');
+-- 
+2.47.3
+

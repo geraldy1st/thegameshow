@@ -17,3 +17,9 @@
 - Incréments : schéma v4 + migration ; cœur frappe/boost/conversion ; accueil sans défilement + Menu/Paramètres + écran Travailler + vidéos ; harnais lot 4 ; budgets + CI ; E2E lot 4 et suites adaptées (QA §2.4) ; docs.
 - Mesures locales : accueil 336,2 Ko / 500 ; Travailler 162,3 Ko / 200 hors socle (direct 346,2 / 530, fixe 22,4 / 150) ; jauges qui échouent comme prévu.
 - Reste : fixtures lot 4 de Crypto absentes (fixtures du dépôt utilisées), simulation 30 jours (`workSim`) non faite, script de comparaison d'état final (QA §2.4) non écrit, WebKit non lancé localement (CI), revue visuelle des tuiles à 360×640 sur iPhone.
+
+## 2026-11-01 — Lot 4, corrections recette (0.4.1)
+
+- Recette Crypto : GO AVEC RÉSERVES (db109ce). Corrigés : DEF-GS-15 (oracle), DEF-GS-16, DEF-GS-17, R-LOT4-1 (correctif 0.3.2 en patch, non poussé), R-LOT4-2 (simulation + comparaison adoptées).
+- Contrôles : vitest 212, E2E Chromium tout vert ; lot2 « rechargement pendant la révélation » ×20 : 40/40, ×50 : 100/100 (2 moteurs) ; aller-retour 0.3.2 ↔ 0.4.1 : 5/5 (Chromium) ; accueil 336,6 Ko / 500 Ko ; §2.4 : 0 champ différent.
+- Reste : R-LOT4-3 (stocker l'énergie pour le boost : 1,72, équilibrage non touché), R-LOT4-4/5, fiche iPhone, crash vidéo de WebKit local (#work testé en CI).

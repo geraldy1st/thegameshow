@@ -1,0 +1,412 @@
+{
+  "markerBefore": "12",
+  "slots": {
+    "backup-before-migration": {
+      "schemaVersion": 2,
+      "revision": 22,
+      "createdAt": 1793484030013,
+      "lastSeenAt": 1793487630013,
+      "maxSeenAt": 1793487630013,
+      "rng": {
+        "seed": 424242,
+        "state": 1008330794
+      },
+      "yenCents": 9500,
+      "pendingOfflineCents": 0,
+      "tickets": 48,
+      "totalClicks": 150,
+      "investments": {
+        "save": 3,
+        "stock": 0,
+        "estate": 0
+      },
+      "gacha": {
+        "pity": 8,
+        "pulls": 12,
+        "stars": {
+          "noa": 3,
+          "yuu": 1,
+          "lila": 3,
+          "omar": 1,
+          "nana": 1,
+          "daichi": 3
+        },
+        "last": {
+          "id": "noa",
+          "stars": 3,
+          "isNew": false,
+          "wasted": false,
+          "forced": false,
+          "pull": 12
+        }
+      },
+      "quests": {
+        "day": "2026-10-31",
+        "progress": {
+          "quiz": 0,
+          "save": 1,
+          "invest": 3,
+          "visit": 1,
+          "click": 100
+        },
+        "claimed": {
+          "quiz": false,
+          "save": false,
+          "invest": false,
+          "visit": false,
+          "click": false
+        },
+        "quizChoice": null
+      },
+      "friends": {
+        "ren": {
+          "affinity": 5,
+          "scenesSeen": [],
+          "visitsToday": 1
+        },
+        "mio": {
+          "affinity": 0,
+          "scenesSeen": [],
+          "visitsToday": 0
+        },
+        "sora": {
+          "affinity": 0,
+          "scenesSeen": [],
+          "visitsToday": 0
+        }
+      },
+      "backup": {
+        "lastExportAt": null,
+        "reminderDismissedAt": null
+      },
+      "settings": {
+        "lang": "fr",
+        "sound": true,
+        "reducedMotion": "auto"
+      }
+    },
+    "backup-before-restore": {
+      "schemaVersion": 3,
+      "revision": 25,
+      "createdAt": 1793484030013,
+      "lastSeenAt": 1793505630013,
+      "maxSeenAt": 1793505630013,
+      "rng": {
+        "seed": 424242,
+        "state": 1008330794
+      },
+      "yenCents": 9500,
+      "pendingOfflineCents": 4050000,
+      "tickets": 48,
+      "totalClicks": 150,
+      "investments": {
+        "save": 3,
+        "stock": 0,
+        "estate": 0
+      },
+      "gacha": {
+        "pity": 8,
+        "pulls": 12,
+        "stars": {
+          "noa": 3,
+          "yuu": 1,
+          "lila": 3,
+          "omar": 1,
+          "nana": 1,
+          "daichi": 3
+        },
+        "last": {
+          "id": "noa",
+          "stars": 3,
+          "isNew": false,
+          "wasted": false,
+          "forced": false,
+          "pull": 12
+        }
+      },
+      "quests": {
+        "day": "2026-11-01",
+        "progress": {
+          "quiz": 0,
+          "save": 0,
+          "invest": 0,
+          "visit": 0,
+          "click": 0
+        },
+        "claimed": {
+          "quiz": false,
+          "save": false,
+          "invest": false,
+          "visit": false,
+          "click": false
+        },
+        "quizChoice": null
+      },
+      "friends": {
+        "ren": {
+          "affinity": 5,
+          "scenesSeen": [],
+          "visitsToday": 0
+        },
+        "mio": {
+          "affinity": 0,
+          "scenesSeen": [],
+          "visitsToday": 0
+        },
+        "sora": {
+          "affinity": 0,
+          "scenesSeen": [],
+          "visitsToday": 0
+        }
+      },
+      "backup": {
+        "lastExportAt": null,
+        "reminderDismissedAt": null
+      },
+      "settings": {
+        "lang": "fr",
+        "sound": true,
+        "reducedMotion": "auto"
+      },
+      "profile": {
+        "level": 1,
+        "xp": 0
+      },
+      "energy": {
+        "value": 50,
+        "updatedAt": 1793505630013
+      },
+      "stats": {
+        "bonheur": 0,
+        "social": 0,
+        "intel": 0,
+        "chance": 0,
+        "sante": 0,
+        "disc": 0,
+        "nego": 0,
+        "charisme": 0,
+        "crea": 0,
+        "repu": 0
+      },
+      "wardrobe": {
+        "outfit": "jean"
+      }
+    },
+    "current": {
+      "schemaVersion": 3,
+      "revision": 27,
+      "createdAt": 1793484030013,
+      "lastSeenAt": 1793505630013,
+      "maxSeenAt": 1793505630013,
+      "rng": {
+        "seed": 424242,
+        "state": 1008330794
+      },
+      "yenCents": 9500,
+      "pendingOfflineCents": 4050000,
+      "tickets": 48,
+      "totalClicks": 150,
+      "investments": {
+        "save": 3,
+        "stock": 0,
+        "estate": 0
+      },
+      "gacha": {
+        "pity": 8,
+        "pulls": 12,
+        "stars": {
+          "noa": 3,
+          "yuu": 1,
+          "lila": 3,
+          "omar": 1,
+          "nana": 1,
+          "daichi": 3
+        },
+        "last": {
+          "id": "noa",
+          "stars": 3,
+          "isNew": false,
+          "wasted": false,
+          "forced": false,
+          "pull": 12
+        }
+      },
+      "quests": {
+        "day": "2026-11-01",
+        "progress": {
+          "quiz": 0,
+          "save": 0,
+          "invest": 0,
+          "visit": 0,
+          "click": 0
+        },
+        "claimed": {
+          "quiz": false,
+          "save": false,
+          "invest": false,
+          "visit": false,
+          "click": false
+        },
+        "quizChoice": null
+      },
+      "friends": {
+        "ren": {
+          "affinity": 5,
+          "scenesSeen": [],
+          "visitsToday": 0
+        },
+        "mio": {
+          "affinity": 0,
+          "scenesSeen": [],
+          "visitsToday": 0
+        },
+        "sora": {
+          "affinity": 0,
+          "scenesSeen": [],
+          "visitsToday": 0
+        }
+      },
+      "backup": {
+        "lastExportAt": null,
+        "reminderDismissedAt": null
+      },
+      "settings": {
+        "lang": "fr",
+        "sound": true,
+        "reducedMotion": "auto"
+      },
+      "profile": {
+        "level": 1,
+        "xp": 0
+      },
+      "energy": {
+        "value": 50,
+        "updatedAt": 1793505630013
+      },
+      "stats": {
+        "bonheur": 0,
+        "social": 0,
+        "intel": 0,
+        "chance": 0,
+        "sante": 0,
+        "disc": 0,
+        "nego": 0,
+        "charisme": 0,
+        "crea": 0,
+        "repu": 0
+      },
+      "wardrobe": {
+        "outfit": "jean"
+      }
+    },
+    "previous": {
+      "schemaVersion": 3,
+      "revision": 26,
+      "createdAt": 1793484030013,
+      "lastSeenAt": 1793487630013,
+      "maxSeenAt": 1793487630013,
+      "rng": {
+        "seed": 424242,
+        "state": 1008330794
+      },
+      "yenCents": 9500,
+      "pendingOfflineCents": 0,
+      "tickets": 48,
+      "totalClicks": 150,
+      "investments": {
+        "save": 3,
+        "stock": 0,
+        "estate": 0
+      },
+      "gacha": {
+        "pity": 8,
+        "pulls": 12,
+        "stars": {
+          "noa": 3,
+          "yuu": 1,
+          "lila": 3,
+          "omar": 1,
+          "nana": 1,
+          "daichi": 3
+        },
+        "last": {
+          "id": "noa",
+          "stars": 3,
+          "isNew": false,
+          "wasted": false,
+          "forced": false,
+          "pull": 12
+        }
+      },
+      "quests": {
+        "day": "2026-10-31",
+        "progress": {
+          "quiz": 0,
+          "save": 1,
+          "invest": 3,
+          "visit": 1,
+          "click": 100
+        },
+        "claimed": {
+          "quiz": false,
+          "save": false,
+          "invest": false,
+          "visit": false,
+          "click": false
+        },
+        "quizChoice": null
+      },
+      "friends": {
+        "ren": {
+          "affinity": 5,
+          "scenesSeen": [],
+          "visitsToday": 1
+        },
+        "mio": {
+          "affinity": 0,
+          "scenesSeen": [],
+          "visitsToday": 0
+        },
+        "sora": {
+          "affinity": 0,
+          "scenesSeen": [],
+          "visitsToday": 0
+        }
+      },
+      "backup": {
+        "lastExportAt": null,
+        "reminderDismissedAt": null
+      },
+      "settings": {
+        "lang": "fr",
+        "sound": true,
+        "reducedMotion": "auto"
+      },
+      "profile": {
+        "level": 1,
+        "xp": 0
+      },
+      "energy": {
+        "value": 50,
+        "updatedAt": 1793487630013
+      },
+      "stats": {
+        "bonheur": 0,
+        "social": 0,
+        "intel": 0,
+        "chance": 0,
+        "sante": 0,
+        "disc": 0,
+        "nego": 0,
+        "charisme": 0,
+        "crea": 0,
+        "repu": 0
+      },
+      "wardrobe": {
+        "outfit": "jean"
+      }
+    }
+  },
+  "marker": "1793484030013:12",
+  "now": 1793505630013
+}

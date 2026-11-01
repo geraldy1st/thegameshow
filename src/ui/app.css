@@ -1635,3 +1635,47 @@ dialog .stats .bar i {
     gap: 0;
   }
 }
+
+/* DEF-GS-17: tiles never overlap nor get cut, even at 360x640 with safe areas and a banner.
+   A label stays on one line (a wrapped « Course à vélo » made its tile taller than its row),
+   and on short screens the hub gives its padding to the tile columns so 3 tiles of 44 px fit. */
+.hub-lbl {
+  white-space: nowrap;
+  max-width: 100%;
+  padding-inline: 4px;
+  letter-spacing: -0.01em;
+  /* Capped by the column width (the column is a size container), so 120 % text still fits. */
+  font-size: min(var(--fs-xs), 14.5cqw);
+}
+.hub-col {
+  min-width: 0;
+}
+@media (max-height: 720px) {
+  .app.is-home .hub,
+  .app.is-quests .hub {
+    padding: 2px 4px;
+    min-height: 140px;
+  }
+  .hub-col {
+    gap: 0;
+  }
+  .app.is-home .info,
+  .app.is-quests .info {
+    padding-block: 4px;
+  }
+}
+.hub-ill {
+  /* illustration + one-line label (about 21 px) always fit in a third of the column. */
+  width: clamp(20px, calc(33cqh - 24px), 76px);
+  height: clamp(20px, calc(33cqh - 24px), 76px);
+}
+@media (max-height: 720px) {
+  /* The lock stays beside its illustration, so it never covers the label below. */
+  .hub-lock {
+    bottom: 0;
+    right: -14px;
+    width: 18px;
+    height: 18px;
+    font-size: 9px;
+  }
+}
