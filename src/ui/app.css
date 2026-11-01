@@ -1842,7 +1842,7 @@ dialog .stats .bar i {
 /* Point 3c: « Convertir en yen » on one line, 44 px button, 22 px figure. */
 .work-panel {
   /* DEF-GS-19: points and rate stacked on the left, button on the right: ≤ 64 px high. */
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) fit-content(50%);
   align-items: center;
   padding: 6px 10px;
   gap: 0 10px;
@@ -1850,18 +1850,24 @@ dialog .stats .bar i {
 .work-panel .pts {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  min-width: 0;
   grid-column: 1;
   grid-row: 1;
 }
 .work-panel .rate-l {
   grid-column: 1;
   grid-row: 2;
-  white-space: nowrap;
+  /* DEF-GS-20: the left column may shrink and wrap instead of sliding under the button. */
+  min-width: 0;
+  overflow-wrap: anywhere;
   line-height: 1.2;
 }
 .work-panel .pts b {
   font-size: 22px;
+  /* DEF-GS-20: line box as tall as the glyphs, so the figure never overlaps the rate. */
+  line-height: 1.2;
 }
 .work-panel .btn {
   grid-column: 2;
@@ -1869,6 +1875,8 @@ dialog .stats .bar i {
   min-height: 44px;
   padding: 0 12px;
   margin: 0;
+  white-space: normal;
+  line-height: 1.15;
 }
 
 /* Point 6 / R-P42-5: Aoi's stats in one column of full rows, ≥ 14 px, no ellipsis. */

@@ -571,6 +571,60 @@ test.describe('Travailler (GS-V5-73 to 78)', () => {
     }
   });
 
+  test('DEF-GS-20: 987 654 points at 100 % and 120 % font: number, rate and button do not overlap', async ({
+    page,
+  }) => {
+    await openWork(page);
+    await page.evaluate(async () => {
+      const h = window.__TGS_TEST__!;
+      const g = h.state()!;
+      const work = { ...g.work, points: 987654, pointsTotal: 987654 };
+      if (!(await h.loadSave({ ...g, work }))) throw new Error('loadSave refused');
+    });
+    await expect(page.locator('.work-panel .num')).toHaveText(/987/);
+    for (const font of ['100%', '120%']) {
+      if (font === '120%') await page.addStyleTag({ content: 'html{font-size:120%}' });
+      for (const vp of [
+        { width: 360, height: 640 },
+        { width: 390, height: 844 },
+      ]) {
+        await page.setViewportSize(vp);
+        const m = await page.evaluate(() => {
+          const panel = document.querySelector('.work-panel')!;
+          const r = (el: Element) => {
+            // Ink extent of the text, not the box: a range around the contents.
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            const b = range.getBoundingClientRect();
+            return { l: b.left, r: b.right, t: b.top, b: b.bottom };
+          };
+          const btn = panel.querySelector('.btn')!.getBoundingClientRect();
+          return {
+            num: r(panel.querySelector('.pts .num')!),
+            rate: r(panel.querySelector('.rate-l')!),
+            btn: { l: btn.left, r: btn.right, t: btn.top, b: btn.bottom },
+            panel: panel.getBoundingClientRect().height,
+            hScroll: document.documentElement.scrollWidth > window.innerWidth,
+            panelCut: panel.scrollWidth > panel.clientWidth + 0.5,
+          };
+        });
+        const at = `${vp.width}x${vp.height} font ${font}`;
+        console.log(at, JSON.stringify(m));
+        const apart = (a: typeof m.btn, b: typeof m.btn) =>
+          a.r <= b.l || b.r <= a.l || a.b <= b.t || b.b <= a.t;
+        expect(apart(m.num, m.btn), `${at} number vs button`).toBe(true);
+        expect(apart(m.rate, m.btn), `${at} rate vs button`).toBe(true);
+        expect(apart(m.num, m.rate), `${at} number vs rate`).toBe(true);
+        expect(m.btn.l - Math.max(m.num.r, m.rate.r), `${at} gap to button`).toBeGreaterThanOrEqual(
+          4,
+        );
+        expect(m.hScroll, `${at} horizontal scroll`).toBe(false);
+        expect(m.panelCut, `${at} panel content cut`).toBe(false);
+        expect(m.panel, at).toBeLessThanOrEqual(font === '100%' ? 64 : 96);
+      }
+    }
+  });
+
   test('GS-V5-77 / DEF-GS-19: the conversion panel is ≤ 64 px, one-line rate, button ≥ 44 px', async ({
     page,
   }) => {
