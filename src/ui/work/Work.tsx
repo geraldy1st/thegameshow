@@ -6,6 +6,7 @@ import { boostMult, cursorAt, secondsLeft } from '../../core/boost';
 import { clickValuePoints } from '../../core/work';
 import { t } from '../../i18n/fr';
 import type { GameStoreState } from '../../store/gameStore';
+import { centsToYen } from '../../core/numbers';
 import { formatYen } from '../format';
 import { AoiVideo, type AoiState } from './AoiVideo';
 import { boostStore, resetBoost, setVisible, takeJoy, tick, touch } from './boostStore';
@@ -13,6 +14,23 @@ import { FloatingPoints, type FloatingHandle } from './FloatingPoints';
 import { onMediaOverride, readMediaEnv, shouldUseStill } from './media';
 
 type Store = StoreApi<GameStoreState>;
+
+/** Patch 0.4.3 (P7, R-P43-10): device preference, kept across Nouvelle partie and import. */
+export const ROMAN_KEY = 'tgs:ui:roman';
+function readRomanOpen(): boolean {
+  try {
+    return localStorage.getItem(ROMAN_KEY) !== 'closed';
+  } catch {
+    return true; // unreadable storage: open
+  }
+}
+function writeRomanOpen(open: boolean) {
+  try {
+    localStorage.setItem(ROMAN_KEY, open ? 'open' : 'closed');
+  } catch {
+    // Storage refused: the choice lasts for this visit only.
+  }
+}
 
 function useStill(store: Store): boolean {
   const setting = useStore(store, (s) => s.game?.settings.reducedMotion ?? 'auto');
@@ -48,6 +66,11 @@ export function Work({ store }: { store: Store }) {
   const cursorEl = useRef<HTMLSpanElement>(null);
   const lastNoEnergy = useRef(-Infinity);
   const lastPointsLive = useRef(-Infinity);
+  const [romanOpen, setRomanOpenState] = useState(readRomanOpen);
+  const setRomanOpen = (open: boolean) => {
+    setRomanOpenState(open);
+    writeRomanOpen(open);
+  };
   const announce = useCallback((m: string) => store.getState().announce(m), [store]);
 
   const joy = useCallback(() => {
@@ -152,7 +175,8 @@ export function Work({ store }: { store: Store }) {
     }
     const yen = await store.getState().convertPoints();
     if (yen > 0) {
-      announce(t('workConverted', { n: formatYen(yen) }));
+      const balance = centsToYen(store.getState().game?.yenCents ?? 0);
+      announce(t('workConverted', { n: formatYen(yen), s: formatYen(balance) }));
       joy();
     }
   };
@@ -247,19 +271,31 @@ export function Work({ store }: { store: Store }) {
           <b>{t('boostHit')}</b> <span>{t('boostLeft', { n: left })}</span>
         </p>
       )}
-      {/* The document is decoration only since 0.4.2 (3d): Aoi is the target. */}
-      <div className="doc" aria-hidden="true">
-        <span className="doc-bar">
-          <i />
-          <i />
-          <i />
-          <b>{t('workDocRoman')}</b>
-        </span>
-        <span className="doc-body">
-          <span>{shown}</span>
-          <span className="caret" />
-        </span>
-        <span className="doc-hint">{t('workDocHint')}</span>
+      {/* The document is decoration only since 0.4.2 (3d): Aoi is the target. Patch 0.4.3
+          (P7): it can be hidden; the choice is a device preference (tgs:ui:roman). */}
+      <div className="roman">
+        <button
+          type="button"
+          className="btn btn-ghost roman-toggle"
+          aria-expanded={romanOpen}
+          aria-controls="roman-doc"
+          onClick={() => setRomanOpen(!romanOpen)}
+        >
+          {t(romanOpen ? 'workRomanHide' : 'workRomanShow')}
+        </button>
+        <div className="doc" id="roman-doc" aria-hidden="true" hidden={!romanOpen}>
+          <span className="doc-bar">
+            <i />
+            <i />
+            <i />
+            <b>{t('workDocRoman')}</b>
+          </span>
+          <span className="doc-body">
+            <span>{shown}</span>
+            <span className="caret" />
+          </span>
+          <span className="doc-hint">{t('workDocHint')}</span>
+        </div>
       </div>
       <FloatingPoints ref={fx} />
       <div className="work-panel card">

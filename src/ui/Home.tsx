@@ -14,26 +14,34 @@ import { formatDuration, formatRate, formatYen } from './format';
 type Store = StoreApi<GameStoreState>;
 const asset = (name: string) => `${import.meta.env.BASE_URL}game/home/${name}`;
 
-/** Activity tiles in the mockup order; only « Travailler » is delivered (lot 4). */
-const TILES_LEFT = ['tileWork', 'tileLearn', 'tileBike'] as const;
-const TILES_RIGHT = ['tileHouse', 'tileFree', 'tileDice'] as const;
-type TileKey = (typeof TILES_LEFT)[number] | (typeof TILES_RIGHT)[number];
+/**
+ * Patch 0.4.3 (P2): four home tiles. « Travailler » and « Mission » are active; « Course à
+ * vélo » and « Dé du destin » moved to the Mission screen.
+ */
+const TILES_LEFT = ['tileWork', 'tileLearn'] as const;
+const TILES_RIGHT = ['tileHouse', 'tileMission'] as const;
+export type TileKey =
+  (typeof TILES_LEFT)[number] | (typeof TILES_RIGHT)[number] | 'tileBike' | 'tileDice';
 const TILE_ICON: Record<TileKey, string> = {
   tileWork: '💻',
   tileLearn: '🎓',
   tileBike: '',
   tileHouse: '🏠',
-  tileFree: '💼',
+  tileMission: '🎯',
   tileDice: '🎲',
+};
+const OPEN: Partial<Record<TileKey, 'work' | 'mission'>> = {
+  tileWork: 'work',
+  tileMission: 'mission',
 };
 
 /**
- * Tiles. « Travailler » is active since lot 4 (GS-V5-64 b): accessible name exactly
- * « Travailler », no padlock, opens #work. The other 5 stay locked: a press only announces
- * « bientôt », no state write, no hash change (GS-V5-03).
+ * Tiles. Open tiles keep their exact accessible name and navigate. Locked tiles only
+ * announce « bientôt »: no state write, no hash change (GS-V5-03). They are not links.
  */
-function Tile({ store, id }: { store: Store; id: TileKey }) {
+export function Tile({ store, id }: { store: Store; id: TileKey }) {
   const name = t(id);
+  const target = OPEN[id];
   const ill = (
     <span className="hub-ill" aria-hidden="true">
       {id === 'tileBike' ? (
@@ -41,10 +49,10 @@ function Tile({ store, id }: { store: Store; id: TileKey }) {
       ) : (
         <span className="hub-emoji">{TILE_ICON[id]}</span>
       )}
-      {id !== 'tileWork' && <span className="hub-lock">🔒</span>}
+      {!target && <span className="hub-lock">🔒</span>}
     </span>
   );
-  if (id === 'tileWork') return <WorkTile store={store} ill={ill} name={name} />;
+  if (target) return <OpenTile store={store} ill={ill} name={name} target={target} />;
   return (
     <button
       type="button"
@@ -62,16 +70,26 @@ function Tile({ store, id }: { store: Store; id: TileKey }) {
 }
 
 /** « Travailler » keeps the exact name; the pending « clic » quest is a description (D7). */
-function WorkTile({ store, ill, name }: { store: Store; ill: ReactNode; name: string }) {
+function OpenTile({
+  store,
+  ill,
+  name,
+  target,
+}: {
+  store: Store;
+  ill: ReactNode;
+  name: string;
+  target: 'work' | 'mission';
+}) {
   const todo = useStore(store, (s) =>
-    s.game ? pendingQuestsFor('work', s.game).length > 0 : false,
+    s.game && target === 'work' ? pendingQuestsFor('work', s.game).length > 0 : false,
   );
   return (
     <button
       type="button"
       className={todo ? 'hub-btn is-open has-dot' : 'hub-btn is-open'}
       aria-describedby={todo ? DESC_TODO : undefined}
-      onClick={() => navigate('work')}
+      onClick={() => navigate(target)}
     >
       {ill}
       <span className="hub-lbl">{name}</span>

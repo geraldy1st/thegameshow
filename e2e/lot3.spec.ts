@@ -95,9 +95,10 @@ test.describe('navigation (GS-V5-04, GS-V5-17)', () => {
       await expect(page).toHaveURL(/#home$/);
       await expect.poll(() => focusedText(page)).toBe('H1:Accueil');
     }
-    // « ← Accueil » also returns home.
+    // Patch 0.4.3 (P1): no « ← Accueil » anywhere; the « Accueil » tab returns home.
     await page.getByRole('navigation').getByRole('button', { name: 'Investir' }).click();
-    await page.getByRole('button', { name: '← Accueil' }).click();
+    await expect(page.getByRole('button', { name: '← Accueil' })).toHaveCount(0);
+    await page.getByRole('navigation').getByRole('button', { name: 'Accueil' }).click();
     await expect(page).toHaveURL(/#home$/);
     await expect.poll(() => focusedText(page)).toBe('H1:Accueil');
     expect(await page.evaluate(() => (window as unknown as { noReload?: number }).noReload)).toBe(
@@ -156,7 +157,7 @@ test.describe('navigation (GS-V5-04, GS-V5-17)', () => {
   });
 });
 
-test('GS-V5-03 (lot 4: 5 tiles): the locked tiles are announced locked; a press writes nothing, hash unchanged', async ({
+test('GS-V5-03 (0.4.3: 2 locked tiles on home): the locked tiles are announced locked; a press writes nothing, hash unchanged', async ({
   page,
 }) => {
   await page.goto('./');
@@ -164,8 +165,8 @@ test('GS-V5-03 (lot 4: 5 tiles): the locked tiles are announced locked; a press 
   await page.waitForTimeout(300);
   const before = (await readSlot(page, 'current')) as { revision: number };
   const tiles = page.getByRole('button', { name: /— verrouillé, bientôt$/ });
-  await expect(tiles).toHaveCount(5);
-  for (const name of ['Apprendre', 'Course à vélo', 'Maison', 'Freelance', 'Dé du destin']) {
+  await expect(tiles).toHaveCount(2);
+  for (const name of ['Apprendre', 'Maison']) {
     const tile = page.getByRole('button', { name: `${name} — verrouillé, bientôt` });
     await expect(tile).toHaveAttribute('aria-disabled', 'true');
     // aria-disabled (not disabled) keeps the tile focusable; Playwright's click treats it as

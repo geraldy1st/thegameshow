@@ -1963,3 +1963,214 @@ dialog .btn-ghost,
   color: var(--ink);
   border-color: var(--ink);
 }
+
+/* ==== Patch 0.4.3 ==== */
+/* P3 (GS-V5-86, R-P43-9): no ring nor inset shadow under the pointer; the keyboard ring is
+   doubled (gold over navy) so it keeps ≥ 3:1 on any video pixel. The boost ring stays. */
+.aoi-hit:active {
+  box-shadow: none;
+}
+.work.boosted .aoi-hit:active {
+  box-shadow:
+    0 0 0 3px var(--accent),
+    0 0 40px 10px rgba(245, 184, 61, 0.45);
+}
+.aoi-hit:focus:not(:focus-visible) {
+  outline: none;
+}
+.aoi-hit:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+  box-shadow: inset 0 0 0 6px var(--bg);
+}
+.work.boosted .aoi-hit:focus-visible {
+  box-shadow:
+    inset 0 0 0 6px var(--bg),
+    0 0 0 3px var(--accent),
+    0 0 40px 10px rgba(245, 184, 61, 0.45);
+}
+
+/* P4 (D4, R-P43-12): 39 px, opaque for the first half, then fades while rising 80 px.
+   Durations come from BALANCE.fx (--float-ms, --float-still-ms). */
+.pop {
+  font-size: 39px;
+  text-shadow:
+    0 2px 0 var(--bg),
+    0 0 3px var(--bg),
+    0 0 12px rgba(245, 184, 61, 0.6);
+  pointer-events: none;
+}
+.pop.go {
+  animation: pop-up-043 var(--float-ms, 1300ms) var(--ease-out) forwards;
+}
+@keyframes pop-up-043 {
+  0% {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(-50%, -40px);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -80px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop.go {
+    animation: pop-still var(--float-still-ms, 1200ms) linear forwards !important;
+    margin-top: calc(var(--k, 0) * -24px);
+  }
+}
+:root[data-motion='reduce'] .pop.go {
+  animation: pop-still var(--float-still-ms, 1200ms) linear forwards !important;
+  margin-top: calc(var(--k, 0) * -24px);
+}
+
+/* P5: #work without the top bar, below the device safe area. */
+.app.is-work .work {
+  margin-top: max(var(--s-2), env(safe-area-inset-top)) !important;
+}
+
+/* DEF-GS-21: « Convertir en Yen » on one line when the panel has room (100 % font at
+   360 px); at 120 % and more the label may wrap again (DEF-GS-20). Container units follow
+   the root font size, unlike media queries. */
+.work-panel {
+  container-type: inline-size;
+}
+@container (min-width: 17rem) {
+  .work-panel .btn {
+    white-space: nowrap;
+    min-width: max-content;
+  }
+}
+
+/* P7 + DEF-GS-22: the roman toggle sits on top of the document; the title fits at 360 px. */
+.roman {
+  position: absolute;
+  z-index: 3;
+  right: 8px;
+  bottom: 76px;
+  width: 38%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+.roman .doc {
+  position: static;
+  width: auto;
+}
+.roman .doc[hidden] {
+  display: none;
+}
+.roman-toggle {
+  margin: 0;
+  min-height: 44px;
+  padding: 2px 8px;
+  font-size: var(--fs-xs);
+  line-height: 1.15;
+  white-space: normal;
+  background: rgba(20, 32, 58, 0.85);
+}
+.doc-bar {
+  gap: 4px;
+  padding: 5px 6px;
+  min-width: 0;
+}
+.doc-bar i {
+  flex: none;
+  width: 7px;
+  height: 7px;
+}
+.doc-bar b {
+  margin-left: 2px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* P2: Mission screen, two locked tiles. */
+.mission-intro {
+  margin: 0 0 var(--s-2);
+}
+.mission-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+.mission-grid .hub-btn {
+  width: 100%;
+}
+
+/* P6 (R-P43-4): the incoming layer fades in on top of the still opaque outgoing one. */
+.work .ws {
+  transition: opacity var(--ws-fade, 400ms) linear;
+}
+.work .ws.front {
+  z-index: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .work .ws {
+    transition: none;
+  }
+}
+:root[data-motion='reduce'] .work .ws {
+  transition: none;
+}
+
+/* P10: ×10 grid; P8: owned partner photo as a button. */
+.draw-row {
+  flex-wrap: wrap;
+}
+.ten-grid {
+  list-style: none;
+  margin: var(--s-2) 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: var(--s-2);
+}
+.ten-item {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  text-align: center;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ten-item .portrait {
+  display: block;
+  width: 56px;
+}
+.bio .portrait {
+  display: block;
+  width: 160px;
+}
+.ten-name {
+  font-weight: 700;
+}
+.ten-meta {
+  color: var(--ink);
+  font-size: var(--fs-sm);
+}
+.acard-photo {
+  display: block;
+  padding: 0;
+  margin: 0 auto;
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
+}
+.bio {
+  display: grid;
+  justify-items: center;
+  gap: var(--s-2);
+  text-align: center;
+}

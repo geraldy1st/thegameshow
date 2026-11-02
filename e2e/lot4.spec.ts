@@ -91,14 +91,14 @@ async function safeAreas(page: Page) {
 }
 
 test.describe('GS-V5-64: home and Paramètres', () => {
-  test('(a)(b)(c)(e) no yellow button; « Travailler » tile opens #work; 5 locked tiles; tab order', async ({
+  test('(a)(b)(c)(e) no yellow button; « Travailler » tile opens #work; 2 locked tiles (0.4.3); tab order', async ({
     page,
   }) => {
     await page.goto('./');
     await expect(tile(page)).toBeVisible();
     await expect(page.getByRole('button', { name: /Travailler avec Aoi/ })).toHaveCount(0);
     await expect(tile(page).locator('.hub-lock')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /— verrouillé, bientôt$/ })).toHaveCount(5);
+    await expect(page.getByRole('button', { name: /— verrouillé, bientôt$/ })).toHaveCount(2);
     await expect(page.getByRole('navigation').getByRole('button')).toHaveText([
       /Accueil/,
       /Investir/,

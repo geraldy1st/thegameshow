@@ -4,7 +4,9 @@ import { pendingQuestsFor } from '../core/questTargets';
 import { download, claimableCount, revealPending } from './helpers';
 import { Home } from './Home';
 import { currentRoute, goHome, navigate, replaceRoute, useRoute, type Route } from './router';
+import { Mission } from './Mission';
 import { Partners } from './Partners';
+import { Rates } from './Rates';
 import { Friends } from './Friends';
 import { Quests } from './Quests';
 import { Work } from './work/Work';
@@ -357,11 +359,21 @@ const TAB_ICON = { home: '⌂', invest: '📈', friends: '♥', partners: '★',
  * logic unchanged (export, import, new game, previous game, pre-update restore).
  */
 function Settings({ store }: { store: Store }) {
+  // Patch 0.4.3 (P9, Geraldy 02/11, R-P43-1 option A): the draw rates are also one tap away
+  // from Menu; the link on Associés stays.
+  const [rates, setRates] = useState(false);
   return (
     <div className="settings">
       <h1 id="settings-title" className="screen-title" tabIndex={-1}>
         {t('settingsTitle')}
       </h1>
+      <section className="card" aria-labelledby="menu-rates-title">
+        <h2 id="menu-rates-title">{t('menuRatesTitle')}</h2>
+        <button type="button" className="btn btn-ghost" onClick={() => setRates(true)}>
+          {t('ratesLink')}
+        </button>
+      </section>
+      <Rates open={rates} onClose={() => setRates(false)} />
       <SaveMenu store={store} />
       <BackupRestore store={store} slot="reset" />
       <BackupRestore store={store} slot="migration" />
@@ -381,7 +393,7 @@ function TabBar({ store, route }: { store: Store; route: Route }) {
       {TABS.map((id) => {
         // Patch 0.4.2 (3a, R-P42-10): on #work, « Accueil » is the section the screen belongs
         // to (aria-current="true"), not the current page.
-        const section = id === 'home' && route === 'work';
+        const section = id === 'home' && (route === 'work' || route === 'mission');
         const on = route === id || (id === 'home' && route === 'quests') || section;
         const todo = (id === 'invest' && todoInvest) || (id === 'friends' && todoFriends);
         return (
@@ -400,15 +412,6 @@ function TabBar({ store, route }: { store: Store; route: Route }) {
         );
       })}
     </nav>
-  );
-}
-
-/** « ← Accueil » on every non-home screen (MVP v1.3 lot 3, menu). */
-function BackHome() {
-  return (
-    <button type="button" className="btn btn-ghost back" onClick={() => goHome()}>
-      {t('backHome')}
-    </button>
   );
 }
 
@@ -498,7 +501,8 @@ export function App({ store }: { store: Store }) {
   }
   return (
     <div className={`app is-${screen}`}>
-      <TopBar store={store} onQuests={() => navigate('quests')} />
+      {/* Patch 0.4.3 (P5): #work is full screen, no top bar; banners stay. */}
+      {screen !== 'work' && <TopBar store={store} onQuests={() => navigate('quests')} />}
       {status === 'readonly' && (
         <p className="banner" role="alert">
           {t('readonlyBanner')}
@@ -511,8 +515,8 @@ export function App({ store }: { store: Store }) {
       )}
       <main>
         {(screen === 'home' || screen === 'quests') && <Home store={store} />}
-        {screen !== 'home' && screen !== 'quests' && screen !== 'work' && <BackHome />}
         {screen === 'work' && <Work store={store} />}
+        {screen === 'mission' && <Mission store={store} />}
         {screen === 'settings' && <Settings store={store} />}
         {screen === 'invest' && <Invest store={store} />}
         {screen === 'friends' && <Friends store={store} />}

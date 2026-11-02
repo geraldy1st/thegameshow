@@ -8,7 +8,8 @@
  */
 import { useSyncExternalStore } from 'react';
 
-export type Route = 'home' | 'invest' | 'friends' | 'partners' | 'quests' | 'work' | 'settings';
+export type Route =
+  'home' | 'invest' | 'friends' | 'partners' | 'quests' | 'work' | 'mission' | 'settings';
 export const ROUTES: readonly Route[] = [
   'home',
   'invest',
@@ -16,6 +17,7 @@ export const ROUTES: readonly Route[] = [
   'partners',
   'quests',
   'work',
+  'mission',
   'settings',
 ];
 const EVENT = 'tgs:route';
