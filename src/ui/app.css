@@ -2043,6 +2043,8 @@ dialog .btn-ghost,
   .work-panel .btn {
     white-space: nowrap;
     min-width: max-content;
+    /* WebKit sets the label ~3 px wider: keep room for « 987 654 pts » on one line. */
+    padding-inline: 8px;
   }
 }
 

@@ -170,8 +170,9 @@ test.describe('P3 focus on Aoi (GS-V5-86, R-P43-9)', () => {
     await page.mouse.up();
     expect(pressed).toEqual({ outline: 'none', shadow: 'none' });
     await aoi(page).blur();
-    await page.keyboard.press('Shift+Tab');
+    // A keyboard interaction, then focus (WebKit's Tab may skip buttons): :focus-visible applies.
     await page.keyboard.press('Tab');
+    await aoi(page).focus();
     await expect(aoi(page)).toBeFocused();
     const kb = await aoi(page).evaluate((e) => {
       const s = getComputedStyle(e);
