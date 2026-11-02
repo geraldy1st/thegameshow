@@ -13,6 +13,7 @@ import type { GameStoreState } from './store/gameStore';
 import type { BoostPhase } from './core/boost';
 import { boostStore, forceShow, seedBoost } from './ui/work/boostStore';
 import { setMediaOverride, type MediaOverride } from './ui/work/media';
+import { createFadeRecorder } from './ui/work/fadeRecorder';
 
 /**
  * Controlled key list (ARCHITECTURE-LOT4 §7 bis): every key of `__TGS_TEST__` must be here, and
@@ -34,6 +35,7 @@ export const HARNESS_KEYS = [
   'boostShow',
   'boostPhase',
   'mediaOverride',
+  'fadeRecorder',
 ] as const;
 
 export interface TestHook {
@@ -61,6 +63,8 @@ export interface TestHook {
   boostPhase(): BoostPhase;
   /** Lot 4: force reduced motion, Save-Data, effectiveType or a refused play(); null resets. */
   mediaOverride(o: MediaOverride | null): void;
+  /** Patch 0.4.3 (R-P43-4): frame-by-frame recorder of Aoi's video layers. */
+  fadeRecorder: ReturnType<typeof createFadeRecorder>;
 }
 
 declare global {
@@ -114,5 +118,6 @@ export function installTestHook(store: StoreApi<GameStoreState>, clock: ManualCl
     },
     boostPhase: () => boostStore.getState().boost.phase,
     mediaOverride: (o) => setMediaOverride(o),
+    fadeRecorder: createFadeRecorder(),
   };
 }

@@ -13,10 +13,24 @@ export default defineConfig({
     bypassCSP: true,
   },
   projects: [
-    { name: 'chromium-mobile', use: { browserName: 'chromium' } },
+    {
+      name: 'chromium-mobile',
+      testIgnore: /patch043-fade\.spec\.ts/,
+      use: { browserName: 'chromium' },
+    },
+    // Patch 0.4.3 (R-P43-4): real H.264 fades need Google Chrome (preinstalled on GitHub runners).
+    {
+      name: 'chrome-video',
+      testMatch: /patch043-fade\.spec\.ts/,
+      use: { browserName: 'chromium', channel: 'chrome' },
+    },
     // GS-V5-13 / GS-V5-14: the lot 2 suite and the lot 3 suite also run on WebKit.
     // isMobile is a Chromium-only option, so WebKit keeps the same viewport and touch only.
-    { name: 'webkit-mobile', use: { browserName: 'webkit', isMobile: false } },
+    {
+      name: 'webkit-mobile',
+      testIgnore: /patch043-fade\.spec\.ts/,
+      use: { browserName: 'webkit', isMobile: false },
+    },
     // GS-V5-17 T17-5 and GS-V5-11: lot 3 journeys and axe at 390x844.
     {
       name: 'chromium-390',

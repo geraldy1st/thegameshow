@@ -23,6 +23,8 @@ const FORBIDDEN = [
     'boostShow',
     'boostPhase',
     'mediaOverride',
+    'fadeRecorder',
+    'createFadeRecorder',
   ].map((k) => [`test harness entry point ${k}`, new RegExp(`\\b${k}\\b`)]),
   ['payment API (ethics rule 5)', /PaymentRequest|stripe|checkout\.js/i],
   ['push notifications (ethics rule 11)', /Notification\.requestPermission|pushManager/],
