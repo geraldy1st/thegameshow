@@ -170,7 +170,7 @@ export const BALANCE = {
     noEnergyMessageMs: 5000,
   },
   /** Lot 4 floating points and announcements. */
-  fx: { floatMs: 900, reducedMs: 600, poolSize: 20, announceEveryMs: 5000 },
+  fx: { floatMs: 1300, reducedMs: 1200, poolSize: 30, announceEveryMs: 5000 },
   /** G-6: a quiz spanning midnight pays on the day it ends. Lot 5. */
   quiz: { midnightRule: 'end-day' as const },
   /** G-7: metro mini-game daily cap. Lot 6. */

@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useImperativeHandle, useRef, type CSSProperties } from 'react';
 import { BALANCE } from '../../data/balance';
 
 export interface FloatingHandle {
@@ -6,9 +6,11 @@ export interface FloatingHandle {
 }
 
 /**
- * Fixed pool of 20 nodes created on mount and recycled round-robin (ARCHITECTURE-LOT4 §8):
- * no node is ever added after mount, so nothing can leak. CSS animation 900 ms (600 ms fixed in
- * reduced motion, OD-T4), then hidden on animationend. aria-hidden: no announcement per tap.
+ * Fixed pool created on mount and recycled round-robin (ARCHITECTURE-LOT4 §8): no node is ever
+ * added after mount, so nothing can leak. Patch 0.4.3 (P4, R-P43-2): 30 nodes, which covers
+ * 15 accepted taps per sliding second over the 1 300 ms float; durations come from
+ * BALANCE.fx through CSS variables (1 200 ms fixed in reduced motion, offset by --k so points
+ * do not stack). aria-hidden: no announcement per tap.
  */
 export const FloatingPoints = forwardRef<FloatingHandle>(function FloatingPoints(_p, ref) {
   const nodes = useRef<Array<HTMLSpanElement | null>>([]);
@@ -28,12 +30,23 @@ export const FloatingPoints = forwardRef<FloatingHandle>(function FloatingPoints
     },
   }));
   return (
-    <div className="fx" aria-hidden="true">
+    <div
+      className="fx"
+      aria-hidden="true"
+      data-pool={BALANCE.fx.poolSize}
+      style={
+        {
+          '--float-ms': `${BALANCE.fx.floatMs}ms`,
+          '--float-still-ms': `${BALANCE.fx.reducedMs}ms`,
+        } as CSSProperties
+      }
+    >
       {Array.from({ length: BALANCE.fx.poolSize }, (_, i) => (
         <span
           key={i}
           className="pop num"
           hidden
+          style={{ '--k': i % 3 } as CSSProperties}
           ref={(el) => {
             nodes.current[i] = el;
           }}

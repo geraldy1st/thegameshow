@@ -28,9 +28,9 @@ it('freezes the validated v5 balance values', () => {
         },
         "fx": {
           "announceEveryMs": 5000,
-          "floatMs": 900,
-          "poolSize": 20,
-          "reducedMs": 600,
+          "floatMs": 1300,
+          "poolSize": 30,
+          "reducedMs": 1200,
         },
         "initialStats": 0,
         "metro": {
