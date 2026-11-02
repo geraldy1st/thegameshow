@@ -6,7 +6,7 @@ import { convert as coreConvert } from '../core/conversion';
 import { normalizeWorkMode, tap as coreTap } from '../core/work';
 import type { TapWindow } from '../core/tapLimiter';
 import { collectOffline as coreCollect, settle } from '../core/idle';
-import { pull as corePull } from '../core/gacha';
+import { pull as corePull, pullMany as corePullMany } from '../core/gacha';
 import {
   answerQuiz as coreAnswerQuiz,
   claimQuest as coreClaim,
@@ -74,6 +74,13 @@ export interface GameStoreState {
   /** One draw, written and awaited BEFORE the caller starts the reveal (RES-2). */
   pull(): Promise<
     { ok: true; last: LastPull } | { ok: false; reason: 'no-ticket' | 'write-failed' }
+  >;
+  /**
+   * Patch 0.4.3 (P10): ten draws in ONE committed write (one IndexedDB put); on a failed write
+   * nothing is drawn (state restored).
+   */
+  pullTen(): Promise<
+    { ok: true; results: LastPull[] } | { ok: false; reason: 'no-ticket' | 'write-failed' }
   >;
   claimQuest(id: QuestId): Promise<boolean>;
   answerQuiz(choice: number): Promise<boolean>;
@@ -366,6 +373,19 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         if (!last) return { ok: false, reason: 'no-ticket' };
         if (!stored) return { ok: false, reason: 'write-failed' };
         return { ok: true, last };
+      },
+
+      async pullTen() {
+        let results: LastPull[] | null = null;
+        const stored = await committed((g) => {
+          const r = corePullMany(g, 10);
+          if (!r.ok) return g;
+          results = r.results;
+          return r.state;
+        });
+        if (!results) return { ok: false, reason: 'no-ticket' };
+        if (!stored) return { ok: false, reason: 'write-failed' };
+        return { ok: true, results };
       },
 
       async claimQuest(id) {

@@ -83,3 +83,23 @@ export function effectiveThreeStarRate(): number {
   const p = RARITY_RATES[3];
   return p / (1 - (1 - p) ** PITY_LIMIT);
 }
+
+export type PullManyResult =
+  { ok: true; state: GameState; results: LastPull[] } | { ok: false; reason: 'no-ticket' };
+
+/**
+ * Patch 0.4.3 (P10): n draws at once, exactly `pull` composed n times (same rates, same pity,
+ * same rng sequence, n tickets, no bonus draw). Refused as a whole when tickets < n.
+ */
+export function pullMany(state: GameState, n: number): PullManyResult {
+  if (!Number.isInteger(n) || n < 1 || state.tickets < n) return { ok: false, reason: 'no-ticket' };
+  let s = state;
+  const results: LastPull[] = [];
+  for (let i = 0; i < n; i++) {
+    const r = pull(s);
+    if (!r.ok) return { ok: false, reason: 'no-ticket' };
+    s = r.state;
+    results.push(r.last);
+  }
+  return { ok: true, state: s, results };
+}
