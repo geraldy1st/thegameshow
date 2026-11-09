@@ -2183,6 +2183,8 @@ dialog .btn-ghost,
   color: var(--muted-ink);
   border-color: var(--muted-ink);
   background: var(--cream);
+}
+
 /* Associés v11 core — isolated sheet (not wired to production routes). */
 .assoc-sheet {
   display: flex;
