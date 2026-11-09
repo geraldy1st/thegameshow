@@ -2176,3 +2176,52 @@ dialog .btn-ghost,
   gap: var(--s-2);
   text-align: center;
 }
+
+/* Associés v11 core — isolated sheet (not wired to production routes). */
+.assoc-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 36rem;
+  padding: 12px;
+  color: #fff6e6;
+  background: #1b2a4a;
+  /* No opacity animation on the whole sheet (R-AS-05). */
+  animation: none;
+}
+.assoc-sheet .assoc-sheet-apport,
+.assoc-sheet .assoc-sheet-bio {
+  padding: 12px;
+  border-radius: 12px;
+  color: #1b2a4a;
+  background: #fff6e6;
+}
+.assoc-sheet .assoc-sheet-apport li {
+  margin: 0.25rem 0;
+}
+.assoc-sheet blockquote {
+  margin: 0.5rem 0;
+  color: #8a5a00;
+  font-style: italic;
+}
+.assoc-sheet .portrait.gray {
+  filter: grayscale(1);
+}
+.assoc-sheet-back {
+  align-self: flex-start;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #1b2a4a;
+}
+.assoc-sheet-title:focus {
+  outline: 3px solid #f5b83d;
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .assoc-sheet,
+  .assoc-sheet * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
