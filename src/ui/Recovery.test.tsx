@@ -58,3 +58,46 @@ describe('recovery screen (DEF-GS-01)', () => {
     expect(await db.get('saves', 'backup-before-reset')).toMatchObject({ junk: true });
   });
 });
+
+async function futureRecoveryApp(name: string) {
+  const db = await openSaveDb(name);
+  // Valid-looking shell with a future schemaVersion so loadSave returns `future`.
+  await db.put(
+    'saves',
+    {
+      schemaVersion: 6,
+      revision: 1,
+      createdAt: 1,
+      lastSeenAt: 1,
+      maxSeenAt: 1,
+    },
+    'current',
+  );
+  const store = createGameStore({
+    clock: new ManualClock(Date.UTC(2026, 9, 25)),
+    openDb: () => openSaveDb(name),
+    newSeed: () => 1,
+    acquireWriterLock: async () => true,
+    debounceMs: 5,
+  });
+  render(<App store={store} />);
+  await act(() => store.getState().init());
+  return { store };
+}
+
+describe('DEF-GS-30 reload banner on Recovery (future schema at load)', () => {
+  it('shows a visible .banner and a reload button (mutant: Recovery-only early return)', async () => {
+    const { store } = await futureRecoveryApp('ui-recovery-future');
+    expect(store.getState().status).toBe('recovery');
+    expect(store.getState().recoveryKind).toBe('future');
+    expect(store.getState().reloadNeeded).toBe(true);
+    const banner = document.querySelector('.banner');
+    expect(banner).toBeTruthy();
+    expect(banner?.textContent ?? '').toMatch(/Recharge la page/);
+    expect(banner?.getAttribute('role')).toBe('status');
+    expect(banner?.getAttribute('aria-live')).toBe('polite');
+    // Mutant kill: a Recovery early return that only keeps the visually-hidden live region fails here.
+    expect(banner?.classList.contains('visually-hidden')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Recharger la page' })).toBeTruthy();
+  });
+});

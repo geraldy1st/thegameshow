@@ -197,6 +197,7 @@ export const fr = {
     'Une version plus récente du jeu a déjà enregistré ta partie sur cet appareil. Recharge la page pour la reprendre — rien n’a été écrasé.',
   reloadNeeded:
     'Une mise à jour du jeu est disponible sur cet appareil. Recharge la page pour continuer — ta partie n’a pas été écrasée.',
+  reloadPage: 'Recharger la page',
   migrationBackupTitle: 'Sauvegarde d’avant la mise à jour',
   migrationBackupBody:
     'Ta partie telle qu’elle était avant la mise à jour du jeu est gardée sur cet appareil.',

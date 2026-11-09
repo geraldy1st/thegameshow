@@ -202,14 +202,31 @@ function SaveMenu({ store }: { store: Store }) {
 function Recovery({ store }: { store: Store }) {
   const reason = useStore(store, (s) => s.recoveryReason);
   const kind = useStore(store, (s) => s.recoveryKind);
+  const reloadNeeded = useStore(store, (s) => s.reloadNeeded);
   const [confirm, setConfirm] = useState(false);
+  const showReload = kind === 'future' || reloadNeeded;
   return (
     <main className="app" aria-labelledby="recovery-title">
+      {/* DEF-GS-30: same visible reload banner as the ready/readonly paths (not only aria-live). */}
+      {showReload && (
+        <p className="banner" role="status" aria-live="polite">
+          {t('reloadNeeded')}
+        </p>
+      )}
       <section>
         <h1 id="recovery-title">{t('recoveryTitle')}</h1>
         <p>{kind === 'future' ? t('futureVersion') : t('recoveryBody')}</p>
         <p className="muted">{reason}</p>
         <div className="row">
+          {showReload && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => window.location.reload()}
+            >
+              {t('reloadPage')}
+            </button>
+          )}
           <ImportButton store={store} />
           <button type="button" className="btn btn-ghost" onClick={() => setConfirm(true)}>
             {t('recoveryNew')}

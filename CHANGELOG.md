@@ -2,6 +2,15 @@
 
 Format : fichier / fait / pourquoi / à épurer / risque.
 
+## 0.5.0+ — DEF-GS-30 bandeau rechargement sur Recovery (branche `associes-v11-integration`, non publié)
+
+Confirmation Crypto 72a1686 : DEF-GS-28/29 fermés ; DEF-GS-30 ouvert.
+
+| Fichier                            | Fait                                                                                  | Pourquoi                                       | À épurer | Risque |
+| ---------------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------- | -------- | ------ |
+| `src/ui/App.tsx`, `src/i18n/fr.ts` | Sur Recovery (schéma futur) : `.banner` `reloadNeeded` + bouton « Recharger la page » | DEF-GS-30 : les 3 chemins affichent le bandeau | —        | —      |
+| `src/ui/Recovery.test.tsx`         | Test mutant : banner visible + bouton                                                 | CI                                             | —        | —      |
+
 ## 0.5.0+ — DEF-GS-28/29 + bannière rechargement (branche `associes-v11-integration`, non publié)
 
 Recette Crypto GO AVEC RÉSERVES sur 53e4857 (`recette-050/RAPPORT.md`). Aucune publication.
