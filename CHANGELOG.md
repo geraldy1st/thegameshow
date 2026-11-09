@@ -2,6 +2,17 @@
 
 Format : fichier / fait / pourquoi / à épurer / risque.
 
+## 0.4.3+ — Associés v11 cœur isolé (branche `associes-v11-core`, non publié)
+
+GO AVEC RÉSERVES Crypto (AVIS-QA-ASSOCIES-V11) : cœur `appel` + fiches/bios FR isolés seulement. Intégration / migration / publication bloquées (DEF-GS-23, note v5 commune).
+
+| Fichier                                                                    | Fait                                                                                                                                                                                       | Pourquoi                                                | À épurer                                      | Risque                             |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------- | --------------------------------------------- | ---------------------------------- |
+| `src/core/appel.ts`, `src/core/appel.test.ts`                              | Module pur : durées 30 min / 1 h, recharge 24 h depuis activation, 4 états, start idempotent, ancre murale anti-raccourcissement, `callMult` ×2, chevauchement hors ligne, chances MAPPING | Isoler la logique avant branchement économie/sauvegarde | Brancher sous R-AS-03/04 après note v5        | Pas encore relié à idle/Travailler |
+| `docs/BIOS-SOURCE.md`, `src/data/bios.ts`, `src/data/associateProfiles.ts` | 9 bios FR + métiers/citations/apprend copiés depuis `bios-proposees.json` (09/11)                                                                                                          | Aucun texte inventé ; concordance test existante        | Traductions EN/ES non validées                | FR affiché dans toute locale       |
+| `src/ui/partners/AssociateSheet.tsx` (+ test, CSS, i18n)                   | Fiche props-only : apport, bio, « À définir », 4 états d'appel, focus titre, aria-live, pas d'anim d'opacité globale                                                                       | UI isolée sans store/routes                             | Brancher à la place de `PartnerBio` plus tard | Non monté dans App                 |
+
+
 ## 0.4.3+ — Correctifs DEF-GS-23 à 27 (branche `fix-043-defects`, non publié)
 
 Recette Crypto NO-GO sur 51fd37b (RAPPORT patch-043). Aucune publication.
