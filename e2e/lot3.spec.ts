@@ -276,7 +276,7 @@ test.describe('migration and recovery (GS-V5-05/06/08)', () => {
       .poll(
         async () => ((await readSlot(page, 'current')) as { schemaVersion: number }).schemaVersion,
       )
-      .toBe(4);
+      .toBe(5);
     expect(await readSlot(page, 'backup-before-migration')).toEqual(v2);
     const offline = page.getByRole('article', { name: 'Gains hors ligne' });
     await expect(offline.getByText(/^\+.+ ¥$/)).toBeVisible();
@@ -303,7 +303,7 @@ test.describe('migration and recovery (GS-V5-05/06/08)', () => {
   test('a future version is refused with the exact text and nothing is written', async ({
     page,
   }) => {
-    const future = { ...v2, schemaVersion: 5 };
+    const future = { ...v2, schemaVersion: 6 };
     await seed(page, { current: future });
     await page.goto('./');
     await expect(page.getByRole('heading', { name: 'Sauvegarde illisible' })).toBeVisible();
@@ -330,7 +330,7 @@ test.describe('migration and recovery (GS-V5-05/06/08)', () => {
       'Sauvegarde d’avant la mise à jour restaurée.',
     );
     const kept = (await readSlot(page, 'backup-before-restore')) as { schemaVersion: number };
-    expect(kept.schemaVersion).toBe(4);
+    expect(kept.schemaVersion).toBe(5);
     expect(await readSlot(page, 'backup-before-import')).toBeUndefined();
   });
 });
