@@ -359,7 +359,7 @@ test.describe('P7 roman (GS-V5-90, R-P43-10, DEF-GS-22)', () => {
 });
 
 test.describe('P8 partner profile (GS-V5-91, R-P43-11)', () => {
-  test('owned photo opens the profile (name, rarity, bonus), no biography; locked has no button', async ({
+  test('owned photo opens the profile (name, rarity, bonus, FR bio); locked has no button', async ({
     page,
   }) => {
     await start(page);
@@ -376,7 +376,8 @@ test.describe('P8 partner profile (GS-V5-91, R-P43-11)', () => {
     const d = page.getByRole('dialog');
     await expect(d.getByRole('heading', { level: 2 })).toBeVisible();
     await expect(d).toContainText('1 ★');
-    await expect(d.locator('.bio-text')).toHaveCount(0);
+    // Associés v11: FR bios are approved — the 0.4.3 empty-bio oracle is lifted.
+    await expect(d.locator('.bio-text')).toHaveCount(1);
     expect(id).toBeTruthy();
     expect(await axeViolations(page)).toEqual([]);
     await page.addStyleTag({ content: 'html{font-size:150%}' });
