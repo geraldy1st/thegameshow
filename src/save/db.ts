@@ -29,7 +29,8 @@ interface TgsDB extends DBSchema {
 }
 
 export const DB_NAME = 'thegameshow';
-const DB_VERSION = 1;
+/** Bumped 1→2 in 0.4.4 (R-MV5-01): no store change; forces versionchange on old tabs. */
+export const DB_VERSION = 2;
 
 export class RevisionConflictError extends Error {
   constructor(
@@ -40,11 +41,27 @@ export class RevisionConflictError extends Error {
   }
 }
 
+/** R-MV5-01: a v4 (or older) client must not overwrite a newer schema already on disk. */
+export class FutureSchemaWriteError extends Error {
+  constructor(readonly storedVersion: number) {
+    super(`refusing write: stored schemaVersion ${storedVersion} is newer than this app`);
+  }
+}
+
 export function openSaveDb(name = DB_NAME): Promise<IDBPDatabase<TgsDB>> {
   return openDB<TgsDB>(name, DB_VERSION, {
     upgrade(db) {
-      db.createObjectStore('saves');
+      // v1 created the store; v2 is a no-op bump so old connections get versionchange.
+      if (!db.objectStoreNames.contains('saves')) db.createObjectStore('saves');
     },
+    blocked() {
+      // Another tab still holds v1 open; it should close on versionchange. No throw.
+    },
+  }).then((db) => {
+    db.addEventListener('versionchange', () => {
+      db.close();
+    });
+    return db;
   });
 }
 
@@ -133,6 +150,12 @@ export async function writeSave(
   const tx = db.transaction('saves', 'readwrite');
   const store = tx.objectStore('saves');
   const current = await store.get('current');
+  const storedVer = versionOf(current);
+  if (current !== undefined && storedVer > CURRENT_SCHEMA_VERSION) {
+    tx.abort();
+    await tx.done.catch(() => undefined);
+    throw new FutureSchemaWriteError(storedVer);
+  }
   const stored = current === undefined ? -1 : storedRevision(current);
   if (stored !== expectedRevision) {
     tx.abort();

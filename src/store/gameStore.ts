@@ -20,6 +20,7 @@ import { t } from '../i18n/fr';
 import type { GameState, LastPull } from '../core/types';
 import { migrateToCurrent } from '../save/migrations';
 import {
+  FutureSchemaWriteError,
   RevisionConflictError,
   backupBeforeImport,
   loadSave,
@@ -195,6 +196,15 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
               status: 'readonly',
               ...(stored?.kind === 'ok' ? { game: stored.save, absenceMs: 0 } : {}),
             });
+          } else if (e instanceof FutureSchemaWriteError) {
+            // R-MV5-01: do not clobber a newer save; become readonly and surface the FR message.
+            set({
+              status: 'readonly',
+              writeError: true,
+              recoveryKind: 'future',
+              recoveryReason: `schemaVersion ${e.storedVersion}`,
+            });
+            get().announce(t('futureSchemaWrite'));
           } else {
             set({ writeError: true });
           }

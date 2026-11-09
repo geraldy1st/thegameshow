@@ -169,6 +169,8 @@ export const fr = {
   restoredFromBackup: 'Une copie de secours de ta sauvegarde a été restaurée.',
   futureVersion:
     "Cette sauvegarde vient d'une version plus récente du jeu. Recharge la page pour obtenir la dernière version.",
+  futureSchemaWrite:
+    'Une version plus récente du jeu a déjà enregistré ta partie sur cet appareil. Recharge la page pour la reprendre — rien n’a été écrasé.',
   migrationBackupTitle: 'Sauvegarde d’avant la mise à jour',
   migrationBackupBody:
     'Ta partie telle qu’elle était avant la mise à jour du jeu est gardée sur cet appareil.',

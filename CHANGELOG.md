@@ -2,6 +2,16 @@
 
 Format : fichier / fait / pourquoi / à épurer / risque.
 
+## 0.4.4 — Garde d’écriture v4 (branche `fix-v4-guard`, non publié)
+
+Crypto GO WITH RESERVES sur MIGRATION-V5-COMMUNE v1.1 (R-MV5-01). Aucune publication.
+
+| Fichier                                                      | Fait                                                                                                                                                           | Pourquoi                                        | À épurer | Risque                                              |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | -------- | --------------------------------------------------- |
+| `src/save/db.ts`                                             | `FutureSchemaWriteError` : `writeSave` refuse si `schemaVersion` stocké > `CURRENT_SCHEMA_VERSION` (4) ; `DB_VERSION` 1→2 + `versionchange` ferme la connexion | R-MV5-01 : ne pas écraser une save plus récente | —        | Onglets anciens ferment la DB ; rechargement requis |
+| `src/store/gameStore.ts`, `src/ui/App.tsx`, `src/i18n/fr.ts` | Lecture seule + message FR `futureSchemaWrite` (aria-live / bannière)                                                                                          | Message clair, aucune perte                     | —        | —                                                   |
+| `src/save/save.test.ts`                                      | Tests ciblés garde + bump IndexedDB                                                                                                                            | CI                                              | —        | —                                                   |
+
 ## 0.4.3+ — Correctifs DEF-GS-23 à 27 (branche `fix-043-defects`, non publié)
 
 Recette Crypto NO-GO sur 51fd37b (RAPPORT patch-043). Aucune publication.

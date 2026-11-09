@@ -420,6 +420,7 @@ export function App({ store }: { store: Store }) {
   const announcement = useStore(store, (s) => s.announcement);
   const motion = useStore(store, (s) => s.game?.settings.reducedMotion ?? 'auto');
   const writeError = useStore(store, (s) => s.writeError);
+  const recoveryKind = useStore(store, (s) => s.recoveryKind);
   const route = useRoute();
   const screen: Route = route;
   // DEF-GS-08: a reveal interrupted by a reload is shown again once, on the Associés screen.
@@ -505,7 +506,7 @@ export function App({ store }: { store: Store }) {
       {screen !== 'work' && <TopBar store={store} onQuests={() => navigate('quests')} />}
       {status === 'readonly' && (
         <p className="banner" role="alert">
-          {t('readonlyBanner')}
+          {recoveryKind === 'future' ? t('futureSchemaWrite') : t('readonlyBanner')}
         </p>
       )}
       {writeError && status === 'ready' && (

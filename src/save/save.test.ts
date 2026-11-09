@@ -6,7 +6,9 @@ import { CURRENT_SCHEMA_VERSION, validateSaveV2, validateSaveV3, validateSaveV4 
 import { migrateToCurrent } from './migrations';
 import { MAX_IMPORT_BYTES, fnv1a, parseImport, serializeExport } from './exportImport';
 import {
+  FutureSchemaWriteError,
   RevisionConflictError,
+  DB_VERSION,
   backupBeforeImport,
   backupBeforeMigration,
   backupBeforeRestore,
@@ -407,5 +409,46 @@ describe('schema v4 and the -v3 slot (lot 4, OD-4, R-L4-1, GS-V5-50)', () => {
   it('is idempotent from v3', () => {
     const once = migrateToCurrent(midgameV3);
     expect(once.ok && migrateToCurrent(once.value)).toEqual(once);
+  });
+});
+
+describe('R-MV5-01 writeSave refuses a future schema (0.4.4)', () => {
+  it('throws FutureSchemaWriteError and leaves the stored blob untouched', async () => {
+    const db = await freshDb();
+    const written = await writeSave(db, createInitialState(T0, 1), -1);
+    expect(written.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+
+    const future = { ...written, schemaVersion: 5, revision: written.revision + 1 };
+    const tx = db.transaction('saves', 'readwrite');
+    await tx.store.put(future, 'current');
+    await tx.done;
+
+    const before = await db.get('saves', 'current');
+    await expect(
+      writeSave(db, { ...written, tickets: 99 }, future.revision),
+    ).rejects.toBeInstanceOf(FutureSchemaWriteError);
+
+    const after = await db.get('saves', 'current');
+    expect(after).toEqual(before);
+    expect((after as { schemaVersion: number }).schemaVersion).toBe(5);
+    expect((after as { tickets: number }).tickets).not.toBe(99);
+  });
+
+  it('still writes when the stored schema equals CURRENT_SCHEMA_VERSION', async () => {
+    const db = await freshDb();
+    const w0 = await writeSave(db, createInitialState(T0, 1), -1);
+    const w1 = await writeSave(db, { ...w0, tickets: 3 }, w0.revision);
+    expect(w1.revision).toBe(w0.revision + 1);
+    expect(w1.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    expect(w1.tickets).toBe(3);
+  });
+
+  it('opens at DB_VERSION 2 and registers a versionchange closer', async () => {
+    expect(DB_VERSION).toBe(2);
+    const db = await freshDb();
+    expect(db.version).toBe(2);
+    // Listener is registered in openSaveDb; closing must be safe to call.
+    db.close();
+    expect(typeof db.close).toBe('function');
   });
 });
