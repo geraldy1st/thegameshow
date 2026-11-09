@@ -6,6 +6,8 @@ Format : fichier / fait / pourquoi / à épurer / risque.
 
 GO AVEC RÉSERVES Crypto (AVIS-QA-ASSOCIES-V11) : cœur `appel` + fiches/bios FR isolés seulement. Intégration / migration / publication bloquées (DEF-GS-23, note v5 commune).
 
+**Avant fusion :** les bios FR remplissent `BIOS` → dès qu'une branche contenant ce commit est fusionnée, `PartnerBio` (0.4.3) les affiche aux joueurs. **Validation écrite de Geraldy requise avant toute fusion.** `AssociateSheet` reste hors de l'arbre de rendu.
+
 | Fichier                                                                    | Fait                                                                                                                                                                                       | Pourquoi                                                | À épurer                                      | Risque                             |
 | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------- | --------------------------------------------- | ---------------------------------- |
 | `src/core/appel.ts`, `src/core/appel.test.ts`                              | Module pur : durées 30 min / 1 h, recharge 24 h depuis activation, 4 états, start idempotent, ancre murale anti-raccourcissement, `callMult` ×2, chevauchement hors ligne, chances MAPPING | Isoler la logique avant branchement économie/sauvegarde | Brancher sous R-AS-03/04 après note v5        | Pas encore relié à idle/Travailler |
