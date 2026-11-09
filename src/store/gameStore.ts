@@ -1,5 +1,5 @@
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import type { FriendId, InvestmentId, QuestId } from '../data/balance';
+import type { AssociateId, FriendId, InvestmentId, QuestId } from '../data/balance';
 import type { Clock } from '../core/clock';
 import { buy as coreBuy } from '../core/economy';
 import { convert as coreConvert } from '../core/conversion';
@@ -30,8 +30,10 @@ import {
   backupBeforeReset,
   backupBeforeMigration,
   backupBeforeRestore,
+  migrateCurrentSameTx,
   readRawSlot,
 } from '../save/db';
+import { activateAppelOnState, clampAppelForImport, makeActivationId } from '../core/appel';
 import { parseImport, serializeExport } from '../save/exportImport';
 
 export type Status = 'loading' | 'ready' | 'readonly' | 'recovery';
@@ -82,6 +84,14 @@ export interface GameStoreState {
    */
   pullTen(): Promise<
     { ok: true; results: LastPull[] } | { ok: false; reason: 'no-ticket' | 'write-failed' }
+  >;
+  /** Associés v11: atomic idempotent call activation (R-AS-03). */
+  startAppel(
+    id: AssociateId,
+    activationId?: string,
+  ): Promise<
+    | { ok: true; replay: boolean }
+    | { ok: false; reason: 'locked' | 'busy' | 'bad-clock' | 'write-failed' | 'readonly' }
   >;
   claimQuest(id: QuestId): Promise<boolean>;
   answerQuiz(choice: number): Promise<boolean>;
@@ -311,12 +321,21 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
           set({ status: 'recovery', recoveryKind: 'corrupt', recoveryReason: loaded.reason });
           return;
         }
-        // Only the writer tab keeps the raw pre-migration record (step 1 and 2); a read-only
-        // tab migrates in memory for display and never writes.
-        if (isWriter && loaded.kind === 'ok' && loaded.from === 'current')
-          await backupBeforeMigration(db);
+        // R-MV5-02: writer migrates v4→v5 (backup + current) in ONE transaction.
+        // Read-only tabs migrate in memory only and never write.
+        let loadedOk = loaded;
+        if (isWriter && loaded.kind === 'ok' && loaded.from === 'current') {
+          const migrated = await migrateCurrentSameTx(db);
+          if (migrated) {
+            loadedOk = { kind: 'ok', save: migrated, from: 'current' };
+          } else {
+            // Fallback for older slots: legacy backup helper then in-memory migrate path.
+            await backupBeforeMigration(db);
+          }
+        }
         const now = deps.clock.now();
-        const base = loaded.kind === 'ok' ? loaded.save : createInitialState(now, deps.newSeed());
+        const base =
+          loadedOk.kind === 'ok' ? loadedOk.save : createInitialState(now, deps.newSeed());
         persistedRevision = await storedRevision();
         const r = settle(base, now);
         set({
@@ -324,7 +343,7 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
           status: isWriter ? 'ready' : 'readonly',
           absenceMs: r.deferred ? r.creditedMs : 0,
         });
-        if (loaded.kind === 'ok' && loaded.from !== 'current')
+        if (loadedOk.kind === 'ok' && loadedOk.from !== 'current')
           set({ announcement: t('restoredFromBackup') });
         if (isWriter) {
           await persistNow();
@@ -396,6 +415,30 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         if (!results) return { ok: false, reason: 'no-ticket' };
         if (!stored) return { ok: false, reason: 'write-failed' };
         return { ok: true, results };
+      },
+
+      async startAppel(id, activationId) {
+        if (get().status !== 'ready') return { ok: false, reason: 'readonly' };
+        const aid = activationId ?? makeActivationId();
+        let replay = false;
+        let fail: 'locked' | 'busy' | 'bad-clock' | null = null;
+        const stored = await committed((g) => {
+          const now = deps.clock.now();
+          // Wall clock: Date.now() when available so a game-clock jump cannot shorten cool.
+          const wallNow = typeof Date !== 'undefined' ? Date.now() : now;
+          const r = activateAppelOnState(g, id, now, wallNow, aid);
+          if (!r.ok) {
+            fail = r.reason;
+            return g;
+          }
+          replay = r.replay;
+          return r.state;
+        });
+        if (fail) return { ok: false, reason: fail };
+        if (!stored) return { ok: false, reason: 'write-failed' };
+        if (!replay)
+          get().announce(t('appelStarted', { name: id.charAt(0).toUpperCase() + id.slice(1) }));
+        return { ok: true, replay };
       },
 
       async claimQuest(id) {
@@ -480,10 +523,13 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         // An imported save may come from another device clock: never let it block settlement.
         // Patch 0.4.2 (R-P42-4): a 0.4.1 export in `presse` comes back as `roman`, written once.
         const value = normalizeWorkMode(parsed.value);
+        const maxSeen = Math.min(value.maxSeenAt, now);
         const imported: GameState = {
           ...value,
-          maxSeenAt: Math.min(value.maxSeenAt, now),
+          maxSeenAt: maxSeen,
           lastSeenAt: Math.min(value.lastSeenAt, now),
+          // R-MV5-04: clamp inconsistent call clocks to the local maxSeenAt anchor.
+          appel: clampAppelForImport(value.appel, maxSeen),
         };
         set({ game: imported, status: 'ready', recoveryReason: null, recoveryKind: null });
         await persistNow();

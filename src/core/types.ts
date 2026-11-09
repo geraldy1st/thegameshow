@@ -100,4 +100,33 @@ export interface SaveV4 extends Omit<SaveV3, 'schemaVersion'> {
   work: WorkState;
 }
 
-export type GameState = SaveV4;
+/** Persisted call entry (MIGRATION-V5-COMMUNE v1.1). Maps to core AppelEntry via adapters. */
+export interface AppelPersisted {
+  activatedAt: number;
+  endsAt: number;
+  cooldownUntil: number;
+  wallEndsAt: number;
+  wallCooldownUntil: number;
+  activationId: string;
+}
+
+export interface AppelReceipt {
+  activationId: string;
+  associateId: AssociateId;
+  activatedAt: number;
+  endsAt: number;
+  cooldownUntil: number;
+}
+
+/**
+ * Save schema v5 (Associés v11 + bike placeholder): v4 + `appel` / `appelReceipts` / `bike`.
+ * `bike` stays null until the first run (R-MV5-04).
+ */
+export interface SaveV5 extends Omit<SaveV4, 'schemaVersion'> {
+  schemaVersion: 5;
+  appel: Partial<Record<AssociateId, AppelPersisted>>;
+  appelReceipts: readonly AppelReceipt[];
+  bike: null;
+}
+
+export type GameState = SaveV5;

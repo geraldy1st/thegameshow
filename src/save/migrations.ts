@@ -1,16 +1,17 @@
-import { initialV3Fields, initialV4Fields } from '../core/state';
-import type { SaveV4 } from '../core/types';
+import { initialV3Fields, initialV4Fields, initialV5Fields } from '../core/state';
+import type { SaveV5 } from '../core/types';
 import {
   CURRENT_SCHEMA_VERSION,
   validateSaveV1,
   validateSaveV2,
   validateSaveV3,
   validateSaveV4,
+  validateSaveV5,
   type ValidationResult,
 } from './schema';
 
 /** Current save type. Bump together with CURRENT_SCHEMA_VERSION. */
-export type CurrentSave = SaveV4;
+export type CurrentSave = SaveV5;
 
 /**
  * Migration chain (RES-7a): MIGRATIONS[n] turns a valid vN object into vN+1.
@@ -35,12 +36,15 @@ export const MIGRATIONS: Readonly<Record<number, Step>> = {
   }),
   // v3 -> v4 (lot 4): every v3 field kept as is; `work` at its exact initial value.
   3: (s) => ({ ...s, schemaVersion: 4, ...initialV4Fields() }),
+  // v4 -> v5 (Associés): appel empty, bike null (R-MV5-04).
+  4: (s) => ({ ...s, schemaVersion: 5, ...initialV5Fields() }),
 };
 
 const VALIDATORS: Readonly<Record<number, (v: unknown) => ValidationResult<unknown>>> = {
   1: validateSaveV1,
   2: validateSaveV2,
   3: validateSaveV3,
+  4: validateSaveV4,
 };
 
 /** Migrates any supported version to the current one and validates the result. Never throws. */
@@ -68,5 +72,5 @@ export function migrateToCurrent(input: unknown): ValidationResult<CurrentSave> 
   } catch {
     return { ok: false, reason: 'migration failed' };
   }
-  return validateSaveV4(data);
+  return validateSaveV5(data);
 }

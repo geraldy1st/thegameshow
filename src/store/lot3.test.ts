@@ -24,28 +24,28 @@ const seed = async (name: string, slots: Record<string, unknown>) => {
   db.close();
 };
 
-describe('lot 3 store: migration v2 → v4 (chain)', () => {
-  it('writer tab keeps the raw v2 record and writes v4', async () => {
+describe('lot 3 store: migration v2 → v5 (chain)', () => {
+  it('writer tab keeps the raw v2 record and writes v5', async () => {
     const { store, name } = setup();
     await seed(name, { current: midgame });
     await store.getState().init();
-    expect(store.getState().game?.schemaVersion).toBe(4);
+    expect(store.getState().game?.schemaVersion).toBe(5);
     const db = await openSaveDb(name);
     expect(await db.get('saves', 'backup-before-migration')).toEqual(midgame);
-    expect(((await db.get('saves', 'current')) as { schemaVersion: number }).schemaVersion).toBe(4);
+    expect(((await db.get('saves', 'current')) as { schemaVersion: number }).schemaVersion).toBe(5);
   });
   it('read-only tab migrates in memory only and writes nothing', async () => {
     const { store, name } = setup(false);
     await seed(name, { current: midgame });
     await store.getState().init();
-    expect(store.getState().game?.schemaVersion).toBe(4);
+    expect(store.getState().game?.schemaVersion).toBe(5);
     const db = await openSaveDb(name);
     expect(await db.get('saves', 'current')).toEqual(midgame);
     expect(await db.get('saves', 'backup-before-migration')).toBeUndefined();
   });
   it('a future version shows the recovery screen and writes nothing', async () => {
     const { store, name } = setup();
-    const future = { ...midgame, schemaVersion: 5 };
+    const future = { ...midgame, schemaVersion: 6 };
     await seed(name, { current: future });
     await store.getState().init();
     expect(store.getState().status).toBe('recovery');
@@ -77,8 +77,8 @@ describe('lot 3 store: migration v2 → v4 (chain)', () => {
   });
 });
 
-describe('lot 4 store: migration v3 → v4 (R-L4-1, §4.3)', () => {
-  it('writer tab keeps the raw v3 in -v3, leaves the lot 3 slot and writes v4 once', async () => {
+describe('lot 4 store: migration v3 → v5 (R-L4-1 + R-MV5)', () => {
+  it('writer tab keeps the raw v3 in -v3, leaves the lot 3 slot and writes v5', async () => {
     const { store, name } = setup();
     await seed(name, { current: midgameV3, 'backup-before-migration': midgame });
     await store.getState().init();
@@ -92,13 +92,15 @@ describe('lot 4 store: migration v3 → v4 (R-L4-1, §4.3)', () => {
     const db = await openSaveDb(name);
     expect(await db.get('saves', 'backup-before-migration-v3')).toEqual(midgameV3);
     expect(await db.get('saves', 'backup-before-migration')).toEqual(midgame);
-    expect(await db.get('saves', 'previous')).toEqual(midgameV3);
+    const prev = await db.get('saves', 'previous');
+    expect((prev as { schemaVersion: number }).schemaVersion).toBe(5);
+    expect((prev as { appel: unknown }).appel).toEqual({});
   });
   it('read-only tab migrates in memory only and writes nothing', async () => {
     const { store, name } = setup(false);
     await seed(name, { current: midgameV3 });
     await store.getState().init();
-    expect(store.getState().game?.schemaVersion).toBe(4);
+    expect(store.getState().game?.schemaVersion).toBe(5);
     const db = await openSaveDb(name);
     expect(await db.getAllKeys('saves')).toEqual(['current']);
   });

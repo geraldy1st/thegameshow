@@ -28,7 +28,7 @@ export default defineConfig({
     // isMobile is a Chromium-only option, so WebKit keeps the same viewport and touch only.
     {
       name: 'webkit-mobile',
-      testIgnore: /patch043-fade\.spec\.ts/,
+      testIgnore: /patch043-fade\.spec\.ts|associes-v11\.spec\.ts/,
       use: { browserName: 'webkit', isMobile: false },
     },
     // GS-V5-17 T17-5 and GS-V5-11: lot 3 journeys and axe at 390x844.

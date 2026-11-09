@@ -25,16 +25,28 @@ const isObject = (v: unknown): v is Record<string, unknown> =>
 
 /** v4 record minus `work`, schemaVersion 3, validated with the v3 rules. Never throws. */
 export function downgradeV4ToV3(input: unknown): ValidationResult<SaveV3> {
-  if (!isObject(input) || input.schemaVersion !== 4)
-    return { ok: false, reason: 'downgrade: v4 object expected' };
+  if (!isObject(input) || (input.schemaVersion !== 4 && input.schemaVersion !== 5))
+    return { ok: false, reason: 'downgrade: v4/v5 object expected' };
   if (!isObject(input.work)) return { ok: false, reason: 'downgrade: save.work missing' };
   const rest: Record<string, unknown> = structuredClone(input);
   delete rest.work;
+  delete rest.appel;
+  delete rest.appelReceipts;
+  delete rest.bike;
   return validateSaveV3({ ...rest, schemaVersion: 3 });
 }
 
 /** Fields that change on every write or open, not progress: ignored by the comparison. */
-const BOOKKEEPING = new Set(['schemaVersion', 'revision', 'lastSeenAt', 'maxSeenAt', 'work']);
+const BOOKKEEPING = new Set([
+  'schemaVersion',
+  'revision',
+  'lastSeenAt',
+  'maxSeenAt',
+  'work',
+  'appel',
+  'appelReceipts',
+  'bike',
+]);
 
 /** Canonical JSON (sorted keys), so key order never makes two equal saves differ. */
 function canonical(v: unknown): string {
@@ -65,7 +77,10 @@ export function restoreWorkAfterDowngrade<S extends { work: unknown }>(
   rawSourceV3: unknown,
   rawDowngradeBackup: unknown,
 ): { save: S; restored: boolean } {
-  if (!isObject(rawDowngradeBackup) || rawDowngradeBackup.schemaVersion !== 4)
+  if (
+    !isObject(rawDowngradeBackup) ||
+    (rawDowngradeBackup.schemaVersion !== 4 && rawDowngradeBackup.schemaVersion !== 5)
+  )
     return { save: migrated, restored: false };
   if (!isObject(rawDowngradeBackup.work) || !sameV3Fields(rawSourceV3, rawDowngradeBackup))
     return { save: migrated, restored: false };
@@ -104,7 +119,7 @@ export async function downgradeCurrentInDb(
   const tx = db.transaction('saves', 'readwrite');
   const store = tx.objectStore('saves');
   const cur = await store.get('current');
-  if (!isObject(cur) || cur.schemaVersion !== 4) {
+  if (!isObject(cur) || (cur.schemaVersion !== 4 && cur.schemaVersion !== 5)) {
     await tx.done;
     return { kind: 'none' };
   }

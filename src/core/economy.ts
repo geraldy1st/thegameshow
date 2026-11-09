@@ -10,13 +10,26 @@ import {
 import { addAmount, yenToCents } from './numbers';
 import { bumpQuest } from './quests';
 import type { GameState } from './types';
+import { callMult, toCoreEntry } from './appel';
 
-/** Partner bonus multiplier for a target: 1 + sum(percent x stars) / 100 (mockup rule). */
-export function bonusMultiplier(state: GameState, target: Exclude<BonusTarget, 'all'>): number {
+/**
+ * Partner bonus multiplier for a target: 1 + sum(percent × stars × callMult) / 100.
+ * Call ×2 is multiplicative on that associate's contribution only (Associés v11).
+ * `now`/`wallNow` default to maxSeenAt (online tick / no wall skew).
+ */
+export function bonusMultiplier(
+  state: GameState,
+  target: Exclude<BonusTarget, 'all'>,
+  now: number = state.maxSeenAt,
+  wallNow: number = state.maxSeenAt,
+): number {
   let pct = 0;
   for (const a of ASSOCIATES) {
     const stars = state.gacha.stars[a.id] ?? 0;
-    if (stars > 0 && (a.target === target || a.target === 'all')) pct += a.percentPerStar * stars;
+    if (stars <= 0 || (a.target !== target && a.target !== 'all')) continue;
+    const entry = state.appel[a.id];
+    const mult = callMult(true, entry ? toCoreEntry(entry) : undefined, now, wallNow);
+    pct += a.percentPerStar * stars * mult;
   }
   return 1 + pct / 100;
 }

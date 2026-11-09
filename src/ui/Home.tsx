@@ -10,6 +10,9 @@ import { centsToYen } from '../core/numbers';
 import { t, type MessageKey } from '../i18n/fr';
 import type { GameStoreState } from '../store/gameStore';
 import { formatDuration, formatRate, formatYen } from './format';
+import { ASSOCIATES } from '../data/balance';
+import { remainingMs, statusAt, toCoreEntry } from '../core/appel';
+import { displayName } from './helpers';
 
 type Store = StoreApi<GameStoreState>;
 const asset = (name: string) => `${import.meta.env.BASE_URL}game/home/${name}`;
@@ -278,6 +281,36 @@ function Infos({ store }: { store: Store }) {
   );
 }
 
+/** Discrete banner of up to two active associate calls (Associés v11). Height-capped. */
+function ActiveBoostsBanner({ store }: { store: Store }) {
+  const appel = useStore(store, (st) => st.game?.appel);
+  const stars = useStore(store, (st) => st.game?.gacha.stars);
+  const now = useStore(store, (st) => st.now());
+  const wallNow = now; // UI: game clock; wall anchors enforced at activation
+  if (!appel || !stars) return null;
+  const active: string[] = [];
+  for (const a of ASSOCIATES) {
+    const p = appel[a.id];
+    if (!p) continue;
+    const owned = (stars[a.id] ?? 0) > 0;
+    if (statusAt(owned, toCoreEntry(p), now, wallNow) === 'active') {
+      const rem = remainingMs(toCoreEntry(p), now, wallNow).active;
+      const m = Math.floor(rem / 60000);
+      const sec = Math.floor((rem % 60000) / 1000);
+      active.push(
+        `${displayName(a.id)} ${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`,
+      );
+    }
+    if (active.length >= 2) break;
+  }
+  if (!active.length) return null;
+  return (
+    <p className="appel-banner" role="status" aria-live="polite">
+      {t('appelBanner', { list: active.join(' · ') })}
+    </p>
+  );
+}
+
 /**
  * Home v5: profile, hub with the 6 tiles and Aoi, info cards. Lot 4: no save block (moved to
  * Paramètres) and no scrolling on a phone (GS-V5-64 f).
@@ -292,6 +325,7 @@ export function Home({ store }: { store: Store }) {
       <h1 id="home-title" className="visually-hidden screen-title" tabIndex={-1}>
         {t('homeTitle')}
       </h1>
+      <ActiveBoostsBanner store={store} />
       <Profile store={store} />
       <Hub store={store} />
       <Infos store={store} />

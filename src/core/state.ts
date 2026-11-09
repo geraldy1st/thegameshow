@@ -11,7 +11,7 @@ import {
 import { localDay } from './clock';
 import { yenToCents } from './numbers';
 import { createRng } from './rng';
-import type { FriendState, GameState, SaveV3, SaveV4 } from './types';
+import type { FriendState, GameState, SaveV3, SaveV4, SaveV5 } from './types';
 
 const record = <K extends string, V>(keys: readonly K[], make: () => V): Record<K, V> =>
   Object.fromEntries(keys.map((k) => [k, make()])) as Record<K, V>;
@@ -36,12 +36,18 @@ export function initialV4Fields(): Pick<SaveV4, 'work'> {
   return { work: { mode: 'roman', points: 0, pointsTotal: 0, cursor: 0, taps: 0 } };
 }
 
+/** v5 fields (Associés + bike placeholder). bike stays null until first run (R-MV5-04). */
+export function initialV5Fields(): Pick<SaveV5, 'appel' | 'appelReceipts' | 'bike'> {
+  return { appel: {}, appelReceipts: [], bike: null };
+}
+
 /** Initial state per spec (RES-7e): 120 yen, 3 tickets, everything else at zero. */
 export function createInitialState(now: number, seed: number): GameState {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     ...initialV3Fields(now),
     ...initialV4Fields(),
+    ...initialV5Fields(),
     revision: 0,
     createdAt: now,
     lastSeenAt: now,

@@ -100,7 +100,12 @@ export const fr = {
   appelCool: 'De retour dans {t}',
   appelLocked: 'Obtiens cet associé pour faire appel à lui/elle',
   appelConfirmZero: 'Effet nul tant que {target} est à 0. Lancer quand même ?',
-  appelStarted: 'Appel lancé : {name}',
+  appelStarted: 'Appel lancé : boost ×2 pour {name}.',
+  appelBanner: 'Boosts actifs : {list}',
+  appelBadgeActive: 'Boost actif {t}',
+  appelBadgeCool: 'Recharge {t}',
+  appelConfirmYes: 'Lancer l’appel',
+  appelConfirmNo: 'Annuler',
 
   noTicket: 'Pas de ticket : termine les quêtes du jour.',
   ratesLink: 'Taux de tirage',

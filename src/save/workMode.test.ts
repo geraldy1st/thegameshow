@@ -22,7 +22,10 @@ const presse = (): GameState =>
     work: { ...structuredClone(V4).work, ...WORK },
   }) as unknown as GameState;
 const roman = (): GameState =>
-  ({ ...structuredClone(V4), work: { ...structuredClone(V4).work, mode: 'roman' } }) as GameState;
+  ({
+    ...structuredClone(V4),
+    work: { ...structuredClone(V4).work, mode: 'roman' },
+  }) as unknown as GameState;
 
 let n = 0;
 async function setup(current?: unknown) {
@@ -63,7 +66,7 @@ describe('presse → roman (patch 0.4.2, R-P42-4)', () => {
     expect(kept(g)).toEqual(kept(src));
     const after1 = await cur(db);
     expect(after1.work).toMatchObject({ mode: 'roman', cursor: 0 });
-    expect(after1.revision).toBe(src.revision + 1); // one write
+    expect(after1.revision).toBe(src.revision + 2); // migrate v4→v5 + load write
     // Reload: already roman; the stored work does not change any more.
     const s2 = store();
     await s2.getState().init();
@@ -78,7 +81,7 @@ describe('presse → roman (patch 0.4.2, R-P42-4)', () => {
     await s.getState().init();
     const after = await cur(db);
     expect(after.work).toEqual(src.work);
-    expect(after.revision).toBe(src.revision + 1); // the usual load write, nothing more
+    expect(after.revision).toBe(src.revision + 2); // migrate v4→v5 + load write
     db.close();
   });
 

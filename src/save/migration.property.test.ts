@@ -1,8 +1,8 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { initialV3Fields, initialV4Fields } from '../core/state';
+import { initialV3Fields, initialV4Fields, initialV5Fields } from '../core/state';
 import { migrateToCurrent } from './migrations';
-import { validateSaveV2, validateSaveV4 } from './schema';
+import { validateSaveV2, validateSaveV5 } from './schema';
 import midgame from './__fixtures__/v2-midgame.json';
 
 /** Valid v2 saves: the mid-game fixture with every business counter drawn at random. */
@@ -38,17 +38,29 @@ const v2Save = fc
 
 const RUNS = { numRuns: 1000, seed: 77 };
 
-describe('v2 → v4 migration properties (fast-check, 1 000 cases, GS-V5-05, lot 4)', () => {
-  it('every valid v2 migrates to a valid v4 that keeps every v2 field', () => {
+describe('v2 → v5 migration properties (fast-check, 1 000 cases, GS-V5-05 + R-MV5)', () => {
+  it('every valid v2 migrates to a valid v5 that keeps every v2 field', () => {
     fc.assert(
       fc.property(v2Save, (v2) => {
         fc.pre(validateSaveV2(v2).ok);
         const r = migrateToCurrent(v2);
         if (!r.ok) return false;
-        expect(validateSaveV4(r.value).ok).toBe(true);
-        const { schemaVersion, profile, energy, stats, wardrobe, work, ...kept } = r.value;
-        expect(schemaVersion).toBe(4);
+        expect(validateSaveV5(r.value).ok).toBe(true);
+        const {
+          schemaVersion,
+          profile,
+          energy,
+          stats,
+          wardrobe,
+          work,
+          appel,
+          appelReceipts,
+          bike,
+          ...kept
+        } = r.value;
+        expect(schemaVersion).toBe(5);
         expect({ work }).toEqual(initialV4Fields());
+        expect({ appel, appelReceipts, bike }).toEqual(initialV5Fields());
         expect({ profile, energy, stats, wardrobe }).toEqual(initialV3Fields(v2.maxSeenAt));
         const { schemaVersion: _v, ...v2Kept } = v2;
         void _v;

@@ -376,8 +376,9 @@ test.describe('P8 partner profile (GS-V5-91, R-P43-11)', () => {
     const d = page.getByRole('dialog');
     await expect(d.getByRole('heading', { level: 2 })).toBeVisible();
     await expect(d).toContainText('1 ★');
-    // Associés v11: FR bios are approved — the 0.4.3 empty-bio oracle is lifted.
-    await expect(d.locator('.bio-text')).toHaveCount(1);
+    // Associés v11: FR bios are approved — sheet shows bio section.
+    await expect(d.locator('.assoc-sheet-bio')).toHaveCount(1);
+    await expect(d.getByRole('button', { name: /Faire appel/i })).toBeVisible();
     expect(id).toBeTruthy();
     expect(await axeViolations(page)).toEqual([]);
     await page.addStyleTag({ content: 'html{font-size:150%}' });

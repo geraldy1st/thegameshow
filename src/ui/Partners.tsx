@@ -8,7 +8,6 @@ import {
   SKIP_HOLD_MS,
   type AssociateDef,
 } from '../data/balance';
-import { BIOS } from '../data/bios';
 import { pullsUntilGuarantee } from '../core/gacha';
 import { TEN, clearTenMarker, readTenMarker, writeTenMarker } from './partners/tenMarker';
 import type { LastPull } from '../core/types';
@@ -16,6 +15,8 @@ import { t, type MessageKey } from '../i18n/fr';
 import type { GameStoreState } from '../store/gameStore';
 import { Modal, Portrait } from './common';
 import { Rates } from './Rates';
+import { AssociateSheet } from './partners/AssociateSheet';
+import { remainingMs, statusAt, toCoreEntry } from '../core/appel';
 import { displayName, markRevealSeen, prefersReducedMotion, revealPending } from './helpers';
 
 type Store = StoreApi<GameStoreState>;
@@ -134,40 +135,54 @@ function Reveal({
   );
 }
 
-/**
- * Patch 0.4.3 (P8, R-P43-11): an owned partner's photo opens its profile. No biography is
- * shown until a text approved by Geraldy is in BIOS (data/bios.ts, docs/BIOS-SOURCE.md).
- */
-function PartnerBio({
+/** Associés v11: full sheet with FR bios (Geraldy approval 2026-11-09) + Faire appel. */
+function ProfileSheet({
+  store,
   a,
-  starsNow,
   onClose,
 }: {
+  store: Store;
   a: AssociateDef;
-  starsNow: number;
   onClose: () => void;
 }) {
-  const bio = BIOS[a.id];
+  const starsNow = useStore(store, (st) => st.game?.gacha.stars[a.id] ?? 0);
+  const targetLevel = useStore(store, (st) => {
+    const g = st.game;
+    if (!g) return 0;
+    if (a.target === 'all')
+      return Math.max(g.investments.save, g.investments.stock, g.investments.estate);
+    if (a.target === 'click') return g.profile.level;
+    return g.investments[a.target] ?? 0;
+  });
+  const persisted = useStore(store, (st) => st.game?.appel[a.id]);
+  const now = useStore(store, (st) => st.now());
+  const wallNow = now; // UI: game clock; wall anchors enforced at activation
+  const entry = persisted ? toCoreEntry(persisted) : undefined;
+  const owned = starsNow > 0;
+  const appel = statusAt(owned, entry, now, wallNow);
+  const rem =
+    appel === 'active'
+      ? remainingMs(entry!, now, wallNow).active
+      : appel === 'cooling'
+        ? remainingMs(entry!, now, wallNow).cool
+        : 0;
   return (
-    <Modal open onClose={onClose} labelId="bio-title" initialFocusId="bio-title">
-      <div className={`bio r${a.rarity}`}>
-        <h2 id="bio-title" tabIndex={-1}>
-          {displayName(a.id)}
-        </h2>
-        <Portrait id={a.id} alt="" className={`portrait frame-${a.rarity}`} />
-        <p className="num">
-          <span aria-hidden="true">{stars(starsNow)} </span>
-          {t('rarity', { n: starsNow })}
-        </p>
-        <p className="num">
-          {t('bonusNow', { p: a.percentPerStar * starsNow, target: target(a) })}
-        </p>
-        {bio && <p className="bio-text">{bio}</p>}
-        <button type="button" className="btn btn-primary" onClick={onClose}>
-          {t('close')}
-        </button>
-      </div>
-    </Modal>
+    <AssociateSheet
+      a={a}
+      starsNow={starsNow}
+      targetLevel={targetLevel}
+      appel={appel}
+      remainingMs={rem}
+      onClose={onClose}
+      onCall={() => {
+        void store
+          .getState()
+          .startAppel(a.id)
+          .then((r) => {
+            if (!r.ok && r.reason === 'write-failed') store.getState().announce(t('writeFailed'));
+          });
+      }}
+    />
   );
 }
 
@@ -181,12 +196,36 @@ function PartnerCard({
   onProfile: (a: AssociateDef) => void;
 }) {
   const s = useStore(store, (st) => st.game?.gacha.stars[a.id] ?? 0);
+  const persisted = useStore(store, (st) => st.game?.appel[a.id]);
+  const now = useStore(store, (st) => st.now());
+  const wallNow = now; // UI: game clock; wall anchors enforced at activation
+  const entry = persisted ? toCoreEntry(persisted) : undefined;
+  const st = statusAt(s > 0, entry, now, wallNow);
+  const rem =
+    st === 'active' && entry
+      ? remainingMs(entry, now, wallNow).active
+      : st === 'cooling' && entry
+        ? remainingMs(entry, now, wallNow).cool
+        : 0;
+  const mm = Math.floor(rem / 60000);
+  const ss = Math.floor((rem % 60000) / 1000);
+  const tlabel = `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
   return (
     <li className={`card acard r${a.rarity} ${s ? '' : 'lock'}`}>
       {s ? (
         <button type="button" className="acard-photo" onClick={() => onProfile(a)}>
           <Portrait id={a.id} alt="" className="portrait" />
           <span className="visually-hidden">{t('bioOpen', { name: displayName(a.id) })}</span>
+          {st === 'active' && (
+            <span className="appel-badge active" aria-label={t('appelBadgeActive', { t: tlabel })}>
+              ⚡ {tlabel}
+            </span>
+          )}
+          {st === 'cooling' && (
+            <span className="appel-badge cool" aria-label={t('appelBadgeCool', { t: tlabel })}>
+              ⏱ {tlabel}
+            </span>
+          )}
         </button>
       ) : (
         <Portrait id={a.id} alt="" className="portrait" />
@@ -296,9 +335,6 @@ export function Partners({ store }: { store: Store }) {
   const [reveal, setReveal] = useState<LastPull | null>(null);
   const [ten, setTen] = useState<readonly LastPull[] | null>(null);
   const [profile, setProfile] = useState<AssociateDef | null>(null);
-  const profileStars = useStore(store, (st) =>
-    profile ? (st.game?.gacha.stars[profile.id] ?? 0) : 0,
-  );
   const [busy, setBusy] = useState(false);
   // R-P43-7: one synchronous lock shared by ×1 and ×10, held from the activation until the
   // reveal closes (a double click, double tap or held Enter starts one draw only).
@@ -401,9 +437,7 @@ export function Partners({ store }: { store: Store }) {
         ))}
       </ul>
       <Rates open={rates} onClose={() => setRates(false)} />
-      {profile && profileStars > 0 && (
-        <PartnerBio a={profile} starsNow={profileStars} onClose={() => setProfile(null)} />
-      )}
+      {profile && <ProfileSheet store={store} a={profile} onClose={() => setProfile(null)} />}
       {reveal && (
         <Reveal
           store={store}

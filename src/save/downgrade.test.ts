@@ -56,6 +56,9 @@ const raw = async (db: SaveDb, slot: string) =>
 const withoutWork = (s: Record<string, unknown>) => {
   const rest = { ...s };
   delete rest.work;
+  delete rest.appel;
+  delete rest.appelReceipts;
+  delete rest.bike;
   return rest;
 };
 
@@ -74,7 +77,7 @@ describe('GS-V5-65: lossless downgrade v4 -> v3 and back (OD-18)', () => {
       }
       expect(await s1.getState().flush()).toBe(true);
       const v4 = await raw(db, 'current');
-      expect(v4.schemaVersion).toBe(4);
+      expect(v4.schemaVersion).toBe(5);
       expect((v4.work as { taps: number }).taps).toBe(5);
 
       // 0.3.2: one transaction, raw v4 kept, current = v4 minus work.

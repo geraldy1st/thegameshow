@@ -3,7 +3,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { GameState } from '../core/types';
 import { migrateToCurrent, type CurrentSave } from './migrations';
 import { DOWNGRADE_SLOT, restoreWorkAfterDowngrade } from './downgrade';
-import { CURRENT_SCHEMA_VERSION, validateSaveV4 } from './schema';
+import { CURRENT_SCHEMA_VERSION, validateSaveV5 } from './schema';
 
 /**
  * IndexedDB persistence (ARCHITECTURE, SPEC-ADDENDUM RES-2, RES-3, RES-7d).
@@ -19,6 +19,8 @@ export type Slot =
   | 'backup-before-migration'
   /** Lot 4 (R-L4-1): raw v3 record before the v3 → v4 migration; never overwritten by v1/v2. */
   | 'backup-before-migration-v3'
+  /** Associés v11 / v5: raw v4 record before v4 → v5 (R-MV5-02). */
+  | 'backup-before-migration-v4'
   /** Lot 3 (R12): current state before a manual restore; one copy, replaced each time. */
   | 'backup-before-restore'
   /** OD-18 / R-L4-17: raw v4 record kept by the 0.3.2 app before it downgraded `current`. */
@@ -113,7 +115,7 @@ async function loadSaveRaw(db: IDBPDatabase<TgsDB>): Promise<LoadResult> {
     if (versionOf(cur) === 3) {
       const kept = await db.get('saves', DOWNGRADE_SLOT);
       const r = restoreWorkAfterDowngrade(c.value, cur, kept);
-      const v = r.restored ? validateSaveV4(r.save) : null;
+      const v = r.restored ? validateSaveV5(r.save) : null;
       if (v?.ok) return { kind: 'ok', save: v.value, from: 'current' };
     }
     return { kind: 'ok', save: c.value, from: 'current' };
@@ -173,7 +175,9 @@ const sameRecord = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JS
 
 /** Slot that keeps a raw record of `version` before migration (R-L4-1: one slot per source). */
 export function migrationSlotFor(version: number): Slot {
-  return version === 3 ? 'backup-before-migration-v3' : 'backup-before-migration';
+  if (version === 4) return 'backup-before-migration-v4';
+  if (version === 3) return 'backup-before-migration-v3';
+  return 'backup-before-migration';
 }
 
 /**
@@ -201,6 +205,61 @@ export async function backupBeforeMigration(db: IDBPDatabase<TgsDB>): Promise<bo
 }
 
 /** R12: keeps the raw current record before a manual restore replaces it. */
+
+/**
+ * R-MV5-02: write `backup-before-migration-v4` (immutable if same) AND migrated `current`
+ * in ONE readwrite transaction. Bumps revision by 1. No-op if already at CURRENT.
+ * Returns the migrated save, or null if current missing/unreadable/future.
+ */
+export async function migrateCurrentSameTx(db: IDBPDatabase<TgsDB>): Promise<CurrentSave | null> {
+  const tx = db.transaction('saves', 'readwrite');
+  const cur = await tx.store.get('current');
+  if (cur === undefined) {
+    await tx.done.catch(() => undefined);
+    return null;
+  }
+  const ver = versionOf(cur);
+  if (ver > CURRENT_SCHEMA_VERSION) {
+    tx.abort();
+    await tx.done.catch(() => undefined);
+    return null;
+  }
+  if (ver === CURRENT_SCHEMA_VERSION) {
+    await tx.done;
+    const m = migrateToCurrent(cur);
+    return m.ok ? normalizeWorkMode(m.value) : null;
+  }
+  // Backup raw source (v4 preferred slot; older versions use their slots) if empty/different.
+  const slot = migrationSlotFor(ver);
+  const kept = await tx.store.get(slot);
+  if (!sameRecord(cur, kept)) {
+    await tx.store.put(cur, slot);
+  }
+  const migrated = migrateToCurrent(cur);
+  if (!migrated.ok) {
+    tx.abort();
+    await tx.done.catch(() => undefined);
+    return null;
+  }
+  // OD-18: when coming back from a 0.3.2 downgrade, restore `work` from the kept v4/v5.
+  let save = migrated.value;
+  if (ver === 3) {
+    const kept = await tx.store.get(DOWNGRADE_SLOT);
+    const r = restoreWorkAfterDowngrade(save, cur, kept);
+    if (r.restored) save = r.save;
+  }
+  const prevRev = storedRevision(cur);
+  const next: CurrentSave = {
+    ...save,
+    revision: Math.max(prevRev, save.revision) + 1,
+  };
+  // Do not touch `previous` here: the next writeSave (settle) moves the raw
+  // pre-migration current into `previous`, matching the lot 3/4 store tests.
+  await tx.store.put(next, 'current');
+  await tx.done;
+  return normalizeWorkMode(next);
+}
+
 export async function backupBeforeRestore(db: IDBPDatabase<TgsDB>): Promise<void> {
   const tx = db.transaction('saves', 'readwrite');
   const cur = await tx.store.get('current');

@@ -2183,7 +2183,8 @@ dialog .btn-ghost,
   color: var(--muted-ink);
   border-color: var(--muted-ink);
   background: var(--cream);
-/* Associés v11 core — isolated sheet (not wired to production routes). */
+}
+/* Associés v11 sheet */
 .assoc-sheet {
   display: flex;
   flex-direction: column;
@@ -2230,4 +2231,36 @@ dialog .btn-ghost,
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* Associés v11: call badges + home banner (height-capped, no opacity anim on sheet). */
+.appel-badge {
+  position: absolute;
+  right: 0.25rem;
+  bottom: 0.25rem;
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 0.15rem 0.3rem;
+  border-radius: 0.25rem;
+  background: #1b2a4a;
+  color: #f5e6c8;
+}
+.appel-badge.active {
+  background: #c45c26;
+}
+.appel-badge.cool {
+  background: #3a4a6a;
+}
+.acard-photo {
+  position: relative;
+}
+.appel-banner {
+  margin: 0 0 0.35rem;
+  padding: 0.2rem 0.5rem;
+  max-height: 2.2rem;
+  overflow: hidden;
+  font-size: 0.85rem;
+  color: #f5e6c8;
+  background: #1b2a4a;
+  border-radius: 0.35rem;
 }

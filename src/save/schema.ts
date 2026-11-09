@@ -13,10 +13,10 @@ import {
   STAT_IDS,
 } from '../data/balance';
 import { isAmount } from '../core/numbers';
-import type { SaveV1, SaveV2, SaveV3, SaveV4 } from '../core/types';
+import type { SaveV1, SaveV2, SaveV3, SaveV4, SaveV5 } from '../core/types';
 import { WORK_CURSOR_MAX } from '../data/workTexts';
 
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 export type ValidationResult<T> = { ok: true; value: T } | { ok: false; reason: string };
 
@@ -268,6 +268,81 @@ export function validateSaveV4(input: unknown): ValidationResult<SaveV4> {
     const value = structuredClone(input) as SaveV4;
     value.wardrobe.outfit = v3.value.wardrobe.outfit;
     return { ok: true, value };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Invalid ? e.message : 'invalid save' };
+  }
+}
+
+/** Validates SaveV5: v4 rules + appel / appelReceipts / bike:null. Never throws. */
+export function validateSaveV5(input: unknown): ValidationResult<SaveV5> {
+  try {
+    const s = obj(input, 'save', [
+      ...V2_KEYS,
+      'profile',
+      'energy',
+      'stats',
+      'wardrobe',
+      'work',
+      'appel',
+      'appelReceipts',
+      'bike',
+    ]);
+    if (s.schemaVersion !== 5) throw new Invalid('save.schemaVersion: 5 expected');
+    if (s.bike !== null) throw new Invalid('save.bike: null expected until first run');
+    const appelObj = obj(s.appel, 'save.appel', Object.keys(s.appel as object));
+    // Allow empty key set; keys must be known associates.
+    for (const key of Object.keys(appelObj)) {
+      if (!(ASSOCIATE_IDS as readonly string[]).includes(key)) {
+        throw new Invalid(`save.appel.${key}: unknown associate`);
+      }
+      const e = obj(appelObj[key], `save.appel.${key}`, [
+        'activatedAt',
+        'endsAt',
+        'cooldownUntil',
+        'wallEndsAt',
+        'wallCooldownUntil',
+        'activationId',
+      ]);
+      int(e.activatedAt, `save.appel.${key}.activatedAt`);
+      int(e.endsAt, `save.appel.${key}.endsAt`);
+      int(e.cooldownUntil, `save.appel.${key}.cooldownUntil`);
+      int(e.wallEndsAt, `save.appel.${key}.wallEndsAt`);
+      int(e.wallCooldownUntil, `save.appel.${key}.wallCooldownUntil`);
+      if (
+        typeof e.activationId !== 'string' ||
+        e.activationId.length < 1 ||
+        e.activationId.length > 80
+      ) {
+        throw new Invalid(`save.appel.${key}.activationId: string 1..80`);
+      }
+    }
+    if (!Array.isArray(s.appelReceipts)) throw new Invalid('save.appelReceipts: array expected');
+    if (s.appelReceipts.length > 200) throw new Invalid('save.appelReceipts: too many');
+    for (let i = 0; i < s.appelReceipts.length; i++) {
+      const r = obj(s.appelReceipts[i], `save.appelReceipts[${i}]`, [
+        'activationId',
+        'associateId',
+        'activatedAt',
+        'endsAt',
+        'cooldownUntil',
+      ]);
+      if (typeof r.activationId !== 'string' || r.activationId.length < 1) {
+        throw new Invalid(`save.appelReceipts[${i}].activationId`);
+      }
+      if (!(ASSOCIATE_IDS as readonly string[]).includes(r.associateId as string)) {
+        throw new Invalid(`save.appelReceipts[${i}].associateId`);
+      }
+      int(r.activatedAt, `save.appelReceipts[${i}].activatedAt`);
+      int(r.endsAt, `save.appelReceipts[${i}].endsAt`);
+      int(r.cooldownUntil, `save.appelReceipts[${i}].cooldownUntil`);
+    }
+    const { appel: _a, appelReceipts: _r, bike: _b, ...rest } = s;
+    void _a;
+    void _r;
+    void _b;
+    const v4 = validateSaveV4({ ...rest, schemaVersion: 4 });
+    if (!v4.ok) return v4;
+    return { ok: true, value: structuredClone(input) as SaveV5 };
   } catch (e) {
     return { ok: false, reason: e instanceof Invalid ? e.message : 'invalid save' };
   }

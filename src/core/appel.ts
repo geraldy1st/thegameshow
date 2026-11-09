@@ -1,4 +1,5 @@
 import { ASSOCIATES, type AssociateId, type BonusTarget, type Rarity } from '../data/balance';
+import type { AppelPersisted, AppelReceipt } from './types';
 
 /** 1★ / 2★ = 30 min; 3★ = 1 h (Geraldy via Mirage, 09/11). */
 export const CALL_DURATION_MS: Readonly<Record<Rarity, number>> = {
@@ -147,4 +148,142 @@ export function drawChancePercent(id: AssociateId | string): number {
   const inRarity = ASSOCIATES.filter((a) => a.rarity === def.rarity).length;
   const rate = { 1: 0.7, 2: 0.25, 3: 0.05 }[def.rarity] / inRarity;
   return Math.round(rate * 10000) / 100; // 17.5, 8.33, 2.5
+}
+
+/** Persist shape ↔ core entry (MIGRATION-V5-COMMUNE mapping). */
+export function toCoreEntry(p: AppelPersisted): AppelEntry {
+  return {
+    until: p.endsAt,
+    cool: p.cooldownUntil,
+    wallUntil: p.wallEndsAt,
+    wallCool: p.wallCooldownUntil,
+  };
+}
+
+export function toPersisted(
+  entry: AppelEntry,
+  activationId: string,
+  activatedAt: number,
+): AppelPersisted {
+  return {
+    activatedAt,
+    endsAt: entry.until,
+    cooldownUntil: entry.cool,
+    wallEndsAt: entry.wallUntil,
+    wallCooldownUntil: entry.wallCool,
+    activationId,
+  };
+}
+
+export function mapToCore(appel: Readonly<Partial<Record<AssociateId, AppelPersisted>>>): AppelMap {
+  const out: Partial<Record<AssociateId, AppelEntry>> = {};
+  for (const a of ASSOCIATES) {
+    const p = appel[a.id];
+    if (p) out[a.id] = toCoreEntry(p);
+  }
+  return out;
+}
+
+/**
+ * R-MV5-04: inconsistent clock vs local maxSeenAt anchor → treat as available (no phantom boost).
+ * Clamps wall anchors upward to maxSeenAt when they sit behind the local anchor in a way that
+ * would accelerate gain or shorten cooldown; clears the entry when walls are non-finite.
+ */
+export function clampAppelForImport(
+  appel: Readonly<Partial<Record<AssociateId, AppelPersisted>>>,
+  maxSeenAt: number,
+): Partial<Record<AssociateId, AppelPersisted>> {
+  const out: Partial<Record<AssociateId, AppelPersisted>> = {};
+  for (const a of ASSOCIATES) {
+    const p = appel[a.id];
+    if (!p) continue;
+    const nums = [p.activatedAt, p.endsAt, p.cooldownUntil, p.wallEndsAt, p.wallCooldownUntil];
+    if (
+      !nums.every((n) => Number.isFinite(n)) ||
+      typeof p.activationId !== 'string' ||
+      !p.activationId
+    ) {
+      continue; // drop → available, no phantom
+    }
+    // If wall cool end is before the local maxSeenAt while game cool is still ahead, clamp walls
+    // to the local anchor so remaining = max(game, wall) cannot shrink below honest wait.
+    let wallEnds = p.wallEndsAt;
+    let wallCool = p.wallCooldownUntil;
+    if (wallCool < maxSeenAt && p.cooldownUntil > maxSeenAt) {
+      const lag = maxSeenAt - wallCool;
+      wallCool = maxSeenAt;
+      wallEnds = Math.max(wallEnds + lag, maxSeenAt);
+    }
+    out[a.id] = { ...p, wallEndsAt: wallEnds, wallCooldownUntil: wallCool };
+  }
+  return out;
+}
+
+export function makeActivationId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `appel-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export type ActivateResult =
+  | { ok: true; state: import('./types').GameState; entry: AppelPersisted; replay: boolean }
+  | { ok: false; reason: 'locked' | 'busy' | 'bad-clock' };
+
+/**
+ * Pure activation against a GameState. Idempotent on activationId (receipts) and on busy status.
+ * Store layer still must persist under lock (R-AS-03).
+ */
+export function activateAppelOnState(
+  state: import('./types').GameState,
+  id: AssociateId | string,
+  now: number,
+  wallNow: number,
+  activationId: string,
+): ActivateResult {
+  if (state.appelReceipts.some((r) => r.activationId === activationId)) {
+    const existing = state.appel[id as AssociateId];
+    if (existing && existing.activationId === activationId) {
+      return { ok: true, state, entry: existing, replay: true };
+    }
+    return {
+      ok: true,
+      state,
+      entry: existing ?? {
+        activatedAt: now,
+        endsAt: now,
+        cooldownUntil: now,
+        wallEndsAt: wallNow,
+        wallCooldownUntil: wallNow,
+        activationId,
+      },
+      replay: true,
+    };
+  }
+  const owned = (state.gacha.stars[id as AssociateId] ?? 0) > 0;
+  const coreMap = mapToCore(state.appel);
+  const started = startAppel(coreMap, id, owned, now, wallNow);
+  if (!started.ok) return { ok: false, reason: started.reason };
+  const activatedAt = now;
+  const entry = toPersisted(started.entry, activationId, activatedAt);
+  const def2 = ASSOCIATES.find((a) => a.id === id);
+  if (!def2) return { ok: false, reason: 'locked' };
+  const aid = def2.id;
+  const receipt: AppelReceipt = {
+    activationId,
+    associateId: aid,
+    activatedAt,
+    endsAt: entry.endsAt,
+    cooldownUntil: entry.cooldownUntil,
+  };
+  return {
+    ok: true,
+    replay: false,
+    entry,
+    state: {
+      ...state,
+      appel: { ...state.appel, [aid]: entry },
+      appelReceipts: [...state.appelReceipts, receipt],
+    },
+  };
 }
