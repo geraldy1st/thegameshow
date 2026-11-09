@@ -2,6 +2,7 @@ import * as fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { ASSOCIATES, type AssociateId } from '../data/balance';
 import {
+  displayWallNow,
   CALL_COOLDOWN_MS,
   CALL_DURATION_MS,
   activationMs,
@@ -225,5 +226,32 @@ describe('drawChancePercent (MAPPING)', () => {
     expect(drawChancePercent('haru')).toBe(17.5);
     expect(drawChancePercent('noa')).toBe(8.33);
     expect(drawChancePercent('omar')).toBe(2.5);
+  });
+});
+
+describe('DEF-GS-29 displayWallNow', () => {
+  it('uses real wall time, never behind maxSeenAt (mutant: wallNow === game now)', () => {
+    const maxSeen = 1_000_000;
+    // Wall behind the local anchor → clamp up (R-MV5-04 spirit).
+    expect(displayWallNow(maxSeen, 900_000)).toBe(maxSeen);
+    expect(displayWallNow(maxSeen, 1_500_000)).toBe(1_500_000);
+    // Mutant kill: UI used to pass game `now` as wallNow. When the game clock jumps ahead
+    // of real wall, statusAt/remainingMs must still see the real wall (via wallMs), not now.
+    const realWall = maxSeen + 10_000;
+    const gameNow = maxSeen + 3_600_000; // +1 h on the game clock only
+    expect(displayWallNow(maxSeen, realWall)).toBe(realWall);
+    expect(displayWallNow(maxSeen, realWall)).not.toBe(gameNow);
+    const entry = {
+      until: maxSeen + 1_800_000,
+      cool: maxSeen + 86_400_000,
+      wallUntil: realWall + 1_800_000,
+      wallCool: realWall + 86_400_000,
+    };
+    // With correct wall: still active on the wall axis even if game remaining is gone.
+    expect(remainingMs(entry, gameNow, displayWallNow(maxSeen, realWall)).active).toBeGreaterThan(
+      0,
+    );
+    // Mutant wallNow=gameNow: both axes exhausted → active 0 (false “ended”).
+    expect(remainingMs(entry, gameNow, gameNow).active).toBe(0);
   });
 });

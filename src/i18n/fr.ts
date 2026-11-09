@@ -195,6 +195,8 @@ export const fr = {
     "Cette sauvegarde vient d'une version plus récente du jeu. Recharge la page pour obtenir la dernière version.",
   futureSchemaWrite:
     'Une version plus récente du jeu a déjà enregistré ta partie sur cet appareil. Recharge la page pour la reprendre — rien n’a été écrasé.',
+  reloadNeeded:
+    'Une mise à jour du jeu est disponible sur cet appareil. Recharge la page pour continuer — ta partie n’a pas été écrasée.',
   migrationBackupTitle: 'Sauvegarde d’avant la mise à jour',
   migrationBackupBody:
     'Ta partie telle qu’elle était avant la mise à jour du jeu est gardée sur cet appareil.',

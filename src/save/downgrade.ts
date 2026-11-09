@@ -8,45 +8,38 @@ import { validateSaveV3, type ValidationResult } from './schema';
  * (which downgrades a lot 4 save instead of refusing it) and in lot 4 (which restores `work`
  * when the player comes back). It only depends on `validateSaveV3`, present in both.
  *
- * - The raw v4 record is kept first in `backup-before-downgrade-v4`.
- * - `current` becomes the v4 record minus `work`, with schemaVersion 3: every v3 field is kept
- *   as is (deep equality).
- * - Going back to lot 4 restores `work` from that slot when its v3 fields are identical to the
- *   ones of `current` (bookkeeping excluded: revision, lastSeenAt, maxSeenAt), otherwise `work`
- *   starts at its initial value (QA-REQUEST-LOT4 §6 bis).
+ * DEF-GS-28: a v5 save (appel / reçus / bike) is **refused**, never stripped. Prefer refuse over
+ * a second backup path: simpler, no silent loss, clear FR message for any old client that tries.
  */
 export const DOWNGRADE_SLOT = 'backup-before-downgrade-v4' as const;
 
 /** Announcement shown once by the 0.3.2 app after a downgrade (QA-REQUEST-LOT4 §6 bis). */
 export const DOWNGRADE_ANNOUNCEMENT = 'Sauvegarde ramenée à la version précédente du jeu';
 
+/**
+ * DEF-GS-28: shown when an old client would have wiped Associés/appel by stripping v5 fields.
+ * Nothing is written to IndexedDB when this applies.
+ */
+export const DOWNGRADE_V5_REFUSED_FR =
+  'Cette partie contient des données Associés (appel) qu’une ancienne version du jeu ne peut pas convertir sans les perdre. Mets à jour le jeu ou recharge la page — rien n’a été modifié.';
+
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
 
-/** v4 record minus `work`, schemaVersion 3, validated with the v3 rules. Never throws. */
+/** v4 record minus `work`, schemaVersion 3, validated with the v3 rules. Never throws. Refuses v5. */
 export function downgradeV4ToV3(input: unknown): ValidationResult<SaveV3> {
-  if (!isObject(input) || (input.schemaVersion !== 4 && input.schemaVersion !== 5))
-    return { ok: false, reason: 'downgrade: v4/v5 object expected' };
+  if (!isObject(input)) return { ok: false, reason: 'downgrade: v4 object expected' };
+  if (input.schemaVersion === 5)
+    return { ok: false, reason: 'downgrade: v5 refused (DEF-GS-28, would lose appel)' };
+  if (input.schemaVersion !== 4) return { ok: false, reason: 'downgrade: v4 object expected' };
   if (!isObject(input.work)) return { ok: false, reason: 'downgrade: save.work missing' };
   const rest: Record<string, unknown> = structuredClone(input);
   delete rest.work;
-  delete rest.appel;
-  delete rest.appelReceipts;
-  delete rest.bike;
   return validateSaveV3({ ...rest, schemaVersion: 3 });
 }
 
 /** Fields that change on every write or open, not progress: ignored by the comparison. */
-const BOOKKEEPING = new Set([
-  'schemaVersion',
-  'revision',
-  'lastSeenAt',
-  'maxSeenAt',
-  'work',
-  'appel',
-  'appelReceipts',
-  'bike',
-]);
+const BOOKKEEPING = new Set(['schemaVersion', 'revision', 'lastSeenAt', 'maxSeenAt', 'work']);
 
 /** Canonical JSON (sorted keys), so key order never makes two equal saves differ. */
 function canonical(v: unknown): string {
@@ -68,7 +61,7 @@ export function sameV3Fields(a: unknown, b: unknown): boolean {
 }
 
 /**
- * Lot 4 side: `migrated` is the v4 state obtained from a v3 `current`; `rawSourceV3` is that v3
+ * Lot 4 side: `migrated` is the v4/v5 state obtained from a v3 `current`; `rawSourceV3` is that v3
  * record. When `backup-before-downgrade-v4` holds a v4 record with the same v3 fields, its
  * `work` is restored; otherwise `migrated` is returned unchanged (`work` initial).
  */
@@ -77,10 +70,7 @@ export function restoreWorkAfterDowngrade<S extends { work: unknown }>(
   rawSourceV3: unknown,
   rawDowngradeBackup: unknown,
 ): { save: S; restored: boolean } {
-  if (
-    !isObject(rawDowngradeBackup) ||
-    (rawDowngradeBackup.schemaVersion !== 4 && rawDowngradeBackup.schemaVersion !== 5)
-  )
+  if (!isObject(rawDowngradeBackup) || rawDowngradeBackup.schemaVersion !== 4)
     return { save: migrated, restored: false };
   if (!isObject(rawDowngradeBackup.work) || !sameV3Fields(rawSourceV3, rawDowngradeBackup))
     return { save: migrated, restored: false };
@@ -105,21 +95,35 @@ export interface DowngradeDb {
   };
 }
 
+export type DowngradeCurrentResult =
+  | { kind: 'none' }
+  | { kind: 'invalid'; reason: string }
+  | { kind: 'refused'; reason: string; messageFr: string }
+  | { kind: 'downgraded'; save: SaveV3 };
+
 /**
  * 0.3.2 side, writer tab only: in ONE readwrite transaction, keeps the raw v4 `current` in
  * `backup-before-downgrade-v4`, then writes the downgraded v3 (revision + 1, so a lot 4 tab
  * still open loses its compare-and-set and becomes read-only). Nothing is written when
- * `current` is not v4 or cannot be downgraded (the loader then falls back as usual).
+ * `current` is not v4, is v5 (DEF-GS-28 refuse), or cannot be downgraded.
  */
-export async function downgradeCurrentInDb(
-  db: DowngradeDb,
-): Promise<
-  { kind: 'none' } | { kind: 'invalid'; reason: string } | { kind: 'downgraded'; save: SaveV3 }
-> {
+export async function downgradeCurrentInDb(db: DowngradeDb): Promise<DowngradeCurrentResult> {
   const tx = db.transaction('saves', 'readwrite');
   const store = tx.objectStore('saves');
   const cur = await store.get('current');
-  if (!isObject(cur) || (cur.schemaVersion !== 4 && cur.schemaVersion !== 5)) {
+  if (!isObject(cur)) {
+    await tx.done;
+    return { kind: 'none' };
+  }
+  if (cur.schemaVersion === 5) {
+    await tx.done;
+    return {
+      kind: 'refused',
+      reason: 'downgrade: v5 refused (DEF-GS-28, would lose appel)',
+      messageFr: DOWNGRADE_V5_REFUSED_FR,
+    };
+  }
+  if (cur.schemaVersion !== 4) {
     await tx.done;
     return { kind: 'none' };
   }

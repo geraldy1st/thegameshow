@@ -11,7 +11,7 @@ import { t, type MessageKey } from '../i18n/fr';
 import type { GameStoreState } from '../store/gameStore';
 import { formatDuration, formatRate, formatYen } from './format';
 import { ASSOCIATES } from '../data/balance';
-import { remainingMs, statusAt, toCoreEntry } from '../core/appel';
+import { displayWallNow, remainingMs, statusAt, toCoreEntry } from '../core/appel';
 import { displayName } from './helpers';
 
 type Store = StoreApi<GameStoreState>;
@@ -286,7 +286,9 @@ function ActiveBoostsBanner({ store }: { store: Store }) {
   const appel = useStore(store, (st) => st.game?.appel);
   const stars = useStore(store, (st) => st.game?.gacha.stars);
   const now = useStore(store, (st) => st.now());
-  const wallNow = now; // UI: game clock; wall anchors enforced at activation
+  const wallMs = useStore(store, (st) => st.wallMs);
+  const maxSeenAt = useStore(store, (st) => st.game?.maxSeenAt ?? 0);
+  const wallNow = displayWallNow(maxSeenAt, wallMs);
   if (!appel || !stars) return null;
   const active: string[] = [];
   for (const a of ASSOCIATES) {

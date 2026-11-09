@@ -16,7 +16,7 @@ import type { GameStoreState } from '../store/gameStore';
 import { Modal, Portrait } from './common';
 import { Rates } from './Rates';
 import { AssociateSheet } from './partners/AssociateSheet';
-import { remainingMs, statusAt, toCoreEntry } from '../core/appel';
+import { displayWallNow, remainingMs, statusAt, toCoreEntry } from '../core/appel';
 import { displayName, markRevealSeen, prefersReducedMotion, revealPending } from './helpers';
 
 type Store = StoreApi<GameStoreState>;
@@ -156,7 +156,9 @@ function ProfileSheet({
   });
   const persisted = useStore(store, (st) => st.game?.appel[a.id]);
   const now = useStore(store, (st) => st.now());
-  const wallNow = now; // UI: game clock; wall anchors enforced at activation
+  const wallMs = useStore(store, (st) => st.wallMs);
+  const maxSeenAt = useStore(store, (st) => st.game?.maxSeenAt ?? 0);
+  const wallNow = displayWallNow(maxSeenAt, wallMs);
   const entry = persisted ? toCoreEntry(persisted) : undefined;
   const owned = starsNow > 0;
   const appel = statusAt(owned, entry, now, wallNow);
@@ -198,7 +200,9 @@ function PartnerCard({
   const s = useStore(store, (st) => st.game?.gacha.stars[a.id] ?? 0);
   const persisted = useStore(store, (st) => st.game?.appel[a.id]);
   const now = useStore(store, (st) => st.now());
-  const wallNow = now; // UI: game clock; wall anchors enforced at activation
+  const wallMs = useStore(store, (st) => st.wallMs);
+  const maxSeenAt = useStore(store, (st) => st.game?.maxSeenAt ?? 0);
+  const wallNow = displayWallNow(maxSeenAt, wallMs);
   const entry = persisted ? toCoreEntry(persisted) : undefined;
   const st = statusAt(s > 0, entry, now, wallNow);
   const rem =

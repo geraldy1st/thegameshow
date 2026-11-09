@@ -10,6 +10,16 @@ export const CALL_DURATION_MS: Readonly<Record<Rarity, number>> = {
 /** Recharge from activation, not from the end of the boost. */
 export const CALL_COOLDOWN_MS = 24 * 60 * 60_000;
 
+/**
+ * DEF-GS-29: wall clock for UI / statusAt. Real wall time, never behind the local
+ * `maxSeenAt` anchor (same spirit as activation + R-MV5-04 clamp). Passing the game
+ * clock here again is a mutant: wall anchors would stay inert.
+ */
+export function displayWallNow(maxSeenAt: number, wallNow: number = Date.now()): number {
+  if (!Number.isFinite(wallNow) || wallNow < 0) return maxSeenAt;
+  return Math.max(wallNow, maxSeenAt);
+}
+
 export interface AppelEntry {
   /** Game-clock end of the ×2 window. */
   until: number;

@@ -2,6 +2,16 @@
 
 Format : fichier / fait / pourquoi / à épurer / risque.
 
+## 0.5.0+ — DEF-GS-28/29 + bannière rechargement (branche `associes-v11-integration`, non publié)
+
+Recette Crypto GO AVEC RÉSERVES sur 53e4857 (`recette-050/RAPPORT.md`). Aucune publication.
+
+| Fichier                                                  | Fait                                                                            | Pourquoi                                                                     | À épurer | Risque                                        |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------- | --------------------------------------------- |
+| `src/save/downgrade.ts`                                  | **Refuse** le downgrade v5→v3 (`kind: 'refused'` + message FR) ; v4→v3 inchangé | DEF-GS-28 : plus simple/sûr qu’un 2ᵉ backup appel — aucune perte silencieuse | —        | Client 0.3.2 sur v5 : message, current intact |
+| `src/core/appel.ts`, UI Associés/Accueil, store `wallMs` | `displayWallNow(maxSeenAt, wallMs)` = max(mur réel, maxSeenAt)                  | DEF-GS-29 : ancres murales effectives à l’écran                              | —        | —                                             |
+| `db` / `gameStore` / `App` / i18n                        | Bannière `reloadNeeded` (aria-live) sur future schema + `versionchange`         | Onglets ouverts après garde/upgrade                                          | —        | —                                             |
+
 ## 0.5.0 — Associés v11 intégration (branche `associes-v11-integration`, non publié)
 
 Stack sur `fix-v4-guard` (0.4.4). GO AVEC RÉSERVES Crypto (R-MV5 + R-AS). Aucune publication. Bios FR : approbation écrite Geraldy 2026-11-09 (t187u).

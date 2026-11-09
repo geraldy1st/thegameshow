@@ -50,7 +50,15 @@ export class FutureSchemaWriteError extends Error {
   }
 }
 
-export function openSaveDb(name = DB_NAME): Promise<IDBPDatabase<TgsDB>> {
+export type OpenSaveDbOptions = {
+  /** Called when another tab upgrades the DB (after we close our connection). */
+  onVersionChange?: () => void;
+};
+
+export function openSaveDb(
+  name = DB_NAME,
+  options: OpenSaveDbOptions = {},
+): Promise<IDBPDatabase<TgsDB>> {
   return openDB<TgsDB>(name, DB_VERSION, {
     upgrade(db) {
       // v1 created the store; v2 is a no-op bump so old connections get versionchange.
@@ -62,6 +70,7 @@ export function openSaveDb(name = DB_NAME): Promise<IDBPDatabase<TgsDB>> {
   }).then((db) => {
     db.addEventListener('versionchange', () => {
       db.close();
+      options.onVersionChange?.();
     });
     return db;
   });

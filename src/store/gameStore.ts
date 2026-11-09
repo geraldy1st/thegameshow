@@ -55,6 +55,13 @@ export interface GameStoreState {
   absenceMs: number;
   /** Set when IndexedDB refused a write that was not a revision conflict. */
   writeError: boolean;
+  /**
+   * Real wall clock sample for UI (DEF-GS-29). Updated on init/tick so render stays pure.
+   * Clamped with `displayWallNow(maxSeenAt, wallMs)` at the call site.
+   */
+  wallMs: number;
+  /** DEF-GS / R-MV5-01: another tab upgraded IndexedDB or a future write was refused — reload. */
+  reloadNeeded: boolean;
   init(): Promise<void>;
   /** Game clock (injectable; the harness clock in test builds). */
   now(): number;
@@ -213,8 +220,9 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
               writeError: true,
               recoveryKind: 'future',
               recoveryReason: `schemaVersion ${e.storedVersion}`,
+              reloadNeeded: true,
             });
-            get().announce(t('futureSchemaWrite'));
+            get().announce(t('reloadNeeded'));
           } else {
             set({ writeError: true });
           }
@@ -303,10 +311,18 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
       announcement: '',
       absenceMs: 0,
       writeError: false,
+      wallMs: typeof Date !== 'undefined' ? Date.now() : 0,
+      reloadNeeded: false,
 
       async init() {
         const [opened, isWriter] = await Promise.all([deps.openDb(), deps.acquireWriterLock()]);
         db = opened;
+        // Reload prompt when another tab upgrades IndexedDB (R-MV5-01 residual).
+        opened.addEventListener('versionchange', () => {
+          set({ reloadNeeded: true, status: 'readonly' });
+          get().announce(t('reloadNeeded'));
+        });
+        set({ wallMs: typeof Date !== 'undefined' ? Date.now() : 0 });
         const loaded = await loadSave(db);
         if (loaded.kind === 'future') {
           // Refused without any write (MVP v1.3 step 7).
@@ -314,7 +330,9 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
             status: 'recovery',
             recoveryKind: 'future',
             recoveryReason: `schemaVersion ${loaded.version}`,
+            reloadNeeded: true,
           });
+          get().announce(t('reloadNeeded'));
           return;
         }
         if (loaded.kind === 'corrupt') {
@@ -355,6 +373,7 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
       },
 
       tick() {
+        set({ wallMs: typeof Date !== 'undefined' ? Date.now() : get().wallMs });
         if (update((g) => g)) persistLater();
       },
 
