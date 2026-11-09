@@ -168,6 +168,58 @@ describe('offlineBoostOverlapMs', () => {
   });
 });
 
+describe('exact boundaries until / cool', () => {
+  it('at until exactly: cooling; at cool exactly: available', () => {
+    const r = start('yuu');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const dur = CALL_DURATION_MS[2];
+    expect(statusAt(true, r.entry, NOW + dur, WALL + dur)).toBe('cooling');
+    expect(statusAt(true, r.entry, NOW + CALL_COOLDOWN_MS, WALL + CALL_COOLDOWN_MS)).toBe(
+      'available',
+    );
+    // One ms before cool end still cooling.
+    expect(statusAt(true, r.entry, NOW + CALL_COOLDOWN_MS - 1, WALL + CALL_COOLDOWN_MS - 1)).toBe(
+      'cooling',
+    );
+  });
+
+  it('double-start while cooling is busy (idempotent)', () => {
+    const r = start('nana');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const t = NOW + CALL_DURATION_MS[1] + 1;
+    const w = WALL + CALL_DURATION_MS[1] + 1;
+    expect(statusAt(true, r.entry, t, w)).toBe('cooling');
+    expect(startAppel(r.map, 'nana', true, t, w)).toEqual({ ok: false, reason: 'busy' });
+  });
+});
+
+describe('unknown associate id (safe, no throw)', () => {
+  it('startAppel / associatePercent / drawChancePercent stay safe', () => {
+    expect(startAppel({}, 'ghost', true, NOW, WALL)).toEqual({ ok: false, reason: 'locked' });
+    expect(associatePercent('ghost', 3, 'save', undefined, NOW, WALL)).toBe(0);
+    expect(drawChancePercent('ghost')).toBe(0);
+  });
+});
+
+describe('product call × work power boost (Q-G3, multiplicative)', () => {
+  it('callMult × boost.mult = 4; associate percent-points × boost.mult', async () => {
+    const { BALANCE } = await import('../data/balance');
+    const r = start('kei');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // Kei 1★ click 5 % → with call 10 %; work boost ×2 on points (BALANCE.boost.mult).
+    expect(callMult(true, r.entry, NOW + 1, WALL + 1)).toBe(2);
+    expect(BALANCE.boost.mult).toBe(2);
+    expect(callMult(true, r.entry, NOW + 1, WALL + 1) * BALANCE.boost.mult).toBe(4);
+    expect(associatePercent('kei', 1, 'click', r.entry, NOW + 1, WALL + 1)).toBe(10);
+    expect(
+      associatePercent('kei', 1, 'click', r.entry, NOW + 1, WALL + 1) * BALANCE.boost.mult,
+    ).toBe(20);
+  });
+});
+
 describe('drawChancePercent (MAPPING)', () => {
   it('matches the sourced chances', () => {
     expect(drawChancePercent('haru')).toBe(17.5);
