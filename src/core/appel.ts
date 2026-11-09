@@ -79,7 +79,8 @@ export function startAppel(
   }
   const def = ASSOCIATES.find((a) => a.id === id);
   if (!def) return { ok: false, reason: 'locked' };
-  const cur = statusAt(true, map[id], now, wallNow);
+  const aid = def.id;
+  const cur = statusAt(true, map[aid], now, wallNow);
   if (cur === 'active' || cur === 'cooling') return { ok: false, reason: 'busy' };
   const dur = CALL_DURATION_MS[def.rarity];
   const entry: AppelEntry = {
@@ -88,7 +89,7 @@ export function startAppel(
     wallUntil: wallNow + dur,
     wallCool: wallNow + CALL_COOLDOWN_MS,
   };
-  return { ok: true, map: { ...map, [id]: entry }, entry };
+  return { ok: true, map: { ...map, [aid]: entry }, entry };
 }
 
 /** ×2 while active on this associate's contribution; else 1. */
