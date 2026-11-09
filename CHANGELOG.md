@@ -14,7 +14,6 @@ GO AVEC RÉSERVES Crypto (AVIS-QA-ASSOCIES-V11) : cœur `appel` + fiches/bios FR
 | `docs/BIOS-SOURCE.md`, `src/data/bios.ts`, `src/data/associateProfiles.ts` | 9 bios FR + métiers/citations/apprend copiés depuis `bios-proposees.json` (09/11)                                                                                                          | Aucun texte inventé ; concordance test existante        | Traductions EN/ES non validées                | FR affiché dans toute locale       |
 | `src/ui/partners/AssociateSheet.tsx` (+ test, CSS, i18n)                   | Fiche props-only : apport, bio, « À définir », 4 états d'appel, focus titre, aria-live, pas d'anim d'opacité globale                                                                       | UI isolée sans store/routes                             | Brancher à la place de `PartnerBio` plus tard | Non monté dans App                 |
 
-
 ## 0.4.3+ — Correctifs DEF-GS-23 à 27 (branche `fix-043-defects`, non publié)
 
 Recette Crypto NO-GO sur 51fd37b (RAPPORT patch-043). Aucune publication.
