@@ -68,7 +68,7 @@ export function activationMs(entry: AppelEntry): number {
  */
 export function startAppel(
   map: AppelMap,
-  id: AssociateId,
+  id: AssociateId | string,
   owned: boolean,
   now: number,
   wallNow: number,
@@ -107,7 +107,7 @@ export function callMult(
  * Not wired into economy.ts (integration blocked).
  */
 export function associatePercent(
-  id: AssociateId,
+  id: AssociateId | string,
   stars: number,
   target: Exclude<BonusTarget, 'all'>,
   entry: AppelEntry | undefined,
@@ -140,8 +140,9 @@ export function offlineBoostOverlapMs(
 }
 
 /** Chance of drawing this associate given rarity rates and equal split within rarity (MAPPING). */
-export function drawChancePercent(id: AssociateId): number {
-  const def = ASSOCIATES.find((a) => a.id === id)!;
+export function drawChancePercent(id: AssociateId | string): number {
+  const def = ASSOCIATES.find((a) => a.id === id);
+  if (!def) return 0;
   const inRarity = ASSOCIATES.filter((a) => a.rarity === def.rarity).length;
   const rate = { 1: 0.7, 2: 0.25, 3: 0.05 }[def.rarity] / inRarity;
   return Math.round(rate * 10000) / 100; // 17.5, 8.33, 2.5
