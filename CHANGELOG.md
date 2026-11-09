@@ -4,7 +4,7 @@ Format : fichier / fait / pourquoi / à épurer / risque.
 
 ## 0.4.3+ — Associés v11 cœur isolé (branche `associes-v11-core`, non publié)
 
-GO AVEC RÉSERVES Crypto (AVIS-QA-ASSOCIES-V11) : cœur `appel` + fiches/bios FR isolés seulement. Intégration / migration / publication bloquées (DEF-GS-23, note v5 commune).
+GO AVEC RÉSERVES Crypto (AVIS-QA-ASSOCIES-V11) : cœur `appel` + fiches/bios FR isolés seulement. Intégration / migration / publication bloquées (note v5 commune). DEF-GS-23..27 corrigés sur `main` @ f552319. **Bios : accord écrit de Geraldy pour la visibilité à la fusion.**
 
 **Avant fusion :** les bios FR remplissent `BIOS` → dès qu'une branche contenant ce commit est fusionnée, `PartnerBio` (0.4.3) les affiche aux joueurs. **Validation écrite de Geraldy requise avant toute fusion.** `AssociateSheet` reste hors de l'arbre de rendu.
 
