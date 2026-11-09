@@ -76,12 +76,22 @@ export function AoiVideo({ state, still }: { state: AoiState; still: boolean }) 
     const v = refs.current[pending];
     if (!v) return;
     let done = false;
+    let scheduled = false;
+    // DEF-GS-24: never promote in a microtask — that skips the paint at opacity 0 and the
+    // CSS fade collapses to an instant cut (NaN fade duration in chrome-video). Wait two
+    // animation frames so the incoming layer is painted transparent before `.on` is added.
     const go = () => {
-      if (done) return;
-      done = true;
-      setBack(front);
-      setSpare(null);
-      setFront(pending);
+      if (done || scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (done) return;
+          done = true;
+          setBack(front);
+          setSpare(null);
+          setFront(pending);
+        });
+      });
     };
     if (pending !== 'work') v.currentTime = 0;
     if (document.visibilityState === 'visible') {
@@ -92,7 +102,7 @@ export function AoiVideo({ state, still }: { state: AoiState; still: boolean }) 
       }
     }
     const events = ['loadeddata', 'playing'] as const;
-    if (v.readyState >= 2) queueMicrotask(go);
+    if (v.readyState >= 2) go();
     else events.forEach((e) => v.addEventListener(e, go));
     const img = new Image();
     img.src = posterOf(pending);

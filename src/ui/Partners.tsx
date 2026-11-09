@@ -10,7 +10,7 @@ import {
 } from '../data/balance';
 import { BIOS } from '../data/bios';
 import { pullsUntilGuarantee } from '../core/gacha';
-import { TEN, readTenMarker, writeTenMarker } from './partners/tenMarker';
+import { TEN, clearTenMarker, readTenMarker, writeTenMarker } from './partners/tenMarker';
 import type { LastPull } from '../core/types';
 import { t, type MessageKey } from '../i18n/fr';
 import type { GameStoreState } from '../store/gameStore';
@@ -22,6 +22,10 @@ type Store = StoreApi<GameStoreState>;
 
 const stars = (n: number) => '★'.repeat(n);
 const target = (a: AssociateDef) => t(`target${a.target}` as MessageKey);
+
+function associateOf(id: string) {
+  return ASSOCIATES.find((a) => a.id === id);
+}
 
 function pityText(pity: number): string {
   const left = pullsUntilGuarantee(pity);
@@ -55,7 +59,7 @@ function Reveal({
   const [done, setDone] = useState(resumed);
   const hold = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pity = useStore(store, (s) => s.game?.gacha.pity ?? 0);
-  const def = ASSOCIATES.find((a) => a.id === last.id)!;
+  const def = associateOf(last.id);
   useEffect(() => {
     const id = setTimeout(() => setDone(true), reduced ? REVEAL_REDUCED_MS : REVEAL_MS);
     return () => clearTimeout(id);
@@ -74,6 +78,16 @@ function Reveal({
   const endHold = () => {
     if (hold.current) clearTimeout(hold.current);
   };
+  if (!def) {
+    return (
+      <Modal open onClose={onDone} labelId="reveal-title">
+        <h2 id="reveal-title">{t('tenTitle')}</h2>
+        <button type="button" className="btn btn-primary" onClick={onDone} autoFocus>
+          {t('continue')}
+        </button>
+      </Modal>
+    );
+  }
   return (
     <Modal open onClose={onDone} labelId="reveal-title">
       <div
@@ -135,9 +149,11 @@ function PartnerBio({
 }) {
   const bio = BIOS[a.id];
   return (
-    <Modal open onClose={onClose} labelId="bio-title">
+    <Modal open onClose={onClose} labelId="bio-title" initialFocusId="bio-title">
       <div className={`bio r${a.rarity}`}>
-        <h2 id="bio-title">{displayName(a.id)}</h2>
+        <h2 id="bio-title" tabIndex={-1}>
+          {displayName(a.id)}
+        </h2>
         <Portrait id={a.id} alt="" className={`portrait frame-${a.rarity}`} />
         <p className="num">
           <span aria-hidden="true">{stars(starsNow)} </span>
@@ -147,7 +163,7 @@ function PartnerBio({
           {t('bonusNow', { p: a.percentPerStar * starsNow, target: target(a) })}
         </p>
         {bio && <p className="bio-text">{bio}</p>}
-        <button type="button" className="btn btn-primary" onClick={onClose} autoFocus>
+        <button type="button" className="btn btn-primary" onClick={onClose}>
           {t('close')}
         </button>
       </div>
@@ -193,7 +209,7 @@ function PartnerCard({
 function tenSummary(results: readonly LastPull[]): string {
   const parts = ([3, 2, 1] as const)
     .map((r) => {
-      const n = results.filter((x) => ASSOCIATES.find((a) => a.id === x.id)!.rarity === r).length;
+      const n = results.filter((x) => associateOf(x.id)?.rarity === r).length;
       return n ? t('tenCount', { n, r }) : '';
     })
     .filter(Boolean);
@@ -230,18 +246,21 @@ function TenReveal({
     onDone();
   };
   return (
-    <Modal open onClose={close} labelId="ten-title">
+    <Modal open onClose={close} labelId="ten-title" initialFocusId="ten-title">
       <div className="ten" data-testid="ten-reveal">
-        <h2 id="ten-title">{t('tenTitle')}</h2>
+        <h2 id="ten-title" tabIndex={-1}>
+          {t('tenTitle')}
+        </h2>
         {resumed && <p className="meta">{t('lastPullResumed')}</p>}
         <p className="ten-sum num">{tenSummary(results)}</p>
         <ol className="ten-grid">
           {results.map((r) => {
-            const def = ASSOCIATES.find((a) => a.id === r.id)!;
+            const def = associateOf(r.id);
+            if (!def) return null;
             return (
               <li key={r.pull} className={`ten-item r${def.rarity}`}>
-                <Portrait id={r.id} alt="" className={`portrait frame-${def.rarity}`} />
-                <span className="ten-name">{displayName(r.id)}</span>
+                <Portrait id={def.id} alt="" className={`portrait frame-${def.rarity}`} />
+                <span className="ten-name">{displayName(def.id)}</span>
                 <span className="num">{t('rarity', { n: def.rarity })}</span>
                 <span className="ten-meta">
                   {r.wasted ? t('tenWasted') : r.isNew ? t('tenNew') : t('tenDup', { n: r.stars })}
@@ -252,7 +271,7 @@ function TenReveal({
           })}
         </ol>
         <p className="num pity-result">{pityText(pity)}</p>
-        <button type="button" className="btn btn-primary" onClick={close} autoFocus>
+        <button type="button" className="btn btn-primary" onClick={close}>
           {t('continue')}
         </button>
       </div>
@@ -353,7 +372,15 @@ export function Partners({ store }: { store: Store }) {
           className="btn btn-secondary draw-ten"
           aria-disabled={disabledTen}
           aria-describedby={tickets < TEN ? 'ten-need' : undefined}
-          onClick={() => void onDrawTen()}
+          onClick={() => {
+            if (disabledTen) {
+              store
+                .getState()
+                .announce(tickets < TEN ? t('tenNeed', { n: tickets }) : t('noTicket'));
+              return;
+            }
+            void onDrawTen();
+          }}
         >
           {t('drawTen')}
         </button>
@@ -394,6 +421,7 @@ export function Partners({ store }: { store: Store }) {
           results={ten}
           onDone={() => {
             setTen(null);
+            clearTenMarker();
             release();
             // After the dialog unmount has handed focus back to its opener.
             setTimeout(() => drawTenBtn.current?.focus(), 0);

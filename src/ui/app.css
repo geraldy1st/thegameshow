@@ -2176,3 +2176,11 @@ dialog .btn-ghost,
   gap: var(--s-2);
   text-align: center;
 }
+
+/* DEF-GS-27: disabled ×10 must keep ≥ 4.5:1 on WebKit — no opacity fade on the label. */
+.draw-ten[aria-disabled='true'] {
+  opacity: 1;
+  color: var(--muted-ink);
+  border-color: var(--muted-ink);
+  background: var(--cream);
+}

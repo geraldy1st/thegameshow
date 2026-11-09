@@ -1,3 +1,4 @@
+import { ASSOCIATE_IDS, type AssociateId } from '../../data/balance';
 import type { LastPull } from '../../core/types';
 
 /**
@@ -6,9 +7,12 @@ import type { LastPull } from '../../core/types';
  * matches the save: same createdAt, exactly 10 entries, consecutive pull numbers ending at
  * gacha.last.pull, and the 10th entry equal to gacha.last (id, stars, forced). Anything else
  * falls back to the single last-draw summary.
+ * DEF-GS-23: every id must be a known associate; otherwise the marker is purged (no blank screen).
  */
 export const TEN_KEY = 'tgs-reveal-ten';
 export const TEN = 10;
+
+const KNOWN = new Set<string>(ASSOCIATE_IDS);
 
 interface SaveLike {
   createdAt: number;
@@ -20,6 +24,14 @@ export function writeTenMarker(save: { createdAt: number }, results: readonly La
     localStorage.setItem(TEN_KEY, JSON.stringify({ createdAt: save.createdAt, results }));
   } catch {
     /* storage refused: a reload shows the last draw only, harmless */
+  }
+}
+
+export function clearTenMarker(): void {
+  try {
+    localStorage.removeItem(TEN_KEY);
+  } catch {
+    /* ignore */
   }
 }
 
@@ -36,6 +48,16 @@ const isPull = (x: unknown): x is LastPull => {
   );
 };
 
+function isKnownId(id: string): id is AssociateId {
+  return KNOWN.has(id);
+}
+
+/** Purge a dangerous marker (unknown id / unreadable). Harmless mismatches leave the key. */
+function purge(): null {
+  clearTenMarker();
+  return null;
+}
+
 export function readTenMarker(save: SaveLike | null): LastPull[] | null {
   const last = save?.gacha.last;
   if (!save || !last) return null;
@@ -50,13 +72,15 @@ export function readTenMarker(save: SaveLike | null): LastPull[] | null {
   try {
     data = JSON.parse(raw);
   } catch {
-    return null;
+    return purge();
   }
-  if (!data || typeof data !== 'object') return null;
+  if (!data || typeof data !== 'object') return purge();
   const { createdAt, results } = data as { createdAt?: unknown; results?: unknown };
   if (createdAt !== save.createdAt || !Array.isArray(results) || results.length !== TEN)
     return null;
-  if (!results.every(isPull)) return null;
+  if (!results.every(isPull)) return purge();
+  // DEF-GS-23: unknown id anywhere (or on last) → purge, never throw in the UI.
+  if (!results.every((r) => isKnownId(r.id)) || !isKnownId(last.id)) return purge();
   const first = last.pull - (TEN - 1);
   if (!results.every((r, i) => r.pull === first + i)) return null;
   const tenth = results[TEN - 1]!;

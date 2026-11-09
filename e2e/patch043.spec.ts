@@ -497,3 +497,32 @@ test.describe('P9 rates in Menu (GS-V5-92/97, R-P43-1 option A)', () => {
     expect(await revision(page)).toBe(before);
   });
 });
+
+test.describe('DEF-GS-23 ×10 marker unknown id', () => {
+  test('unknown id in the marker is ignored and purged; no blank screen', async ({ page }) => {
+    await start(page);
+    await page.evaluate(() => window.__TGS_TEST__!.setTickets(15));
+    await tab(page, 'Associés').click();
+    await page.getByRole('button', { name: 'Tirer ×10 · 10 tickets' }).click();
+    await expect(page.getByTestId('ten-reveal')).toBeVisible();
+    // Poison while the grid is still open (reload-during-grid case from the recette).
+    await page.evaluate(() => {
+      const raw = localStorage.getItem('tgs-reveal-ten');
+      if (!raw) throw new Error('no marker');
+      const data = JSON.parse(raw) as { createdAt: number; results: { id: string }[] };
+      data.results[2]!.id = 'zzz';
+      localStorage.setItem('tgs-reveal-ten', JSON.stringify(data));
+    });
+    await page.reload();
+    await page.waitForFunction(() => !!window.__TGS_TEST__?.state());
+    // Hash may still be #partners: a pending last draw can resume as the single reveal (not ×10).
+    await expect(page.getByTestId('ten-reveal')).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('tgs-reveal-ten'))).toBeNull();
+    const single = page.getByTestId('reveal');
+    if (await single.count()) {
+      await single.getByRole('button', { name: 'Continuer' }).click();
+    }
+    await tab(page, 'Associés').click();
+    await expect(page.getByRole('button', { name: 'Tirer · 1 ticket' })).toBeVisible();
+  });
+});

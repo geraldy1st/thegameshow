@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { pullMany } from '../../core/gacha';
 import { createInitialState } from '../../core/state';
-import { TEN_KEY, readTenMarker, writeTenMarker } from './tenMarker';
+import { TEN_KEY, clearTenMarker, readTenMarker, writeTenMarker } from './tenMarker';
 
 const T0 = new Date(2026, 10, 2, 12, 0, 0).getTime();
 function drawn() {
@@ -20,6 +20,7 @@ describe('×10 marker (R-P43-3)', () => {
     vi.stubGlobal('localStorage', {
       getItem: (k: string) => store.get(k) ?? null,
       setItem: (k: string, v: string) => setItem(k, v),
+      removeItem: (k: string) => void store.delete(k),
     });
   });
   afterEach(() => vi.unstubAllGlobals());
@@ -77,6 +78,21 @@ describe('×10 marker (R-P43-3)', () => {
     writeTenMarker(state, results);
     const later = { ...state, gacha: { ...state.gacha, last: { ...results[9]!, pull: 11 } } };
     expect(readTenMarker(later)).toBeNull();
+  });
+
+  it('DEF-GS-23: unknown id (not the 10th) → null and marker purged', () => {
+    const { state, results } = drawn();
+    const bad = results.map((x, i) => (i === 3 ? { ...x, id: 'zzz' } : x));
+    writeTenMarker(state, bad as typeof results);
+    expect(readTenMarker(state)).toBeNull();
+    expect(localStorage.getItem(TEN_KEY)).toBeNull();
+  });
+
+  it('clearTenMarker removes the key', () => {
+    const { state, results } = drawn();
+    writeTenMarker(state, results);
+    clearTenMarker();
+    expect(localStorage.getItem(TEN_KEY)).toBeNull();
   });
 
   it('setItem throwing is tolerated', () => {

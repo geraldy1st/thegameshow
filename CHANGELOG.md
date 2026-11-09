@@ -2,6 +2,17 @@
 
 Format : fichier / fait / pourquoi / à épurer / risque.
 
+## 0.4.3+ — Correctifs DEF-GS-23 à 27 (branche `fix-043-defects`, non publié)
+
+Recette Crypto NO-GO sur 51fd37b (RAPPORT patch-043). Aucune publication.
+
+| Fichier                                       | Fait                                                                                                | Pourquoi                     | À épurer | Risque          |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------- | -------- | --------------- |
+| `src/ui/partners/tenMarker.ts` (+ tests, E2E) | Ids connus obligatoires ; marqueur dangereux purgé ; `clearTenMarker`                               | DEF-GS-23 écran vide         | —        | —               |
+| `src/ui/Partners.tsx`                         | Lookups `associateOf` sans `!` ; annonce si ×10 désactivé ; focus initial sur les titres ×10/profil | DEF-GS-23/25/26              | —        | —               |
+| `src/ui/work/AoiVideo.tsx`                    | Promotion du calque entrant après 2 rAF (plus de microtask)                                         | DEF-GS-24 fondu intermittent | —        | —               |
+| `src/ui/app.css`                              | ×10 désactivé : couleur `muted-ink` sans baisser l'opacité                                          | DEF-GS-27 contraste WebKit   | —        | Mesure appareil |
+
 ## 0.4.3 — Patch « navigation, Travailler, Associés » (2026-11-02, branche `patch-043`, non publié)
 
 GO AVEC RÉSERVES de Crypto pour coder (16 réserves R-P43-1 à 16) ; docs patch v1.1 ; P9 débloqué le 02/11 par Geraldy (option A).
