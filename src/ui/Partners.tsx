@@ -16,7 +16,14 @@ import type { GameStoreState } from '../store/gameStore';
 import { Modal, Portrait } from './common';
 import { Rates } from './Rates';
 import { AssociateSheet } from './partners/AssociateSheet';
-import { displayWallNow, remainingMs, statusAt, toCoreEntry } from '../core/appel';
+import {
+  associatePercent,
+  displayWallNow,
+  remainingMs,
+  statusAt,
+  toCoreEntry,
+} from '../core/appel';
+import { formatPercent } from './format';
 import { displayName, markRevealSeen, prefersReducedMotion, revealPending } from './helpers';
 
 type Store = StoreApi<GameStoreState>;
@@ -121,7 +128,7 @@ function Reveal({
             <p className="result">{resultText(last)}</p>
             {last.forced && <p className="meta">{t('revealForced')}</p>}
             <p className="meta num">
-              {t('bonusPerStar', { p: def.percentPerStar, target: target(def) })}
+              {t('bonusPerStar', { p: formatPercent(def.percentPerStar), target: target(def) })}
             </p>
             <p className="lesson">{t(`lesson${def.target}` as MessageKey)}</p>
             <p className="num pity-result">{pityText(pity)}</p>
@@ -175,6 +182,9 @@ function ProfileSheet({
       targetLevel={targetLevel}
       appel={appel}
       remainingMs={rem}
+      now={now}
+      wallNow={wallNow}
+      entry={entry}
       onClose={onClose}
       onCall={() => {
         void store
@@ -241,8 +251,20 @@ function PartnerCard({
       </p>
       <p className="acard-bonus num">
         {s
-          ? t('bonusNow', { p: a.percentPerStar * s, target: target(a) })
-          : t('bonusPerStar', { p: a.percentPerStar, target: target(a) })}
+          ? t('bonusNow', {
+              p: formatPercent(
+                associatePercent(
+                  a.id,
+                  s,
+                  a.target === 'all' ? 'save' : a.target,
+                  entry,
+                  now,
+                  wallNow,
+                ),
+              ),
+              target: target(a),
+            })
+          : t('bonusPerStar', { p: formatPercent(a.percentPerStar), target: target(a) })}
       </p>
     </li>
   );

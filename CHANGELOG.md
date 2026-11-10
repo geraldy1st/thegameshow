@@ -2,6 +2,17 @@
 
 Format : fichier / fait / pourquoi / à épurer / risque.
 
+## 0.5.1 — DEF-GS-31/33/34 (branche `fix-050-defects`, non publié)
+
+Campagne complète Crypto @ 8b99ced (GO AVEC RÉSERVES). DEF-GS-32 non touché (décision Geraldy). Aucune publication.
+
+| Fichier                                          | Fait                                                                                                                                                                                | Pourquoi                                                                                              | À épurer | Risque                                                                  |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------- |
+| `src/core/appel.ts`, `gameStore`                 | Import : un appel daté dans le futur est **décalé** (début jeu + murs sur le `maxSeenAt` local, durée conservée). Entrée invalide ignorée. Reçus inchangés (idempotence seulement). | DEF-GS-31 / R-MV5-04 §0.2 : pas de boost 6 h ni de gain accéléré ; garder l’appel d’un export honnête | —        | Fichier trafiqué avec durée > officialité : durée enregistrée conservée |
+| `AssociateSheet`, `Partners`, `associatePercent` | « Bonus actuel » lu via `associatePercent` (même source que l’économie)                                                                                                             | DEF-GS-33 : Omar 3★ en appel affiche +150 %, pas +75 %                                                | —        | —                                                                       |
+| `format.ts` `formatPercent` (Intl `fr-FR`)       | Chance de tirage et pourcentages d’apport                                                                                                                                           | DEF-GS-34 : « 2,5 % », pas de `replace` artisanal                                                     | —        | —                                                                       |
+| `src/core/def050.test.ts`                        | Oracles exacts M04/M05/M07                                                                                                                                                          | Les 3 mutants laissés par 0.5.0                                                                       | —        | —                                                                       |
+
 ## 0.5.0+ — DEF-GS-30 bandeau rechargement sur Recovery (branche `associes-v11-integration`, non publié)
 
 Confirmation Crypto 72a1686 : DEF-GS-28/29 fermés ; DEF-GS-30 ouvert.

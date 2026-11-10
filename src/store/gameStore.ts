@@ -547,8 +547,12 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
           ...value,
           maxSeenAt: maxSeen,
           lastSeenAt: Math.min(value.lastSeenAt, now),
-          // R-MV5-04: clamp inconsistent call clocks to the local maxSeenAt anchor.
-          appel: clampAppelForImport(value.appel, maxSeen),
+          // R-MV5-04 / DEF-GS-31: clamp calls to local maxSeenAt and real wall time.
+          appel: clampAppelForImport(
+            value.appel,
+            maxSeen,
+            typeof Date !== 'undefined' ? Date.now() : maxSeen,
+          ),
         };
         set({ game: imported, status: 'ready', recoveryReason: null, recoveryKind: null });
         await persistNow();

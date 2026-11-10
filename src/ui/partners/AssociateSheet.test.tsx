@@ -36,7 +36,7 @@ describe('AssociateSheet (isolated)', () => {
     expect(screen.getByText(BIOS.omar!)).toBeTruthy();
     expect(screen.getByText(/Étudiant ingénieur/)).toBeTruthy();
     expect(screen.getByText(/Puissance \/ points : À définir/)).toBeTruthy();
-    expect(screen.getByText(/Chance de tirage : 2\.5 %/)).toBeTruthy();
+    expect(screen.getByText(/Chance de tirage : 2,5 %/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /Faire appel à Omar/ }));
     expect(onCall).toHaveBeenCalledOnce();
   });
@@ -71,5 +71,45 @@ describe('AssociateSheet (isolated)', () => {
     const sheet = document.querySelector('.assoc-sheet');
     expect(sheet).toBeTruthy();
     expect(getComputedStyle(sheet!).animationName === 'none' || true).toBe(true);
+  });
+
+  it('DEF-GS-33: bonus actuel uses associatePercent (×2 while the call is active)', () => {
+    const now = 1_000_000;
+    const entry = {
+      until: now + 3_600_000,
+      cool: now + 86_400_000,
+      wallUntil: now + 3_600_000,
+      wallCool: now + 86_400_000,
+    };
+    const { rerender } = render(
+      <AssociateSheet
+        a={omar}
+        starsNow={3}
+        targetLevel={2}
+        appel="available"
+        remainingMs={0}
+        now={now}
+        wallNow={now}
+        onClose={() => {}}
+      />,
+    );
+    // 3★ Omar, no call: +75 %
+    expect(screen.getByText(/Bonus actuel : \+75 %/)).toBeTruthy();
+    rerender(
+      <AssociateSheet
+        a={omar}
+        starsNow={3}
+        targetLevel={2}
+        appel="active"
+        remainingMs={60_000}
+        now={now}
+        wallNow={now}
+        entry={entry}
+        onClose={() => {}}
+      />,
+    );
+    // Same source as the engine: 25 % × 3 × 2 = 150, not a stale 75.
+    expect(screen.getByText(/Bonus actuel : \+150 %/)).toBeTruthy();
+    expect(screen.queryByText(/Bonus actuel : \+75 %/)).toBeNull();
   });
 });

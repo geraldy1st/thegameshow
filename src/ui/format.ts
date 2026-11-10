@@ -1,6 +1,9 @@
 const nf = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
 const nf1 = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
 const compact = new Intl.NumberFormat('fr-FR', { notation: 'compact', maximumFractionDigits: 1 });
+/** Percent points for UI (DEF-GS-34): 2.5 → « 2,5 », never a hand-rolled replace. */
+const nfPct = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
+export const formatPercent = (p: number): string => nfPct.format(p);
 
 /** Whole yen; compact above one million (long form goes into aria-label). */
 export const formatYen = (yen: number): string =>

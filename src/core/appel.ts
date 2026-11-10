@@ -202,8 +202,12 @@ export function mapToCore(appel: Readonly<Partial<Record<AssociateId, AppelPersi
 export function clampAppelForImport(
   appel: Readonly<Partial<Record<AssociateId, AppelPersisted>>>,
   maxSeenAt: number,
+  wallNow: number = maxSeenAt,
 ): Partial<Record<AssociateId, AppelPersisted>> {
   const out: Partial<Record<AssociateId, AppelPersisted>> = {};
+  const clampGame = maxSeenAt;
+  const clampWall =
+    Number.isFinite(wallNow) && wallNow >= 0 ? Math.max(wallNow, maxSeenAt) : maxSeenAt;
   for (const a of ASSOCIATES) {
     const p = appel[a.id];
     if (!p) continue;
@@ -215,16 +219,47 @@ export function clampAppelForImport(
     ) {
       continue; // drop → available, no phantom
     }
-    // If wall cool end is before the local maxSeenAt while game cool is still ahead, clamp walls
-    // to the local anchor so remaining = max(game, wall) cannot shrink below honest wait.
+    const duration = p.endsAt - p.activatedAt;
+    const coolDur = p.cooldownUntil - p.activatedAt;
+    if (!(duration > 0) || !(coolDur > 0)) continue;
+    let activatedAt = p.activatedAt;
+    let endsAt = p.endsAt;
+    let cooldownUntil = p.cooldownUntil;
     let wallEnds = p.wallEndsAt;
     let wallCool = p.wallCooldownUntil;
-    if (wallCool < maxSeenAt && p.cooldownUntil > maxSeenAt) {
+    // DEF-GS-31: start in the future vs local game anchor → SHIFT, keep duration.
+    // Wall anchors are moved onto the same maxSeenAt number line: idle settlement
+    // compares them to the game clock (mid, mid). Leaving wall at Date.now()+duration
+    // while lastSeenAt was clamped to an older game now would still yield a phantom
+    // boost (2 h at 312 c/s). DROP was rejected: an honest clock-ahead export should
+    // keep the call at its real duration, not lose it. Receipts are not rewritten
+    // (idempotency only; remaining and gains read `appel`).
+    if (activatedAt > clampGame) {
+      activatedAt = clampGame;
+      endsAt = clampGame + duration;
+      cooldownUntil = clampGame + coolDur;
+      wallEnds = clampGame + duration;
+      wallCool = clampGame + coolDur;
+    }
+    const wallAct = wallEnds - duration;
+    if (wallAct > clampWall) {
+      wallEnds = clampWall + duration;
+      wallCool = clampWall + (wallCool - wallAct);
+    }
+    // Lagging wall vs local maxSeenAt: remaining = max(game, wall) must not shrink.
+    if (wallCool < maxSeenAt && cooldownUntil > maxSeenAt) {
       const lag = maxSeenAt - wallCool;
       wallCool = maxSeenAt;
       wallEnds = Math.max(wallEnds + lag, maxSeenAt);
     }
-    out[a.id] = { ...p, wallEndsAt: wallEnds, wallCooldownUntil: wallCool };
+    out[a.id] = {
+      ...p,
+      activatedAt,
+      endsAt,
+      cooldownUntil,
+      wallEndsAt: wallEnds,
+      wallCooldownUntil: wallCool,
+    };
   }
   return out;
 }

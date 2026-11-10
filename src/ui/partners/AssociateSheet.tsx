@@ -7,7 +7,13 @@ import {
 } from '../../data/balance';
 import { ASSOCIATE_PROFILES } from '../../data/associateProfiles';
 import { BIOS } from '../../data/bios';
-import { drawChancePercent, type AppelStatus } from '../../core/appel';
+import {
+  associatePercent,
+  drawChancePercent,
+  type AppelEntry,
+  type AppelStatus,
+} from '../../core/appel';
+import { formatPercent } from '../format';
 import { t } from '../../i18n/fr';
 import { Modal, Portrait } from '../common';
 
@@ -24,6 +30,10 @@ export interface AssociateSheetProps {
   appel: AppelStatus;
   /** Remaining ms for the active or cooling state (0 otherwise). */
   remainingMs: number;
+  /** Optional clocks + entry so « bonus actuel » uses associatePercent (DEF-GS-33). */
+  now?: number;
+  wallNow?: number;
+  entry?: AppelEntry;
   onClose: () => void;
   /** Optional: parent handles confirmation for targetLevel === 0. */
   onCall?: () => void;
@@ -53,6 +63,9 @@ export function AssociateSheet({
   targetLevel,
   appel,
   remainingMs,
+  now = 0,
+  wallNow = 0,
+  entry,
   onClose,
   onCall,
 }: AssociateSheetProps) {
@@ -61,7 +74,9 @@ export function AssociateSheet({
   const bio = BIOS[a.id];
   const titleId = useId();
   const liveRef = useRef<HTMLParagraphElement>(null);
-  const activePct = owned ? a.percentPerStar * starsNow : 0;
+  const targetForBonus: Exclude<BonusTarget, 'all'> = a.target === 'all' ? 'save' : a.target;
+  // Single source: same associatePercent the economy uses (call ×2 when active).
+  const activePct = associatePercent(a.id, starsNow, targetForBonus, entry, now, wallNow);
   const condition =
     a.target === 'all'
       ? t('sheetCondAll')
@@ -117,10 +132,15 @@ export function AssociateSheet({
         <section className="assoc-sheet-apport" aria-labelledby={`${titleId}-apport`}>
           <h3 id={`${titleId}-apport`}>{t('sheetApport')}</h3>
           <ul>
-            <li>{t('sheetPerStar', { p: a.percentPerStar, target: targetLabel(a.target) })}</li>
+            <li>
+              {t('sheetPerStar', {
+                p: formatPercent(a.percentPerStar),
+                target: targetLabel(a.target),
+              })}
+            </li>
             <li>
               {owned
-                ? t('bonusNow', { p: activePct, target: targetLabel(a.target) })
+                ? t('bonusNow', { p: formatPercent(activePct), target: targetLabel(a.target) })
                 : t('sheetNoActive')}
             </li>
             <li>{condition}</li>
@@ -128,10 +148,10 @@ export function AssociateSheet({
               {t('sheetTable')}{' '}
               {Array.from({ length: MAX_STARS }, (_, i) => {
                 const n = i + 1;
-                return `${n}★ +${a.percentPerStar * n} %`;
+                return `${n}★ +${formatPercent(a.percentPerStar * n)} %`;
               }).join(' · ')}
             </li>
-            <li>{t('sheetChance', { p: drawChancePercent(a.id) })}</li>
+            <li>{t('sheetChance', { p: formatPercent(drawChancePercent(a.id)) })}</li>
             <li>{t('sheetPower')}</li>
           </ul>
         </section>
