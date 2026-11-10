@@ -48,7 +48,7 @@ describe('DEF-GS-31 / M07: import clamp of a future-dated call', () => {
     expect(out.omar!.activatedAt).toBe(T0);
     expect(out.omar!.endsAt).toBe(T0 + H); // not T0 + 6 h
     expect(out.omar!.endsAt - out.omar!.activatedAt).toBe(H);
-    expect(out.omar!.cooldownUntil).toBe(T0 + 24 * H);
+    expect(out.omar!.cooldownUntil).toBe(T0 + 4 * H);
     // SHIFT (not DROP): 2 h absence = 1 h boosted + 1 h normal.
     const g: GameState = { ...seeded(), appel: out, appelReceipts: [] };
     // CT-IMP-01 (SHIFT, 1 h boost): 1 922 400 ¢

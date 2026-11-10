@@ -29,10 +29,23 @@ test.describe('Associés v11', () => {
     await page.getByRole('button', { name: /Voir le profil de Omar/i }).click();
     const sheet = page.locator('.assoc-sheet');
     await expect(sheet).toBeVisible();
-    await expect(sheet.locator('.assoc-sheet-bio')).toBeVisible();
-    await sheet.getByRole('button', { name: /Faire appel à Omar/i }).click();
+    await expect(sheet.getByRole('heading', { name: "Ce qu'il apporte" })).toBeVisible();
+    await expect(sheet.locator('.assoc-sheet-bio')).toBeVisible(); // summary stays visible
+    await expect(sheet.locator('.assoc-sheet-apport')).toHaveAttribute('open', '');
+    await expect(sheet.locator('.assoc-sheet-bio')).not.toHaveAttribute('open', '');
+    await expect(
+      sheet.getByText(/Faire appel double son bonus d’épargne pendant 1 h, puis recharge 4 h/),
+    ).toBeVisible();
+    // SYS-20: double-click starts one call only; 1 h boost, 4 h recharge.
+    await sheet.getByRole('button', { name: /Faire appel à Omar/i }).dblclick();
     await expect(sheet.getByText(/Boost actif/i)).toBeVisible();
+    const g = await page.evaluate(() => window.__TGS_TEST__!.state()!);
+    const ev = g.appel.omar!;
+    expect(ev.endsAt - ev.activatedAt).toBe(60 * 60_000);
+    expect(ev.cooldownUntil - ev.activatedAt).toBe(4 * 60 * 60_000);
+    expect(g.appelReceipts.filter((r) => r.associateId === 'omar')).toHaveLength(1);
     await page.keyboard.press('Escape');
     await expect(page.locator('.appel-badge.active')).toBeVisible();
+    await expect(page.locator('.appel-badge.active')).toContainText(/h|min/);
   });
 });

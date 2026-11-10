@@ -40,7 +40,18 @@ async function boot() {
   });
 }
 
+/** R-052-04: block iOS Safari pinch-zoom. No JS double-tap guard (would risk dropping Aoi taps). */
+function blockPinchZoom(): void {
+  const stop = (e: Event) => {
+    e.preventDefault();
+  };
+  for (const ev of ['gesturestart', 'gesturechange', 'gestureend'] as const) {
+    document.addEventListener(ev, stop, { passive: false });
+  }
+}
+
 initRoute();
+blockPinchZoom();
 void boot().then((store) => {
   if ('storage' in navigator && navigator.storage.persist) void navigator.storage.persist(); // best effort only (RES-8)
   createRoot(document.getElementById('root')!).render(

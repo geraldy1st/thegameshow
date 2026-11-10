@@ -17,6 +17,8 @@ body {
   font-size: var(--fs-md);
   line-height: var(--lh-body);
   -webkit-tap-highlight-color: transparent;
+  /* R-052-04: kill double-tap zoom without a JS touchend guard (Aoi taps stay intact). */
+  touch-action: manipulation;
 }
 /* Mobile first: base styles target a 360 px portrait phone; larger screens only widen. */
 button,
@@ -2185,26 +2187,69 @@ dialog .btn-ghost,
   background: var(--cream);
 }
 /* Associés v11 sheet */
+dialog:has(.assoc-sheet) {
+  padding: 8px;
+  max-height: 100dvh;
+  max-height: 100vh;
+  overflow: hidden;
+  box-sizing: border-box;
+}
 .assoc-sheet {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 4px;
   max-width: 36rem;
-  padding: 12px;
+  padding: 4px;
   color: #fff6e6;
   background: #1b2a4a;
+  font-size: var(--fs-sm);
   /* No opacity animation on the whole sheet (R-AS-05). */
   animation: none;
 }
+.assoc-sheet .portrait,
+.assoc-sheet .portrait img {
+  display: block;
+  width: 72px;
+  height: 72px;
+  margin-inline: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+.assoc-sheet-meta {
+  margin: 0;
+  line-height: 1.25;
+  font-size: var(--fs-sm);
+}
 .assoc-sheet .assoc-sheet-apport,
 .assoc-sheet .assoc-sheet-bio {
-  padding: 12px;
+  padding: 6px 8px;
   border-radius: 12px;
   color: #1b2a4a;
   background: #fff6e6;
 }
+.assoc-sheet .assoc-sheet-apport ul {
+  margin: 0;
+  padding-inline-start: 1.15em;
+}
 .assoc-sheet .assoc-sheet-apport li {
-  margin: 0.25rem 0;
+  margin: 0.05rem 0;
+}
+.assoc-sheet details > summary {
+  cursor: pointer;
+  list-style: disclosure-closed;
+  color: #1b2a4a;
+}
+.assoc-sheet details[open] > summary {
+  list-style: disclosure-open;
+  margin-bottom: 0.25rem;
+}
+.assoc-sheet details > summary > h3 {
+  display: inline;
+  font-size: var(--fs-md);
+}
+.assoc-sheet details > summary:focus-visible {
+  outline: 3px solid #f5b83d;
+  outline-offset: 2px;
 }
 .assoc-sheet blockquote {
   margin: 0.5rem 0;

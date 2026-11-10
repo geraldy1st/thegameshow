@@ -16,3 +16,17 @@ export function formatDuration(ms: number): string {
   const h = Math.floor(m / 60);
   return h ? `${h} h ${String(m % 60).padStart(2, '0')}` : `${m} min`;
 }
+
+/**
+ * Single « X h Y min » formatter for the partner grid badge and the associate sheet
+ * (R-052-02). Ceil to the minute; never « 0 min » while a remaining duration is > 0.
+ * Under 1 h: « 12 min » (no hour part). Exact 0 ms (available): « 0 min ».
+ */
+export function formatAppelRemain(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return '0 min';
+  const totalMin = Math.ceil(ms / 60_000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h > 0) return `${h} h ${String(m).padStart(2, '0')} min`;
+  return `${totalMin} min`;
+}

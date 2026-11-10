@@ -62,7 +62,7 @@ describe('Associés v11 store integration', () => {
     expect(withCall).toBeGreaterThan(without);
     // Full hour without call vs half hour boosted: boosted window is CALL_DURATION for haru (2★)=30m
     expect(CALL_DURATION_MS[2]).toBe(30 * 60_000);
-    expect(CALL_COOLDOWN_MS).toBe(24 * 60 * 60_000);
+    expect(CALL_COOLDOWN_MS).toBe(4 * 60 * 60_000);
     clock.advance(1000);
   });
 });

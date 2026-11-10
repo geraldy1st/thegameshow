@@ -25,7 +25,7 @@ function start(id: AssociateId, map: AppelMap = {}, now = NOW, wall = WALL) {
 }
 
 describe('appel durations and states', () => {
-  it('1★/2★ last 30 min, 3★ last 1 h; cool is 24 h from activation', () => {
+  it('1★/2★ last 30 min, 3★ last 1 h; cool is 4 h from activation', () => {
     for (const a of ASSOCIATES) {
       const r = start(a.id);
       expect(r.ok).toBe(true);
@@ -92,11 +92,11 @@ describe('appel clock anchors', () => {
     const r = start('lila');
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    // After 20 h on both clocks → cooling; then game clock rolls back 10 h.
-    const t = NOW + 20 * 3600_000;
-    const w = WALL + 20 * 3600_000;
+    // After 2 h on both clocks → cooling; then game clock rolls back 1 h.
+    const t = NOW + 2 * 3600_000;
+    const w = WALL + 2 * 3600_000;
     expect(statusAt(true, r.entry, t, w)).toBe('cooling');
-    expect(statusAt(true, r.entry, t - 10 * 3600_000, w)).toBe('cooling');
+    expect(statusAt(true, r.entry, t - 1 * 3600_000, w)).toBe('cooling');
   });
 
   it('fast-check: remaining cool is never below wall remaining while wallCool > wallNow', () => {

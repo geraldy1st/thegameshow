@@ -302,59 +302,35 @@ test.describe('P6 Aoi videos (GS-V5-89, R-P43-15)', () => {
   });
 });
 
-test.describe('P7 roman (GS-V5-90, R-P43-10, DEF-GS-22)', () => {
-  test('toggle: aria-expanded, hidden, kept after reload, Nouvelle partie and import', async ({
-    page,
-  }) => {
+test.describe('P7 roman removed (GS-V5-90, 0.5.2)', () => {
+  test('Travailler has no roman block and does not write tgs:ui:roman', async ({ page }) => {
     await start(page, '#work');
-    const hide = page.getByRole('button', { name: 'Masquer le roman' });
-    await expect(hide).toHaveAttribute('aria-expanded', 'true');
-    await expect(hide).toHaveAttribute('aria-controls', 'roman-doc');
-    await expect(page.locator('#roman-doc')).toBeVisible();
-    await hide.click();
-    const show = page.getByRole('button', { name: 'Afficher le roman' });
-    await expect(show).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.locator('#roman-doc')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Masquer le roman' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Afficher le roman' })).toHaveCount(0);
+    await expect(page.locator('#roman-doc')).toHaveCount(0);
+    await expect(page.locator('.roman, .roman-toggle')).toHaveCount(0);
+    await expect(aoi(page)).toBeVisible();
+    await expect(page.locator('.work-panel')).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem('tgs:ui:roman'))).toBeNull();
     await page.reload();
     await page.goto('./#work');
-    await expect(page.getByRole('button', { name: 'Afficher le roman' })).toBeVisible();
-    // Device preference: a new game keeps it.
-    await tab(page, 'Menu').click();
-    await page.getByRole('button', { name: 'Nouvelle partie' }).click();
-    await page.getByRole('button', { name: 'Oui, recommencer' }).click();
-    await page.goto('./#work');
-    await expect(page.getByRole('button', { name: 'Afficher le roman' })).toBeVisible();
-    // Unreadable value: open.
-    await page.evaluate(() => localStorage.setItem('tgs:ui:roman', '???'));
-    await page.reload();
-    await page.goto('./#work');
-    await expect(page.getByRole('button', { name: 'Masquer le roman' })).toBeVisible();
+    await page.waitForFunction(() => !!window.__TGS_TEST__?.state());
+    await expect(page.locator('#roman-doc')).toHaveCount(0);
+    await expect(aoi(page)).toBeVisible();
   });
 
   for (const width of [360, 390])
     for (const font of ['100%', '120%', '150%'])
-      test(`${width} px at ${font}: title whole, toggle clear of the panel and of Aoi's label`, async ({
+      test(`${width} px at ${font}: Aoi and the work panel stay visible, no roman`, async ({
         page,
       }) => {
         await page.setViewportSize({ width, height: 640 });
         await start(page, '#work');
         await page.addStyleTag({ content: `html{font-size:${font}}` });
         await page.waitForTimeout(100);
-        const r = await page.evaluate(() => {
-          const rect = (s: string) => document.querySelector(s)!.getBoundingClientRect();
-          const b = document.querySelector('.doc-bar b')!;
-          return {
-            clipped: b.scrollWidth > b.clientWidth,
-            toggle: rect('.roman-toggle').toJSON() as DOMRect,
-            panel: rect('.work-panel').toJSON() as DOMRect,
-            label: rect('.ws-label').toJSON() as DOMRect,
-          };
-        });
-        if (font === '100%') expect(r.clipped, 'DEF-GS-22').toBe(false);
-        const hit = (a: DOMRect, b: DOMRect) =>
-          a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-        expect(hit(r.toggle, r.panel), 'panel').toBe(false);
-        expect(hit(r.toggle, r.label), 'label').toBe(false);
+        await expect(page.locator('#roman-doc, .roman-toggle')).toHaveCount(0);
+        await expect(aoi(page)).toBeVisible();
+        await expect(page.locator('.work-panel')).toBeVisible();
       });
 });
 
@@ -478,23 +454,24 @@ test.describe('P10 draw ×10 (GS-V5-93/94, R-P43-3, R-P43-7)', () => {
   });
 });
 
-test.describe('P9 rates in Menu (GS-V5-92/97, R-P43-1 option A)', () => {
-  test('Menu opens the same rates dialog; Associés keeps its link; no write', async ({ page }) => {
+test.describe('P9 rates only on Partners (GS-V5-92/97, 0.5.2)', () => {
+  test('Menu has no rates button; Associés still opens the same dialog; no write', async ({
+    page,
+  }) => {
     await start(page);
     await page.waitForTimeout(300);
     const before = await revision(page);
     await tab(page, 'Menu').click();
+    await expect(page.getByRole('button', { name: 'Taux de tirage' })).toHaveCount(0);
+    await tab(page, 'Associés').click();
     const link = page.getByRole('button', { name: 'Taux de tirage' });
+    await expect(link).toBeVisible();
     await link.click();
     const d = page.getByRole('dialog', { name: /Taux/ });
     await expect(d).toBeVisible();
-    const menuText = await d.textContent();
     expect(await axeViolations(page)).toEqual([]);
     await page.keyboard.press('Escape');
     await expect(link).toBeFocused();
-    await tab(page, 'Associés').click();
-    await page.getByRole('button', { name: 'Taux de tirage' }).click();
-    expect(await page.getByRole('dialog', { name: /Taux/ }).textContent()).toBe(menuText);
     await page.waitForTimeout(300);
     expect(await revision(page)).toBe(before);
   });

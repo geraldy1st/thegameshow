@@ -485,8 +485,8 @@ test.describe('Travailler (GS-V5-73 to 78)', () => {
     expect(css.w).toBeGreaterThanOrEqual(44);
     expect(css.h).toBeGreaterThanOrEqual(44);
     expect(css.area).toBeGreaterThanOrEqual(0.4);
-    // The document is decoration only: not a button, not in the accessibility tree.
-    await expect(page.locator('.doc')).toHaveAttribute('aria-hidden', 'true');
+    // 0.5.2: the roman / .doc block is gone; Aoi remains the only tap target.
+    await expect(page.locator('.doc, #roman-doc, .roman')).toHaveCount(0);
   });
 
   test('GS-V5-76 / R-P42-1: in the zone (bounds included) → boost; x2 until 4 999 ms', async ({

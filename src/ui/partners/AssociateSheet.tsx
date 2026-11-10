@@ -1,4 +1,4 @@
-import { useId, useRef } from 'react';
+import { useId, useRef, useState } from 'react';
 import {
   MAX_STARS,
   type AssociateDef,
@@ -9,11 +9,12 @@ import { ASSOCIATE_PROFILES } from '../../data/associateProfiles';
 import { BIOS } from '../../data/bios';
 import {
   associatePercent,
+  CALL_DURATION_MS,
   drawChancePercent,
   type AppelEntry,
   type AppelStatus,
 } from '../../core/appel';
-import { formatPercent } from '../format';
+import { formatAppelRemain, formatPercent } from '../format';
 import { t } from '../../i18n/fr';
 import { Modal, Portrait } from '../common';
 
@@ -44,17 +45,12 @@ function targetLabel(target: BonusTarget): string {
   return t(`target${target}` as 'targetsave');
 }
 
-function formatRemain(ms: number): string {
-  const s = Math.max(0, Math.ceil(ms / 1000));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  if (h > 0) return `${h} h ${m} min`;
-  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-}
-
 function displayName(id: AssociateId): string {
   return id.charAt(0).toUpperCase() + id.slice(1);
+}
+
+function callDurationLabel(rarity: AssociateDef['rarity']): string {
+  return CALL_DURATION_MS[rarity] >= 60 * 60_000 ? '1 h' : '30 min';
 }
 
 export function AssociateSheet({
@@ -71,6 +67,13 @@ export function AssociateSheet({
 }: AssociateSheetProps) {
   const owned = starsNow > 0;
   const profile = ASSOCIATE_PROFILES[a.id];
+  // Controlled exclusive accordion (no <details name>): works on older WebKit.
+  // Without JS, both panels can open (accepted degrade, R-052-06).
+  const [openPli, setOpenPli] = useState<'apport' | 'bio' | null>('apport');
+  const togglePli = (id: 'apport' | 'bio', ev: { currentTarget: HTMLDetailsElement }) => {
+    const wantOpen = ev.currentTarget.open;
+    setOpenPli((prev) => (wantOpen ? id : prev === id ? null : prev));
+  };
   const bio = BIOS[a.id];
   const titleId = useId();
   const liveRef = useRef<HTMLParagraphElement>(null);
@@ -87,9 +90,9 @@ export function AssociateSheet({
       case 'locked':
         return t('appelLocked', { name: displayName(a.id) });
       case 'active':
-        return t('appelActive', { t: formatRemain(remainingMs) });
+        return t('appelActive', { t: formatAppelRemain(remainingMs) });
       case 'cooling':
-        return t('appelCool', { t: formatRemain(remainingMs) });
+        return t('appelCool', { t: formatAppelRemain(remainingMs) });
       default:
         return t('appelAvailable', { name: displayName(a.id) });
     }
@@ -129,8 +132,16 @@ export function AssociateSheet({
           {owned ? t('sheetOwned') : t('locked')}
         </p>
 
-        <section className="assoc-sheet-apport" aria-labelledby={`${titleId}-apport`}>
-          <h3 id={`${titleId}-apport`}>{t('sheetApport')}</h3>
+        <details
+          className="assoc-sheet-apport"
+          open={openPli === 'apport'}
+          onToggle={(e) => togglePli('apport', e)}
+        >
+          <summary>
+            <h3 id={`${titleId}-apport`}>
+              {t(profile.gender === 'f' ? 'sheetApportF' : 'sheetApportM')}
+            </h3>
+          </summary>
           <ul>
             <li>
               {t('sheetPerStar', {
@@ -153,16 +164,28 @@ export function AssociateSheet({
             </li>
             <li>{t('sheetChance', { p: formatPercent(drawChancePercent(a.id)) })}</li>
             <li>{t('sheetPower')}</li>
+            <li>
+              {t('sheetAppelEffect', {
+                target: targetLabel(a.target),
+                duree: callDurationLabel(a.rarity),
+              })}
+            </li>
           </ul>
-        </section>
+        </details>
 
         {bio && (
-          <section className="assoc-sheet-bio" aria-labelledby={`${titleId}-bio`}>
-            <h3 id={`${titleId}-bio`}>{t('sheetBio')}</h3>
+          <details
+            className="assoc-sheet-bio"
+            open={openPli === 'bio'}
+            onToggle={(e) => togglePli('bio', e)}
+          >
+            <summary>
+              <h3 id={`${titleId}-bio`}>{t('sheetBio')}</h3>
+            </summary>
             <p>{bio}</p>
             <blockquote>« {profile.citation} »</blockquote>
             <p className="assoc-sheet-apprend">{t('sheetLearn', { s: profile.apprend })}</p>
-          </section>
+          </details>
         )}
 
         <p ref={liveRef} className="visually-hidden" aria-live="polite" />

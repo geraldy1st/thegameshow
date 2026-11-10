@@ -6,7 +6,6 @@ import { Home } from './Home';
 import { currentRoute, goHome, navigate, replaceRoute, useRoute, type Route } from './router';
 import { Mission } from './Mission';
 import { Partners } from './Partners';
-import { Rates } from './Rates';
 import { Friends } from './Friends';
 import { Quests } from './Quests';
 import { Work } from './work/Work';
@@ -376,21 +375,11 @@ const TAB_ICON = { home: '⌂', invest: '📈', friends: '♥', partners: '★',
  * logic unchanged (export, import, new game, previous game, pre-update restore).
  */
 function Settings({ store }: { store: Store }) {
-  // Patch 0.4.3 (P9, Geraldy 02/11, R-P43-1 option A): the draw rates are also one tap away
-  // from Menu; the link on Associés stays.
-  const [rates, setRates] = useState(false);
   return (
     <div className="settings">
       <h1 id="settings-title" className="screen-title" tabIndex={-1}>
         {t('settingsTitle')}
       </h1>
-      <section className="card" aria-labelledby="menu-rates-title">
-        <h2 id="menu-rates-title">{t('menuRatesTitle')}</h2>
-        <button type="button" className="btn btn-ghost" onClick={() => setRates(true)}>
-          {t('ratesLink')}
-        </button>
-      </section>
-      <Rates open={rates} onClose={() => setRates(false)} />
       <SaveMenu store={store} />
       <BackupRestore store={store} slot="reset" />
       <BackupRestore store={store} slot="migration" />

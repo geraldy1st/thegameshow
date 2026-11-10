@@ -8,7 +8,7 @@ export const CALL_DURATION_MS: Readonly<Record<Rarity, number>> = {
   3: 60 * 60_000,
 };
 /** Recharge from activation, not from the end of the boost. */
-export const CALL_COOLDOWN_MS = 24 * 60 * 60_000;
+export const CALL_COOLDOWN_MS = 4 * 60 * 60_000;
 
 /**
  * DEF-GS-29: wall clock for UI / statusAt. Real wall time, never behind the local
@@ -23,7 +23,7 @@ export function displayWallNow(maxSeenAt: number, wallNow: number = Date.now()):
 export interface AppelEntry {
   /** Game-clock end of the ×2 window. */
   until: number;
-  /** Game-clock end of the 24 h recharge (activation + 24 h). */
+  /** Game-clock end of the 4 h recharge (activation + 4 h). */
   cool: number;
   /** Wall-clock anchors: a forward jump of the game clock alone must not shorten the wait. */
   wallUntil: number;
@@ -68,7 +68,7 @@ export function statusAt(
   return 'available';
 }
 
-/** Activation timestamp derived from the stored cool end (cool = activation + 24 h). */
+/** Activation timestamp derived from the stored cool end (cool = activation + official recharge). */
 export function activationMs(entry: AppelEntry): number {
   return entry.cool - CALL_COOLDOWN_MS;
 }
@@ -199,6 +199,38 @@ export function mapToCore(appel: Readonly<Partial<Record<AssociateId, AppelPersi
  * Clamps wall anchors upward to maxSeenAt when they sit behind the local anchor in a way that
  * would accelerate gain or shorten cooldown; clears the entry when walls are non-finite.
  */
+/**
+ * R-052-03 (narrow): never lengthen a stored recharge. Official cap is 4 h from
+ * activation; a shorter (e.g. tampered 1 ms) value is kept so DEF-GS-36 stays open.
+ * Idempotent: min(min(stored, act + 4 h), act + 4 h) = min(stored, act + 4 h).
+ */
+export function capCooldownUntil(activatedAt: number, cooldownUntil: number): number {
+  return Math.min(cooldownUntil, activatedAt + CALL_COOLDOWN_MS);
+}
+
+export function capAppelCooldowns(
+  appel: Readonly<Partial<Record<AssociateId, AppelPersisted>>>,
+): Partial<Record<AssociateId, AppelPersisted>> {
+  const out: Partial<Record<AssociateId, AppelPersisted>> = { ...appel };
+  for (const a of ASSOCIATES) {
+    const p = appel[a.id];
+    if (!p) continue;
+    if (!Number.isFinite(p.activatedAt) || !Number.isFinite(p.cooldownUntil)) continue;
+    const cooldownUntil = capCooldownUntil(p.activatedAt, p.cooldownUntil);
+    let wallCooldownUntil = p.wallCooldownUntil;
+    const duration = p.endsAt - p.activatedAt;
+    if (
+      Number.isFinite(p.wallEndsAt) &&
+      Number.isFinite(p.wallCooldownUntil) &&
+      Number.isFinite(duration)
+    ) {
+      wallCooldownUntil = capCooldownUntil(p.wallEndsAt - duration, p.wallCooldownUntil);
+    }
+    out[a.id] = { ...p, cooldownUntil, wallCooldownUntil };
+  }
+  return out;
+}
+
 export function clampAppelForImport(
   appel: Readonly<Partial<Record<AssociateId, AppelPersisted>>>,
   maxSeenAt: number,
@@ -271,6 +303,9 @@ export function clampAppelForImport(
       wallCoolOut = maxSeenAt;
       wallEndsOut = Math.max(wallEndsOut + lag, maxSeenAt);
     }
+    // Official 4 h cap after SHIFT / lag; a shorter stored cool is left as-is (R-052-03).
+    cooldownUntil = capCooldownUntil(activatedAt, cooldownUntil);
+    wallCoolOut = capCooldownUntil(wallAct, wallCoolOut);
     out[a.id] = {
       ...p,
       activatedAt,

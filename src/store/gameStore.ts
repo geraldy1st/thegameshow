@@ -33,8 +33,17 @@ import {
   migrateCurrentSameTx,
   readRawSlot,
 } from '../save/db';
-import { activateAppelOnState, clampAppelForImport, makeActivationId } from '../core/appel';
+import {
+  activateAppelOnState,
+  capAppelCooldowns,
+  clampAppelForImport,
+  makeActivationId,
+} from '../core/appel';
 import { parseImport, serializeExport } from '../save/exportImport';
+
+function applyAppelCooldownCap(g: GameState): GameState {
+  return { ...g, appel: capAppelCooldowns(g.appel) };
+}
 
 export type Status = 'loading' | 'ready' | 'readonly' | 'recovery';
 
@@ -290,12 +299,12 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
       persistedRevision = await storedRevision();
       const now = deps.clock.now();
       set({
-        game: {
+        game: applyAppelCooldownCap({
           ...b.save,
           maxSeenAt: Math.min(b.save.maxSeenAt, now),
           lastSeenAt: Math.min(b.save.lastSeenAt, now),
           energy: { ...b.save.energy, updatedAt: Math.min(b.save.energy.updatedAt, now) },
-        },
+        }),
         status: 'ready',
         recoveryReason: null,
         recoveryKind: null,
@@ -355,7 +364,7 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         const base =
           loadedOk.kind === 'ok' ? loadedOk.save : createInitialState(now, deps.newSeed());
         persistedRevision = await storedRevision();
-        const r = settle(base, now);
+        const r = settle(applyAppelCooldownCap(base), now);
         set({
           game: r.state,
           status: isWriter ? 'ready' : 'readonly',

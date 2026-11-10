@@ -23,7 +23,7 @@ import {
   statusAt,
   toCoreEntry,
 } from '../core/appel';
-import { formatPercent } from './format';
+import { formatAppelRemain, formatPercent } from './format';
 import { displayName, markRevealSeen, prefersReducedMotion, revealPending } from './helpers';
 
 type Store = StoreApi<GameStoreState>;
@@ -221,9 +221,7 @@ function PartnerCard({
       : st === 'cooling' && entry
         ? remainingMs(entry, now, wallNow).cool
         : 0;
-  const mm = Math.floor(rem / 60000);
-  const ss = Math.floor((rem % 60000) / 1000);
-  const tlabel = `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+  const tlabel = formatAppelRemain(rem);
   return (
     <li className={`card acard r${a.rarity} ${s ? '' : 'lock'}`}>
       {s ? (

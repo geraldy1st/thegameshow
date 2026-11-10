@@ -86,6 +86,10 @@ export const fr = {
   sheetBack: '← Retour',
   sheetOwned: 'Obtenu',
   sheetApport: "Ce qu'il/elle apporte",
+  sheetApportM: "Ce qu'il apporte",
+  sheetApportF: "Ce qu'elle apporte",
+  sheetAppelEffect:
+    'Faire appel double son bonus {target} pendant {duree}, puis recharge 4 h.',
   sheetPerStar: '+{p} % {target} par ★',
   sheetNoActive: 'Aucun bonus actif',
   sheetCondAll: "S'applique à tous les revenus et au clic",

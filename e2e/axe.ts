@@ -12,12 +12,15 @@ export async function axeViolations(page: Page) {
   return page.evaluate(async () => {
     const w = window as unknown as {
       axe: {
-        run: () => Promise<{
+        run: (opts?: { rules?: Record<string, { enabled: boolean }> }) => Promise<{
           violations: { id: string; nodes: { target: string[]; failureSummary: string }[] }[];
         }>;
       };
     };
-    return (await w.axe.run()).violations.map(
+    // 0.5.2 R-052-04: Geraldy accepted blocking page zoom (WCAG 1.4.4 deviation).
+    return (
+      await w.axe.run({ rules: { 'meta-viewport': { enabled: false } } })
+    ).violations.map(
       (v) =>
         `${v.id}: ${v.nodes.map((n) => `${n.target.join(' ')} ${n.failureSummary}`).join(' | ')}`,
     );
