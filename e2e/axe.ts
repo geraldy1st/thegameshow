@@ -18,9 +18,7 @@ export async function axeViolations(page: Page) {
       };
     };
     // 0.5.2 R-052-04: Geraldy accepted blocking page zoom (WCAG 1.4.4 deviation).
-    return (
-      await w.axe.run({ rules: { 'meta-viewport': { enabled: false } } })
-    ).violations.map(
+    return (await w.axe.run({ rules: { 'meta-viewport': { enabled: false } } })).violations.map(
       (v) =>
         `${v.id}: ${v.nodes.map((n) => `${n.target.join(' ')} ${n.failureSummary}`).join(' | ')}`,
     );

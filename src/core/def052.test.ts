@@ -58,7 +58,9 @@ describe('R-052-03 official 4 h cooldown cap (narrow, DEF-GS-36 stays open)', ()
   it('stored 4 h is unchanged', () => {
     const p = entry({ activatedAt: T0, cooldownUntil: T0 + FOUR });
     expect(capAppelCooldowns({ omar: p }).omar!.cooldownUntil).toBe(T0 + FOUR);
-    expect(clampAppelForImport({ omar: p }, T0, T0, { omar: 3 }).omar!.cooldownUntil).toBe(T0 + FOUR);
+    expect(clampAppelForImport({ omar: p }, T0, T0, { omar: 3 }).omar!.cooldownUntil).toBe(
+      T0 + FOUR,
+    );
   });
 
   it('tampered 1 ms is left unchanged (EXP-02 / DEF-GS-36 remains demonstrable)', () => {
@@ -194,4 +196,3 @@ describe('CT-APL-01 durations 30 min (1★/2★), 1 h (3★), recharge 4 h from 
     expect(r.entry.cool - T0).toBe(FOUR);
   });
 });
-

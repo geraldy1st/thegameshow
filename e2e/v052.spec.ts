@@ -72,7 +72,11 @@ test.describe('0.5.2 sheet, zoom, menu', () => {
     const meta = await page.locator('meta[name="viewport"]').getAttribute('content');
     expect(meta).toMatch(/maximum-scale=1/);
     expect(meta).toMatch(/user-scalable=no/);
-    const adjust = await page.evaluate(() => getComputedStyle(document.documentElement).webkitTextSizeAdjust || getComputedStyle(document.documentElement).getPropertyValue('-webkit-text-size-adjust'));
+    const adjust = await page.evaluate(
+      () =>
+        getComputedStyle(document.documentElement).webkitTextSizeAdjust ||
+        getComputedStyle(document.documentElement).getPropertyValue('-webkit-text-size-adjust'),
+    );
     // Must not force 'none' (Safari aA / Texte plus grand stays available).
     expect((adjust || '').toLowerCase()).not.toBe('none');
     const ta = await page.evaluate(() => getComputedStyle(document.documentElement).touchAction);

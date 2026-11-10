@@ -36,9 +36,7 @@ describe('AssociateSheet (isolated)', () => {
     expect(screen.getByRole('heading', { name: "Ce qu'il apporte" })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Biographie' })).toBeTruthy();
     expect(
-      screen.getByText(
-        /Faire appel double son bonus d’épargne pendant 1 h, puis recharge 4 h/,
-      ),
+      screen.getByText(/Faire appel double son bonus d’épargne pendant 1 h, puis recharge 4 h/),
     ).toBeTruthy();
     expect(screen.queryByText(/sa bonus/)).toBeNull();
     // Bio is closed by default; the text is revealed when the panel is opened.
