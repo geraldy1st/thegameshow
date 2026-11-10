@@ -203,6 +203,7 @@ export function clampAppelForImport(
   appel: Readonly<Partial<Record<AssociateId, AppelPersisted>>>,
   maxSeenAt: number,
   wallNow: number = maxSeenAt,
+  stars?: Readonly<Partial<Record<AssociateId, number>>>,
 ): Partial<Record<AssociateId, AppelPersisted>> {
   const out: Partial<Record<AssociateId, AppelPersisted>> = {};
   const clampGame = maxSeenAt;
@@ -219,46 +220,64 @@ export function clampAppelForImport(
     ) {
       continue; // drop → available, no phantom
     }
-    const duration = p.endsAt - p.activatedAt;
+    // Official duration follows associate rarity (same source as startAppel), not
+    // owned star count: CALL_DURATION_MS is 1|2|3 only, so 4★/5★ would otherwise
+    // be "unknown" and a legit Omar/Jun call would be dropped.
+    const official = CALL_DURATION_MS[a.rarity];
+    if (!Number.isFinite(official) || !(official > 0)) continue; // unknown star level
+    if (stars) {
+      const n = stars[a.id];
+      if (n === undefined || !Number.isInteger(n) || n < 1 || n > 5) continue;
+    }
+    const recorded = p.endsAt - p.activatedAt;
     const coolDur = p.cooldownUntil - p.activatedAt;
-    if (!(duration > 0) || !(coolDur > 0)) continue;
+    // Invalid duration (non-finite, <= 0, endsAt <= startedAt) → DROP.
+    if (
+      !Number.isFinite(recorded) ||
+      recorded <= 0 ||
+      p.endsAt <= p.activatedAt ||
+      !Number.isFinite(coolDur) ||
+      !(coolDur > 0)
+    ) {
+      continue;
+    }
+    const duration = Math.min(recorded, official);
     let activatedAt = p.activatedAt;
-    let endsAt = p.endsAt;
     let cooldownUntil = p.cooldownUntil;
-    let wallEnds = p.wallEndsAt;
+    let wallAct = p.wallEndsAt - recorded;
     let wallCool = p.wallCooldownUntil;
-    // DEF-GS-31: start in the future vs local game anchor → SHIFT, keep duration.
-    // Wall anchors are moved onto the same maxSeenAt number line: idle settlement
-    // compares them to the game clock (mid, mid). Leaving wall at Date.now()+duration
-    // while lastSeenAt was clamped to an older game now would still yield a phantom
-    // boost (2 h at 312 c/s). DROP was rejected: an honest clock-ahead export should
-    // keep the call at its real duration, not lose it. Receipts are not rewritten
-    // (idempotency only; remaining and gains read `appel`).
+    // DEF-GS-31: start in the future vs local game anchor → SHIFT, keep duration
+    // capped at the official length. Wall anchors sit on the maxSeenAt number
+    // line because idle settlement compares them to the game clock (mid, mid).
+    // DROP was rejected for an honest clock-ahead export (Crypto: SHIFT + cap).
+    // Receipts are not rewritten (idempotency only; remaining and gains read `appel`).
     if (activatedAt > clampGame) {
       activatedAt = clampGame;
-      endsAt = clampGame + duration;
       cooldownUntil = clampGame + coolDur;
-      wallEnds = clampGame + duration;
+      wallAct = clampGame;
       wallCool = clampGame + coolDur;
     }
-    const wallAct = wallEnds - duration;
+    const endsAt = activatedAt + duration;
     if (wallAct > clampWall) {
-      wallEnds = clampWall + duration;
       wallCool = clampWall + (wallCool - wallAct);
+      wallAct = clampWall;
     }
+    const wallEnds = wallAct + duration;
     // Lagging wall vs local maxSeenAt: remaining = max(game, wall) must not shrink.
-    if (wallCool < maxSeenAt && cooldownUntil > maxSeenAt) {
-      const lag = maxSeenAt - wallCool;
-      wallCool = maxSeenAt;
-      wallEnds = Math.max(wallEnds + lag, maxSeenAt);
+    let wallCoolOut = wallCool;
+    let wallEndsOut = wallEnds;
+    if (wallCoolOut < maxSeenAt && cooldownUntil > maxSeenAt) {
+      const lag = maxSeenAt - wallCoolOut;
+      wallCoolOut = maxSeenAt;
+      wallEndsOut = Math.max(wallEndsOut + lag, maxSeenAt);
     }
     out[a.id] = {
       ...p,
       activatedAt,
       endsAt,
       cooldownUntil,
-      wallEndsAt: wallEnds,
-      wallCooldownUntil: wallCool,
+      wallEndsAt: wallEndsOut,
+      wallCooldownUntil: wallCoolOut,
     };
   }
   return out;

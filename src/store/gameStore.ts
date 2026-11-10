@@ -552,6 +552,7 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
             value.appel,
             maxSeen,
             typeof Date !== 'undefined' ? Date.now() : maxSeen,
+            value.gacha.stars,
           ),
         };
         set({ game: imported, status: 'ready', recoveryReason: null, recoveryKind: null });

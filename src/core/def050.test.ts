@@ -1,6 +1,12 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
-import { activateAppelOnState, clampAppelForImport, startAppel } from './appel';
+import {
+  activateAppelOnState,
+  clampAppelForImport,
+  remainingMs,
+  startAppel,
+  toCoreEntry,
+} from './appel';
 import { ManualClock } from './clock';
 import { createInitialState } from './state';
 import { idleGainCentsBetween } from './idle';
@@ -45,7 +51,8 @@ describe('DEF-GS-31 / M07: import clamp of a future-dated call', () => {
     expect(out.omar!.cooldownUntil).toBe(T0 + 24 * H);
     // SHIFT (not DROP): 2 h absence = 1 h boosted + 1 h normal.
     const g: GameState = { ...seeded(), appel: out, appelReceipts: [] };
-    expect(idleGainCentsBetween(g, T0, T0 + 2 * H)).toBe(312 * 3600 + 222 * 3600);
+    // CT-IMP-01 (SHIFT, 1 h boost): 1 922 400 ¢
+    expect(idleGainCentsBetween(g, T0, T0 + 2 * H)).toBe(1_922_400);
     // Real wall may already be past the exported start (QA clock vs afternoon Date.now):
     // wall must still sit on the maxSeenAt line so mid/mid offline is not a 6 h boost.
     const outWall = clampAppelForImport({ omar: entry }, T0, T0 + 5 * H + 13 * 60_000);
@@ -53,7 +60,7 @@ describe('DEF-GS-31 / M07: import clamp of a future-dated call', () => {
     expect(outWall.omar!.endsAt).toBe(T0 + H);
     expect(outWall.omar!.wallEndsAt).toBe(T0 + H);
     const g2: GameState = { ...seeded(), appel: outWall, appelReceipts: [] };
-    expect(idleGainCentsBetween(g2, T0, T0 + 2 * H)).toBe(312 * 3600 + 222 * 3600);
+    expect(idleGainCentsBetween(g2, T0, T0 + 2 * H)).toBe(1_922_400);
   });
 
   it('importSave applies the same clamp (mutant: identity clamp leaves +5 h start)', async () => {
@@ -81,7 +88,8 @@ describe('DEF-GS-31 / M07: import clamp of a future-dated call', () => {
     expect(g.appel.omar?.endsAt).toBe(T0 + H);
     expect(g.maxSeenAt).toBe(T0);
     expect(g.lastSeenAt).toBe(T0);
-    expect(idleGainCentsBetween(g, T0, T0 + 2 * H)).toBe(312 * 3600 + 222 * 3600);
+    // CT-IMP-01 (SHIFT, 1 h boost): 1 922 400 ¢
+    expect(idleGainCentsBetween(g, T0, T0 + 2 * H)).toBe(1_922_400);
   });
 });
 
@@ -119,5 +127,71 @@ describe('M04: power boost is multiplicative with appel ×2 (exact points)', () 
     const r = tap(g, [], T0, 2);
     if (!r.accepted) throw new Error('refused');
     expect(r.gained).toBe(36);
+  });
+});
+
+describe('DEF-GS-31 cap: official duration, unknown stars, invalid duration', () => {
+  const sixH = 6 * H;
+
+  function haruEntry(duration: number): AppelPersisted {
+    return {
+      activatedAt: T0,
+      endsAt: T0 + duration,
+      cooldownUntil: T0 + 24 * H,
+      wallEndsAt: T0 + duration,
+      wallCooldownUntil: T0 + 24 * H,
+      activationId: 'tampered-haru',
+    };
+  }
+
+  /** Haru 1★ only, Livret A lv 2: 126 c/s idle, 132 c/s during the call. */
+  function haruSeeded(appel: GameState['appel']): GameState {
+    const b = createInitialState(T0, 7);
+    return {
+      ...b,
+      lastSeenAt: T0,
+      maxSeenAt: T0,
+      gacha: { ...b.gacha, stars: { haru: 1 } },
+      investments: { save: 2, stock: 0, estate: 0 },
+      appel,
+      appelReceipts: [],
+    };
+  }
+
+  it('a 1★ call declaring 6 h is capped at 30 min (exact remaining and 2 h gain)', () => {
+    // Official 1★ / 2★ duration is 30 min (literal, not CALL_DURATION_MS[1]).
+    // "At most 1 h" is also true; the exact cap is 1 800 000 ms.
+    const out = clampAppelForImport({ haru: haruEntry(sixH) }, T0, T0, { haru: 1 });
+    expect(out.haru).toBeDefined();
+    expect(out.haru!.activatedAt).toBe(T0);
+    expect(out.haru!.endsAt).toBe(T0 + 1_800_000);
+    expect(out.haru!.endsAt - out.haru!.activatedAt).toBe(1_800_000);
+    expect(out.haru!.wallEndsAt).toBe(T0 + 1_800_000);
+    expect(out.haru!.endsAt - out.haru!.activatedAt).toBeLessThanOrEqual(3_600_000);
+    const rem = remainingMs(toCoreEntry(out.haru!), T0, T0);
+    expect(rem.active).toBe(1_800_000);
+    const g = haruSeeded(out);
+    // 30 min at 132 c/s + 90 min at 126 c/s (not 2 h at 132).
+    expect(idleGainCentsBetween(g, T0, T0 + 2 * H)).toBe(132 * 1800 + 126 * 5400);
+  });
+
+  it('unknown star level (missing, 0, or out of 1..5) drops the entry', () => {
+    const entry = haruEntry(H);
+    expect(clampAppelForImport({ haru: entry }, T0, T0, {}).haru).toBeUndefined();
+    expect(clampAppelForImport({ haru: entry }, T0, T0, { haru: 0 }).haru).toBeUndefined();
+    expect(clampAppelForImport({ haru: entry }, T0, T0, { haru: 6 }).haru).toBeUndefined();
+    expect(clampAppelForImport({ haru: entry }, T0, T0, { haru: Number.NaN }).haru).toBeUndefined();
+  });
+
+  it('invalid duration (non-finite, <= 0, endsAt <= startedAt) drops the entry', () => {
+    const base = haruEntry(1_800_000);
+    const stars = { haru: 1 as const };
+    const drop = (patch: Partial<AppelPersisted>) =>
+      clampAppelForImport({ haru: { ...base, ...patch } }, T0, T0, stars).haru;
+    expect(drop({ endsAt: T0 })).toBeUndefined(); // duration 0, endsAt === startedAt
+    expect(drop({ endsAt: T0 - 1 })).toBeUndefined(); // endsAt < startedAt
+    expect(drop({ endsAt: Number.NaN })).toBeUndefined();
+    expect(drop({ endsAt: Number.POSITIVE_INFINITY })).toBeUndefined();
+    expect(drop({ activatedAt: Number.NaN, endsAt: T0 + 1_800_000 })).toBeUndefined();
   });
 });
