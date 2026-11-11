@@ -109,6 +109,9 @@ export const fr = {
   appelBadgeCool: 'Recharge {t}',
   appelConfirmYes: 'Lancer l’appel',
   appelConfirmNo: 'Annuler',
+  appelOnline: 'en ligne',
+  appelHint: 'Toucher pour continuer',
+  appelWriting: '{name} écrit…',
 
   noTicket: 'Pas de ticket : termine les quêtes du jour.',
   ratesLink: 'Taux de tirage',

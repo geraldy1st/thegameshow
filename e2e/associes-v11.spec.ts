@@ -44,8 +44,16 @@ test.describe('Associés v11', () => {
     expect(ev.endsAt - ev.activatedAt).toBe(60 * 60_000);
     expect(ev.cooldownUntil - ev.activatedAt).toBe(4 * 60 * 60_000);
     expect(g.appelReceipts.filter((r) => r.associateId === 'omar')).toHaveLength(1);
+    // Dialogue is a second modal: close it, then the sheet, then the grid badge is visible.
+    const panel = page.locator('dialog.amsg[open]');
+    if (await panel.count()) {
+      // A dblclick may already have advanced writing → reading; close whatever remains.
+      while ((await panel.count()) > 0) await page.keyboard.press('Escape');
+    }
+    await expect(sheet).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.locator('.appel-badge.active')).toBeVisible();
     await expect(page.locator('.appel-badge.active')).toContainText(/h|min/);
+    await expect(page.locator('.appel-badge.active')).not.toHaveText(/\d+:\d+/);
   });
 });

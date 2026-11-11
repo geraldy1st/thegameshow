@@ -19,6 +19,7 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   vi.useRealTimers();
+  location.hash = '';
 });
 
 async function app(name: string, tab = 'Associés') {
@@ -132,5 +133,56 @@ describe('daily quiz (DEF-GS-06)', () => {
       await new Promise((r) => setTimeout(r, 30));
     });
     expect(store.getState().game!.tickets).toBe(before + 2);
+  });
+});
+
+describe('call badge, card bonus and home banner (U03, M19, OBS-052-03)', () => {
+  const T0 = Date.UTC(2026, 9, 25);
+  const H = 3_600_000;
+
+  async function withOmarCall(name: string, tab: string) {
+    const store = await app(name, '');
+    await act(async () => {
+      const g = store.getState().game!;
+      store.setState({
+        wallMs: T0,
+        game: {
+          ...g,
+          gacha: { ...g.gacha, stars: { ...g.gacha.stars, omar: 3 } },
+          appel: {
+            omar: {
+              activatedAt: T0,
+              endsAt: T0 + H,
+              cooldownUntil: T0 + 4 * H,
+              wallEndsAt: T0 + H,
+              wallCooldownUntil: T0 + 4 * H,
+              activationId: 'ui-omar',
+            },
+          },
+        },
+      });
+    });
+    if (tab) fireEvent.click(screen.getByRole('button', { name: tab }));
+    return store;
+  }
+
+  it('U03: the grid badge uses formatAppelRemain, not mm:ss', async () => {
+    await withOmarCall('ui-u03', 'Associés');
+    const badge = document.querySelector('.appel-badge.active');
+    expect(badge?.textContent).toMatch(/1 h 00 min/);
+    expect(badge?.textContent).not.toMatch(/\d+:\d+/);
+  });
+
+  it('M19: the card bonus uses associatePercent (×2 while the call is active)', async () => {
+    await withOmarCall('ui-m19', 'Associés');
+    expect(screen.getByText(/Bonus actuel : \+150 %/)).toBeTruthy();
+    expect(screen.queryByText(/Bonus actuel : \+75 %/)).toBeNull();
+  });
+
+  it('OBS-052-03: the home banner uses formatAppelRemain, not mm:ss', async () => {
+    await withOmarCall('ui-obs03', 'Accueil');
+    const banner = document.querySelector('.appel-banner');
+    expect(banner?.textContent ?? '').toMatch(/Omar 1 h 00 min/);
+    expect(banner?.textContent ?? '').not.toMatch(/\d+:\d+/);
   });
 });

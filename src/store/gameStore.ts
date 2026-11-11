@@ -464,8 +464,6 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         });
         if (fail) return { ok: false, reason: fail };
         if (!stored) return { ok: false, reason: 'write-failed' };
-        if (!replay)
-          get().announce(t('appelStarted', { name: id.charAt(0).toUpperCase() + id.slice(1) }));
         return { ok: true, replay };
       },
 

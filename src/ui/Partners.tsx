@@ -16,6 +16,7 @@ import type { GameStoreState } from '../store/gameStore';
 import { Modal, Portrait } from './common';
 import { Rates } from './Rates';
 import { AssociateSheet } from './partners/AssociateSheet';
+import { AppelDialog } from './partners/AppelDialog';
 import {
   associatePercent,
   displayWallNow,
@@ -152,6 +153,7 @@ function ProfileSheet({
   a: AssociateDef;
   onClose: () => void;
 }) {
+  const [chat, setChat] = useState(false);
   const starsNow = useStore(store, (st) => st.game?.gacha.stars[a.id] ?? 0);
   const targetLevel = useStore(store, (st) => {
     const g = st.game;
@@ -176,25 +178,35 @@ function ProfileSheet({
         ? remainingMs(entry!, now, wallNow).cool
         : 0;
   return (
-    <AssociateSheet
-      a={a}
-      starsNow={starsNow}
-      targetLevel={targetLevel}
-      appel={appel}
-      remainingMs={rem}
-      now={now}
-      wallNow={wallNow}
-      entry={entry}
-      onClose={onClose}
-      onCall={() => {
-        void store
-          .getState()
-          .startAppel(a.id)
-          .then((r) => {
-            if (!r.ok && r.reason === 'write-failed') store.getState().announce(t('writeFailed'));
-          });
-      }}
-    />
+    <>
+      <AssociateSheet
+        a={a}
+        starsNow={starsNow}
+        targetLevel={targetLevel}
+        appel={appel}
+        remainingMs={rem}
+        now={now}
+        wallNow={wallNow}
+        entry={entry}
+        onClose={onClose}
+        onCall={() => {
+          void store
+            .getState()
+            .startAppel(a.id)
+            .then((r) => {
+              if (!r.ok) {
+                if (r.reason === 'write-failed') store.getState().announce(t('writeFailed'));
+                return;
+              }
+              if (r.replay) return;
+              setChat(true);
+            });
+        }}
+      />
+      {chat ? (
+        <AppelDialog a={a} returnFocusId={`af-call-${a.id}`} onClose={() => setChat(false)} />
+      ) : null}
+    </>
   );
 }
 

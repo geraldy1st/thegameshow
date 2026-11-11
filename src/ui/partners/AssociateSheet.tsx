@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react';
+import { useId, useState } from 'react';
 import {
   MAX_STARS,
   type AssociateDef,
@@ -9,12 +9,11 @@ import { ASSOCIATE_PROFILES } from '../../data/associateProfiles';
 import { BIOS } from '../../data/bios';
 import {
   associatePercent,
-  CALL_DURATION_MS,
   drawChancePercent,
   type AppelEntry,
   type AppelStatus,
 } from '../../core/appel';
-import { formatAppelRemain, formatPercent } from '../format';
+import { callDurationLabel, formatAppelRemain, formatPercent } from '../format';
 import { t } from '../../i18n/fr';
 import { Modal, Portrait } from '../common';
 
@@ -49,10 +48,6 @@ function displayName(id: AssociateId): string {
   return id.charAt(0).toUpperCase() + id.slice(1);
 }
 
-function callDurationLabel(rarity: AssociateDef['rarity']): string {
-  return CALL_DURATION_MS[rarity] >= 60 * 60_000 ? '1 h' : '30 min';
-}
-
 export function AssociateSheet({
   a,
   starsNow,
@@ -76,7 +71,6 @@ export function AssociateSheet({
   };
   const bio = BIOS[a.id];
   const titleId = useId();
-  const liveRef = useRef<HTMLParagraphElement>(null);
   const targetForBonus: Exclude<BonusTarget, 'all'> = a.target === 'all' ? 'save' : a.target;
   // Single source: same associatePercent the economy uses (call ×2 when active).
   const activePct = associatePercent(a.id, starsNow, targetForBonus, entry, now, wallNow);
@@ -105,8 +99,6 @@ export function AssociateSheet({
       if (!ok) return;
     }
     onCall();
-    if (liveRef.current)
-      liveRef.current.textContent = t('appelStarted', { name: displayName(a.id) });
   }
 
   return (
@@ -188,12 +180,11 @@ export function AssociateSheet({
           </details>
         )}
 
-        <p ref={liveRef} className="visually-hidden" aria-live="polite" />
-
         <button
           type="button"
+          id={`af-call-${a.id}`}
           className={`btn ${appel === 'available' ? 'btn-primary' : 'btn-ghost'}`}
-          disabled={appel !== 'available'}
+          disabled={appel === 'locked'}
           aria-disabled={appel !== 'available'}
           onClick={requestCall}
         >

@@ -9,7 +9,7 @@ import { questDone } from '../core/quests';
 import { centsToYen } from '../core/numbers';
 import { t, type MessageKey } from '../i18n/fr';
 import type { GameStoreState } from '../store/gameStore';
-import { formatDuration, formatRate, formatYen } from './format';
+import { formatAppelRemain, formatDuration, formatRate, formatYen } from './format';
 import { ASSOCIATES } from '../data/balance';
 import { displayWallNow, remainingMs, statusAt, toCoreEntry } from '../core/appel';
 import { displayName } from './helpers';
@@ -297,11 +297,7 @@ function ActiveBoostsBanner({ store }: { store: Store }) {
     const owned = (stars[a.id] ?? 0) > 0;
     if (statusAt(owned, toCoreEntry(p), now, wallNow) === 'active') {
       const rem = remainingMs(toCoreEntry(p), now, wallNow).active;
-      const m = Math.floor(rem / 60000);
-      const sec = Math.floor((rem % 60000) / 1000);
-      active.push(
-        `${displayName(a.id)} ${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`,
-      );
+      active.push(`${displayName(a.id)} ${formatAppelRemain(rem)}`);
     }
     if (active.length >= 2) break;
   }

@@ -48,6 +48,23 @@ describe('Associés v11 store integration', () => {
     );
     const busy = await store.getState().startAppel('omar', 'act-2');
     expect(busy).toEqual({ ok: false, reason: 'busy' });
+    // R-052D-03: no success announcement (the dialogue live region takes over).
+    expect(store.getState().announcement).not.toMatch(/Appel lancé/);
+  });
+
+  it('readonly and replay do not announce a successful call (R-052D-03)', async () => {
+    const { store } = await ready();
+    store.setState({ status: 'readonly' });
+    const ro = await store.getState().startAppel('omar');
+    expect(ro).toEqual({ ok: false, reason: 'readonly' });
+    expect(store.getState().announcement).not.toMatch(/Appel lancé/);
+    store.setState({ status: 'ready' });
+    const first = await store.getState().startAppel('haru', 'replay-1');
+    expect(first).toEqual({ ok: true, replay: false });
+    expect(store.getState().announcement).not.toMatch(/Appel lancé/);
+    const replay = await store.getState().startAppel('haru', 'replay-1');
+    expect(replay).toEqual({ ok: true, replay: true });
+    expect(store.getState().announcement).not.toMatch(/Appel lancé/);
   });
 
   it('offline gain only counts call overlap (prorata)', async () => {

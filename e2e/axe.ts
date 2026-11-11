@@ -7,7 +7,16 @@ const axeSource = readFileSync(
   'utf8',
 );
 
+/** Wait for each <dialog>'s own intro animation (DEF-GS-37 / R-052D-07). Not descendants. */
+export async function waitForDialogAnimations(page: Page) {
+  await page.evaluate(async () => {
+    const anims = [...document.querySelectorAll('dialog')].flatMap((d) => d.getAnimations());
+    await Promise.all(anims.map((a) => a.finished.catch(() => undefined)));
+  });
+}
+
 export async function axeViolations(page: Page) {
+  await waitForDialogAnimations(page);
   await page.addScriptTag({ content: axeSource });
   return page.evaluate(async () => {
     const w = window as unknown as {

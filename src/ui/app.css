@@ -2166,3 +2166,302 @@ dialog:has(.assoc-sheet) {
   background: #1b2a4a;
   border-radius: 0.35rem;
 }
+
+/* 0.5.2 addendum: Faire appel messaging panel (Mirage SPEC, second <dialog showModal>). */
+dialog.amsg {
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: none;
+}
+dialog.amsg[open] {
+  animation: none;
+}
+dialog.amsg::backdrop {
+  background: transparent;
+}
+/* Keep the exit animation on a just-closed dialog without holding the top layer (R-052D-01). */
+dialog.amsg.out:not([open]) {
+  display: flex;
+  pointer-events: none;
+}
+.amsg-veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(27, 42, 74, 0.6);
+  opacity: 0;
+  animation: amsgVeil 320ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.amsg-sheet {
+  position: relative;
+  z-index: 1;
+  width: min(430px, 100%);
+  background: var(--navy);
+  color: var(--cream);
+  border-radius: 20px 20px 0 0;
+  padding: 0 0 calc(16px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.4);
+  border-top: 1px solid var(--line);
+  outline: none;
+  transform: translateY(24px);
+  opacity: 0;
+  animation: amsgIn 320ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.amsg-sheet:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+.amsg-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.amsg-av,
+.amsg-av img {
+  display: block;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 12%;
+  flex-shrink: 0;
+  border: 1.5px solid var(--gold);
+  background: var(--navy-deep);
+}
+.amsg-who {
+  min-width: 0;
+}
+.amsg-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 1.2;
+  color: var(--cream);
+}
+.amsg-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 0;
+}
+.amsg-stars {
+  color: var(--gold);
+  letter-spacing: 0.08em;
+  font-size: 13px;
+}
+.amsg-on {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--gold);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+.amsg-on::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--navy);
+}
+.amsg-thread {
+  padding: 14px 16px 8px;
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.amsg-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--cream);
+  padding: 10px 14px;
+  border-radius: 16px 16px 16px 4px;
+  min-height: 40px;
+}
+.amsg-type span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--navy);
+  opacity: 0.28;
+  animation: amsgDot 900ms ease-in-out infinite;
+}
+.amsg-type span:nth-child(2) {
+  animation-delay: 150ms;
+}
+.amsg-type span:nth-child(3) {
+  animation-delay: 300ms;
+}
+.amsg-bubble {
+  margin: 0;
+  max-width: 85%;
+  background: var(--cream);
+  color: var(--navy);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.45;
+  padding: 12px 14px;
+  border-radius: 16px 16px 16px 4px;
+  transform: scale(0.96);
+  opacity: 0;
+  animation: amsgBub 240ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: left bottom;
+}
+.amsg-bubble[hidden] {
+  display: none;
+}
+.amsg-chip {
+  margin: 0;
+  display: inline-block;
+  background: var(--gold);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 999px;
+  line-height: 1.2;
+}
+.amsg-hint {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 8px 16px 0;
+  min-height: 32px;
+}
+.amsg.out .amsg-veil {
+  animation: amsgVeilOut 180ms ease forwards;
+}
+.amsg.out .amsg-sheet {
+  animation: amsgOut 180ms ease forwards;
+}
+@keyframes amsgIn {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes amsgOut {
+  from {
+    transform: none;
+    opacity: 1;
+  }
+  to {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+}
+@keyframes amsgVeil {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes amsgVeilOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes amsgBub {
+  from {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes amsgDot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.28;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+.amsg.rmx .amsg-veil {
+  animation: amsgVeil 120ms linear forwards;
+}
+.amsg.rmx .amsg-sheet {
+  animation: amsgVeil 120ms linear forwards;
+  transform: none;
+}
+.amsg.rmx .amsg-bubble {
+  animation: amsgVeil 120ms linear forwards;
+  transform: none;
+}
+.amsg.rmx .amsg-type,
+.amsg.rmx .amsg-type span {
+  animation: none;
+}
+.amsg.rmx.out .amsg-veil,
+.amsg.rmx.out .amsg-sheet {
+  animation: amsgVeilOut 120ms linear forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .amsg-veil,
+  .amsg-sheet,
+  .amsg-bubble,
+  .amsg.out .amsg-veil,
+  .amsg.out .amsg-sheet {
+    animation-duration: 120ms !important;
+  }
+  .amsg-sheet,
+  .amsg-bubble {
+    animation-name: amsgVeil !important;
+    transform: none;
+  }
+  .amsg-type,
+  .amsg-type span {
+    animation: none !important;
+  }
+}
+[data-motion='reduce'] .amsg-veil,
+[data-motion='reduce'] .amsg-sheet,
+[data-motion='reduce'] .amsg-bubble,
+[data-motion='reduce'] .amsg.out .amsg-veil,
+[data-motion='reduce'] .amsg.out .amsg-sheet {
+  animation-duration: 120ms !important;
+}
+[data-motion='reduce'] .amsg-sheet,
+[data-motion='reduce'] .amsg-bubble {
+  animation-name: amsgVeil !important;
+  transform: none;
+}
+[data-motion='reduce'] .amsg-type,
+[data-motion='reduce'] .amsg-type span {
+  animation: none !important;
+}

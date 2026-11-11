@@ -164,4 +164,23 @@ describe('AssociateSheet (isolated)', () => {
     expect(apport.open).toBe(true);
     expect(bio.open).toBe(false);
   });
+
+  it('R-052D-02: Boost actif stays focusable via aria-disabled, not disabled', () => {
+    render(
+      <AssociateSheet
+        a={omar}
+        starsNow={3}
+        targetLevel={2}
+        appel="active"
+        remainingMs={60_000}
+        onClose={() => {}}
+      />,
+    );
+    const btn = screen.getByRole('button', { name: /Boost actif/ });
+    expect((btn as HTMLButtonElement).disabled).toBe(false);
+    expect(btn.getAttribute('aria-disabled')).toBe('true');
+    expect(btn.id).toBe('af-call-omar');
+    btn.focus();
+    expect(document.activeElement).toBe(btn);
+  });
 });

@@ -11,6 +11,7 @@ import { openSaveDb } from './save/db';
 import { createGameStore, randomSeed, webLocksWriter } from './store/gameStore';
 import { App } from './ui/App';
 import { initRoute } from './ui/router';
+import { blockPinchZoom } from './ui/blockPinchZoom';
 
 async function boot() {
   let clock: Clock = systemClock;
@@ -38,16 +39,6 @@ async function boot() {
     newSeed: seed,
     acquireWriterLock: webLocksWriter,
   });
-}
-
-/** R-052-04: block iOS Safari pinch-zoom. No JS double-tap guard (would risk dropping Aoi taps). */
-function blockPinchZoom(): void {
-  const stop = (e: Event) => {
-    e.preventDefault();
-  };
-  for (const ev of ['gesturestart', 'gesturechange', 'gestureend'] as const) {
-    document.addEventListener(ev, stop, { passive: false });
-  }
 }
 
 initRoute();
