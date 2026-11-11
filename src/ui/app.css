@@ -2263,25 +2263,6 @@ dialog.amsg.out:not([open]) {
   letter-spacing: 0.08em;
   font-size: 13px;
 }
-.amsg-on {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: var(--gold);
-  color: var(--ink);
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 999px;
-  letter-spacing: 0.02em;
-}
-.amsg-on::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--navy);
-}
 .amsg-thread {
   padding: 14px 16px 8px;
   display: grid;

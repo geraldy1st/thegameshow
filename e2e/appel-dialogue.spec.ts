@@ -46,6 +46,11 @@ test.describe('Faire appel dialogue (R-052D-01..07)', () => {
     await expect(page.locator('#amsg-bubble')).toContainText(
       'On découpe le plan : bonus Épargne ×2 pendant 1 h',
     );
+    await expect(page.locator('#amsg-name')).toHaveText('Omar');
+    await expect(page.locator('.amsg-stars')).toHaveText('★★★');
+    await expect(page.locator('.amsg-av, .amsg-av img').first()).toBeVisible();
+    await expect(page.locator('.amsg-on')).toHaveCount(0);
+    await expect(page.locator('.amsg-head')).not.toContainText('en ligne');
     await expect(page.locator('.amsg-chip')).toHaveText('⚡ bonus Épargne ×2 · 1 h');
     const lives = await page.locator('[aria-live]').allTextContents();
     expect(lives.join(' ')).not.toMatch(/Appel lancé/);

@@ -128,7 +128,6 @@ export function AppelDialog({
                 {'★'.repeat(a.rarity)}
               </span>
               <span className="visually-hidden">{t('rarity', { n: a.rarity })}</span>
-              <span className="amsg-on">{t('appelOnline')}</span>
             </p>
           </div>
         </header>

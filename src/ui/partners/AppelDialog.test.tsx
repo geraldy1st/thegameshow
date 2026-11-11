@@ -43,6 +43,15 @@ describe('AppelDialog', () => {
     );
   });
 
+  it('header has the avatar, name and stars, and no online badge', () => {
+    render(<AppelDialog a={omar} returnFocusId="af-call-omar" onClose={() => {}} />);
+    expect(document.querySelector('.amsg-av')).toBeTruthy();
+    expect(document.getElementById('amsg-name')?.textContent).toBe('Omar');
+    expect(document.querySelector('.amsg-stars')?.textContent).toBe('★★★');
+    expect(document.querySelector('.amsg-on')).toBeNull();
+    expect(document.querySelector('.amsg-head')?.textContent).not.toMatch(/en ligne/);
+  });
+
   it('reduced-motion: no typing indicator, replica immediately, no transform (R-052D-07)', () => {
     document.documentElement.dataset.motion = 'reduce';
     render(<AppelDialog a={omar} returnFocusId="af-call-omar" onClose={() => {}} />);
