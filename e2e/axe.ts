@@ -7,10 +7,16 @@ const axeSource = readFileSync(
   'utf8',
 );
 
-/** Wait for each <dialog>'s own intro animation (DEF-GS-37 / R-052D-07). Not descendants. */
+/** Wait for finite animations on each <dialog> and its contents (DEF-GS-39 / R-052D-07).
+ *  Infinite descendant loops (typing dots, DEF-GS-37) are skipped so axe cannot hang. */
 export async function waitForDialogAnimations(page: Page) {
   await page.evaluate(async () => {
-    const anims = [...document.querySelectorAll('dialog')].flatMap((d) => d.getAnimations());
+    const anims = [...document.querySelectorAll('dialog')].flatMap((d) =>
+      d.getAnimations({ subtree: true }).filter((a) => {
+        const iters = a.effect?.getComputedTiming().iterations;
+        return iters !== Infinity;
+      }),
+    );
     await Promise.all(anims.map((a) => a.finished.catch(() => undefined)));
   });
 }

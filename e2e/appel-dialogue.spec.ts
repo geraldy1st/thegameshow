@@ -120,3 +120,183 @@ test.describe('Faire appel dialogue (R-052D-01..07)', () => {
     expect(await axeViolations(page)).toEqual([]);
   });
 });
+
+/** Contrast including the element's opacity and ancestor backgrounds (DEF-GS-38). */
+async function contrastOfCallButton(page: Page) {
+  return page.evaluate(() => {
+    const parse = (c: string) => {
+      const m = c.match(/[\d.]+/g)!.map(Number);
+      return { r: m[0], g: m[1], b: m[2], a: m.length > 3 ? m[3] : 1 };
+    };
+    type C = ReturnType<typeof parse>;
+    const over = (top: C, under: C): C => ({
+      r: top.r * top.a + under.r * (1 - top.a),
+      g: top.g * top.a + under.g * (1 - top.a),
+      b: top.b * top.a + under.b * (1 - top.a),
+      a: 1,
+    });
+    const lum = (c: C) => {
+      const f = (v: number) => {
+        const x = v / 255;
+        return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+    };
+    const ratio = (a: C, b: C) => {
+      const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
+      return (x + 0.05) / (y + 0.05);
+    };
+    const el = document.querySelector<HTMLElement>('[id^="af-call-"]');
+    if (!el) throw new Error('call button missing');
+    const cs = getComputedStyle(el);
+    let opac = 1;
+    for (let n: HTMLElement | null = el; n; n = n.parentElement) {
+      opac *= Number(getComputedStyle(n).opacity);
+    }
+    const layers: C[] = [];
+    for (let n: HTMLElement | null = el; n; n = n.parentElement) {
+      const bg = parse(getComputedStyle(n).backgroundColor);
+      if (bg.a > 0) layers.push(bg);
+      if (bg.a >= 1) break;
+    }
+    const behind = layers
+      .slice(1)
+      .reduceRight((acc, l) => over(l, acc), { r: 27, g: 42, b: 74, a: 1 });
+    const own = layers[0] ?? { r: 0, g: 0, b: 0, a: 0 };
+    const fadedBg = over({ ...own, a: own.a * opac }, behind);
+    const col = parse(cs.color);
+    const fadedText = over({ ...col, a: col.a * opac }, fadedBg);
+    const hex = (c: C) =>
+      '#' + [c.r, c.g, c.b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+    return {
+      label: (el.textContent ?? '').trim(),
+      color: cs.color,
+      backgroundColor: cs.backgroundColor,
+      opacity: Number(cs.opacity),
+      cumulativeOpacity: Math.round(opac * 1000) / 1000,
+      textHex: hex(fadedText),
+      bgHex: hex(fadedBg),
+      contrast: Math.round(ratio(fadedText, fadedBg) * 100) / 100,
+    };
+  });
+}
+
+const OWNED = [
+  { id: 'haru' as const, name: 'Haru', stars: 1, durationMs: 30 * 60_000 },
+  { id: 'noa' as const, name: 'Noa', stars: 2, durationMs: 30 * 60_000 },
+  { id: 'omar' as const, name: 'Omar', stars: 3, durationMs: 60 * 60_000 },
+];
+
+async function ownAndOpen(page: Page, who: (typeof OWNED)[number]) {
+  await start(page);
+  const ok = await page.evaluate(async ({ id, stars }) => {
+    const api = window.__TGS_TEST__!;
+    const g = api.state();
+    if (!g) return false;
+    return api.loadSave({
+      ...g,
+      gacha: { ...g.gacha, stars: { ...g.gacha.stars, [id]: stars }, last: null },
+      investments: { ...g.investments, save: 1, stock: 1 },
+    });
+  }, who);
+  expect(ok).toBe(true);
+  await tab(page, 'Associés').click();
+  await page
+    .getByRole('button', { name: new RegExp(`Voir le profil de ${who.name}`, 'i') })
+    .click();
+  await expect(page.locator('.assoc-sheet')).toBeVisible();
+}
+
+test.describe('DEF-GS-38 call button contrast on the sheet', () => {
+  for (const who of OWNED) {
+    test(`${who.name}: Boost actif and De retour dans are ≥ 4.5:1`, async ({ page }) => {
+      await ownAndOpen(page, who);
+      await page
+        .getByRole('button', { name: new RegExp(`Faire appel à ${who.name}`, 'i') })
+        .click();
+      const panel = page.locator('dialog.amsg[open]');
+      await expect(panel).toBeVisible();
+      await page.keyboard.press('Escape');
+      await page.keyboard.press('Escape');
+      await expect(panel).toHaveCount(0);
+      const btn = page.locator(`#af-call-${who.id}`);
+      await expect(btn).toContainText(/Boost actif/);
+      const active = await contrastOfCallButton(page);
+      console.log('DEF-GS-38 active', who.name, active);
+      expect(
+        active.contrast,
+        `${who.name} active ${active.textHex} on ${active.bgHex} (opacity ${active.opacity})`,
+      ).toBeGreaterThanOrEqual(4.5);
+      expect(active.opacity).toBe(1);
+      // Advancing the game clock alone cannot shorten remaining time (DEF-GS-29
+      // wall anchors). Load a cooling entry whose game and wall ends are already past.
+      const cooled = await page.evaluate(async ({ id, durationMs }) => {
+        const api = window.__TGS_TEST__!;
+        const g = api.state();
+        if (!g) return false;
+        const now = api.now();
+        const wall = Date.now();
+        const cool = 4 * 60 * 60_000;
+        const activatedAt = now - durationMs - 1000;
+        const wallAct = wall - durationMs - 1000;
+        return api.loadSave({
+          ...g,
+          appel: {
+            ...g.appel,
+            [id]: {
+              activatedAt,
+              endsAt: now - 1000,
+              cooldownUntil: activatedAt + cool,
+              wallEndsAt: wall - 1000,
+              wallCooldownUntil: wallAct + cool,
+              activationId: `e2e-gs38-${id}`,
+            },
+          },
+        });
+      }, who);
+      expect(cooled).toBe(true);
+      await expect(btn).toContainText(/De retour dans/);
+      const cool = await contrastOfCallButton(page);
+      console.log('DEF-GS-38 cooling', who.name, cool);
+      expect(
+        cool.contrast,
+        `${who.name} cooling ${cool.textHex} on ${cool.bgHex} (opacity ${cool.opacity})`,
+      ).toBeGreaterThanOrEqual(4.5);
+      expect(cool.opacity).toBe(1);
+      expect(await axeViolations(page)).toEqual([]);
+    });
+  }
+});
+
+test.describe('DEF-GS-40 exit animation', () => {
+  test('pointer close keeps the panel above the sheet until the animation ends', async ({
+    page,
+  }) => {
+    await openOmarAndCall(page);
+    await page.locator('dialog.amsg').click();
+    await expect(page.locator('#amsg-bubble')).toBeVisible();
+    await page.waitForTimeout(300);
+    await page.locator('dialog.amsg').click();
+    await page.waitForTimeout(40);
+    const snap = await page.evaluate(() => {
+      const dlg = document.querySelector('dialog.amsg') as HTMLDialogElement | null;
+      const sheet = document.querySelector('.amsg-sheet') as HTMLElement | null;
+      if (!dlg || !sheet) return null;
+      const r = sheet.getBoundingClientRect();
+      const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return {
+        open: dlg.open,
+        out: dlg.classList.contains('out'),
+        opacity: Number(getComputedStyle(sheet).opacity),
+        topIsPanel: !!(top && top.closest('dialog.amsg')),
+      };
+    });
+    expect(snap).toBeTruthy();
+    expect(snap!.open).toBe(true);
+    expect(snap!.out).toBe(true);
+    expect(snap!.opacity).toBeGreaterThan(0);
+    expect(snap!.topIsPanel).toBe(true);
+    await expect(page.locator('dialog.amsg[open]')).toHaveCount(0, { timeout: 1000 });
+    await expect(page.locator('.assoc-sheet')).toBeVisible();
+  });
+});

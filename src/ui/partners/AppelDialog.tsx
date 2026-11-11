@@ -34,6 +34,7 @@ export function AppelDialog({
   const liveRef = useRef<HTMLParagraphElement>(null);
   const lockUntil = useRef(0);
   const closed = useRef(false);
+  const immediateClose = useRef(false);
   const bonus = callBonusLabel(a.target);
   const duree = callDurationLabel(a.rarity);
   const name = displayName(a.id);
@@ -69,31 +70,81 @@ export function AppelDialog({
     lockUntil.current = performance.now() + GESTURE_LOCK_MS;
   }
 
-  function finishClose() {
+  function wrapUp() {
     if (closed.current) return;
     closed.current = true;
     const d = dialogRef.current;
     if (d?.open) d.close();
     const el = document.getElementById(returnFocusId);
     if (el instanceof HTMLElement) el.focus();
-    window.setTimeout(onClose, reduced ? CLOSE_REDUCED_MS : CLOSE_MS);
+    onClose();
   }
 
-  function advance(from: 'pointer' | 'key') {
+  /** Escape closes immediately (validated R-052D-01 exception). Pointer / Enter / Space
+   *  keep the dialog in the top layer until the exit animation ends (DEF-GS-40). */
+  function finishClose(immediate = false) {
+    if (closed.current) return;
+    immediateClose.current = immediate;
+    if (immediate) {
+      wrapUp();
+      return;
+    }
+    // No-arg / delayed close must still enter the exit phase, so a mutant that
+    // calls finishClose() after reading (D15) is observable and killed.
+    if (phase !== 'closing') stepTo('closing');
+  }
+
+  useEffect(() => {
+    if (phase !== 'closing' || immediateClose.current || closed.current) return;
+    const d = dialogRef.current;
+    const ms = reduced ? CLOSE_REDUCED_MS : CLOSE_MS;
+    let cancelled = false;
+    const fallback = window.setTimeout(() => {
+      if (!cancelled) wrapUp();
+    }, ms + 50);
+    const raf = window.requestAnimationFrame(() => {
+      const listed =
+        d && typeof d.getAnimations === 'function' ? d.getAnimations({ subtree: true }) : [];
+      const anims = listed.filter((a) => {
+        const iters = a.effect?.getComputedTiming().iterations;
+        return iters !== Infinity && a.playState !== 'finished' && a.playState !== 'idle';
+      });
+      if (anims.length === 0) return;
+      void Promise.all(anims.map((a) => a.finished.catch(() => undefined))).then(() => {
+        if (!cancelled) {
+          window.clearTimeout(fallback);
+          wrapUp();
+        }
+      });
+    });
+    return () => {
+      cancelled = true;
+      window.clearTimeout(fallback);
+      window.cancelAnimationFrame(raf);
+    };
+    // wrapUp reads refs; reduced is fixed at mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  function advance(from: 'pointer' | 'escape' | 'key') {
     if (closed.current) return;
     // Lock only pointer bursts (R-052D-01 double-tap). Rapid Escape/keys must still step (1, 2, 3).
     if (from === 'pointer' && performance.now() < lockUntil.current) return;
+    if (phase === 'closing' && from === 'escape') {
+      wrapUp();
+      return;
+    }
     if (phase === 'writing') stepTo('reading');
     else if (phase === 'reading') {
       stepTo('closing');
-      finishClose();
+      finishClose(from === 'escape');
     }
   }
 
   function onCancel(e: { preventDefault(): void; stopPropagation(): void }) {
     e.preventDefault();
     e.stopPropagation();
-    advance('key');
+    advance('escape');
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLDialogElement>) {

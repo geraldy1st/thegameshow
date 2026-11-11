@@ -2123,6 +2123,22 @@ dialog:has(.assoc-sheet) {
   z-index: 1;
   background: #1b2a4a;
 }
+/* DEF-GS-38: the associate sheet is navy inside a <dialog>, so `dialog .btn-ghost`
+   (DEF-GS-18, ink on cream) would paint navy on navy. Cream / muted cream on navy
+   are already measured in the appel SPEC (≥ 8:1). Unavailable states stay at
+   opacity 1 and use --muted instead of fading below 4.5:1. */
+.assoc-sheet .btn-ghost {
+  background: var(--surface-1);
+  color: var(--cream);
+  border-color: var(--cream);
+}
+.assoc-sheet .btn-ghost[aria-disabled='true'],
+.assoc-sheet .btn-ghost:disabled {
+  opacity: 1;
+  color: var(--muted);
+  border-color: var(--muted);
+  background: var(--surface-1);
+}
 .assoc-sheet-title:focus {
   outline: 3px solid #f5b83d;
   outline-offset: 2px;
