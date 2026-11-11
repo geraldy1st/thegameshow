@@ -2121,7 +2121,6 @@ dialog:has(.assoc-sheet) {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: #1b2a4a;
 }
 /* DEF-GS-38: the associate sheet is navy inside a <dialog>, so `dialog .btn-ghost`
    (DEF-GS-18, ink on cream) would paint navy on navy. Cream / muted cream on navy
@@ -2138,6 +2137,12 @@ dialog:has(.assoc-sheet) {
   color: var(--muted);
   border-color: var(--muted);
   background: var(--surface-1);
+}
+/* DEF-GS-42: sticky « ← Retour » must stay opaque when the sheet scrolls.
+   `.assoc-sheet .btn-ghost` would otherwise paint 8% --surface-1 and let the
+   title show through. Call-button contrast (DEF-GS-38) is unchanged. */
+.assoc-sheet .assoc-sheet-back {
+  background: var(--navy);
 }
 .assoc-sheet-title:focus {
   outline: 3px solid #f5b83d;
@@ -2441,6 +2446,13 @@ dialog.amsg.out:not([open]) {
     animation-name: amsgVeil !important;
     transform: none;
   }
+  /* DEF-GS-43: the enter name must not win on exit, or the sheet pops off
+     while only the veil fades. Opacity-only 120 ms fade, no transform. */
+  .amsg.out .amsg-veil,
+  .amsg.out .amsg-sheet {
+    animation-name: amsgVeilOut !important;
+    transform: none;
+  }
   .amsg-type,
   .amsg-type span {
     animation: none !important;
@@ -2456,6 +2468,11 @@ dialog.amsg.out:not([open]) {
 [data-motion='reduce'] .amsg-sheet,
 [data-motion='reduce'] .amsg-bubble {
   animation-name: amsgVeil !important;
+  transform: none;
+}
+[data-motion='reduce'] .amsg.out .amsg-veil,
+[data-motion='reduce'] .amsg.out .amsg-sheet {
+  animation-name: amsgVeilOut !important;
   transform: none;
 }
 [data-motion='reduce'] .amsg-type,

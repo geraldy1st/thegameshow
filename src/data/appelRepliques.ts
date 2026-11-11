@@ -3,8 +3,8 @@ import type { AssociateId } from './balance';
 /**
  * R-052D-06: Kei's line is isolated so a later editorial swap is a one-line change.
  * Mirage updated the wording (11/11/2026) to drop the ambiguous « Une heure de travail »
- * (Kei is 1★, so the call lasts 30 min). Validated according to Mirage (11/11/2026);
- * the text is unchanged.
+ * (Kei is 1★, so the call lasts 30 min). Validated by Geraldy (11/11/2026, 21:25
+ * Atlantic/Canary); the text is unchanged.
  */
 export const KEI_APPEL_REPLIQUE =
   "Tu as bien fait de m'appeler, Aoi ! Chaque effort au travail se compte aussi : {bonus} pendant {durée}.";

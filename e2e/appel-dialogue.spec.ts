@@ -88,10 +88,15 @@ test.describe('Faire appel dialogue (R-052D-01..07)', () => {
     await expect(page.locator('#af-call-omar')).toBeFocused();
   });
 
-  test('a rapid double tap on the veil advances only one state (R-052D-01)', async ({ page }) => {
+  test('a rapid double tap on the veil advances only one state (R-052D-01 / DEF-GS-44 D11)', async ({
+    page,
+  }) => {
     await openOmarAndCall(page);
     const veil = page.locator('.amsg-veil');
     await veil.click({ clickCount: 2 });
+    await expect(page.locator('#amsg-bubble')).toBeVisible();
+    // Wait past the 180 ms exit: without the 250 ms lock the panel would already be gone.
+    await page.waitForTimeout(400);
     await expect(page.locator('dialog.amsg[open]')).toBeVisible();
     await expect(page.locator('#amsg-bubble')).toBeVisible();
     await expect(page.locator('.assoc-sheet')).toBeVisible();
@@ -222,7 +227,6 @@ test.describe('DEF-GS-38 call button contrast on the sheet', () => {
       const btn = page.locator(`#af-call-${who.id}`);
       await expect(btn).toContainText(/Boost actif/);
       const active = await contrastOfCallButton(page);
-      console.log('DEF-GS-38 active', who.name, active);
       expect(
         active.contrast,
         `${who.name} active ${active.textHex} on ${active.bgHex} (opacity ${active.opacity})`,
@@ -257,7 +261,6 @@ test.describe('DEF-GS-38 call button contrast on the sheet', () => {
       expect(cooled).toBe(true);
       await expect(btn).toContainText(/De retour dans/);
       const cool = await contrastOfCallButton(page);
-      console.log('DEF-GS-38 cooling', who.name, cool);
       expect(
         cool.contrast,
         `${who.name} cooling ${cool.textHex} on ${cool.bgHex} (opacity ${cool.opacity})`,
@@ -297,6 +300,135 @@ test.describe('DEF-GS-40 exit animation', () => {
     expect(snap!.opacity).toBeGreaterThan(0);
     expect(snap!.topIsPanel).toBe(true);
     await expect(page.locator('dialog.amsg[open]')).toHaveCount(0, { timeout: 1000 });
+    await expect(page.locator('.assoc-sheet')).toBeVisible();
+  });
+});
+
+test.describe('DEF-GS-42 sticky Retour button', () => {
+  test('the title does not show through « ← Retour » when the sheet is scrolled', async ({
+    page,
+  }) => {
+    await ownAndOpen(
+      page,
+      OWNED.find((a) => a.id === 'omar')!,
+    );
+    const back = page.locator('.assoc-sheet-back');
+    await expect(back).toBeVisible();
+    const bio = page.locator('.assoc-sheet-bio summary');
+    if (await bio.count()) await bio.click();
+
+    const bg = await back.evaluate((el) => {
+      const c = getComputedStyle(el).backgroundColor;
+      const m = c.match(/[\d.]+/g)!.map(Number);
+      return { r: m[0], g: m[1], b: m[2], a: m.length > 3 ? m[3] : 1, raw: c };
+    });
+    expect(bg.a, `Retour background ${bg.raw}`).toBe(1);
+    expect(Math.abs(bg.r - 27)).toBeLessThanOrEqual(1);
+    expect(Math.abs(bg.g - 42)).toBeLessThanOrEqual(1);
+    expect(Math.abs(bg.b - 74)).toBeLessThanOrEqual(1);
+
+    // The production dialog may only overflow by a few pixels at 360×640; shrink
+    // it in the test so a 200 px scroll pulls the title under the sticky button.
+    const scrolled = await page.evaluate(() => {
+      const sheet = document.querySelector('.assoc-sheet') as HTMLElement;
+      const dialog = sheet.closest('dialog') as HTMLElement;
+      dialog.style.maxHeight = '360px';
+      dialog.style.height = '360px';
+      dialog.style.overflow = 'auto';
+      dialog.scrollTop = 200;
+      return {
+        scrollTop: dialog.scrollTop,
+        scrollHeight: dialog.scrollHeight,
+        clientHeight: dialog.clientHeight,
+      };
+    });
+    expect(scrolled.scrollTop, JSON.stringify(scrolled)).toBeGreaterThanOrEqual(120);
+
+    const box = await back.boundingBox();
+    expect(box).toBeTruthy();
+    const clip = {
+      x: Math.round(box!.x + box!.width - 12),
+      y: Math.round(box!.y + box!.height / 2 - 4),
+      width: 8,
+      height: 8,
+    };
+    const buf = await page.screenshot({ clip });
+    const samples = await page.evaluate(async (b64) => {
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('png'));
+        img.src = `data:image/png;base64,${b64}`;
+      });
+      const c = document.createElement('canvas');
+      c.width = img.width;
+      c.height = img.height;
+      const ctx = c.getContext('2d')!;
+      ctx.drawImage(img, 0, 0);
+      const data = ctx.getImageData(0, 0, c.width, c.height).data;
+      const pixels: { r: number; g: number; b: number; a: number }[] = [];
+      for (let i = 0; i < data.length; i += 4) {
+        pixels.push({ r: data[i], g: data[i + 1], b: data[i + 2], a: data[i + 3] });
+      }
+      return pixels;
+    }, buf.toString('base64'));
+    expect(samples.length).toBeGreaterThan(0);
+    for (const px of samples) {
+      expect(px.a, JSON.stringify(px)).toBeGreaterThanOrEqual(250);
+      expect(Math.abs(px.r - 27), JSON.stringify(px)).toBeLessThanOrEqual(12);
+      expect(Math.abs(px.g - 42), JSON.stringify(px)).toBeLessThanOrEqual(12);
+      expect(Math.abs(px.b - 74), JSON.stringify(px)).toBeLessThanOrEqual(12);
+    }
+  });
+});
+
+test.describe('DEF-GS-43 reduced-motion exit fade', () => {
+  test('the sheet fades with the veil (~120 ms, no transform)', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openOmarAndCall(page);
+    await expect(page.locator('#amsg-bubble')).toBeVisible();
+    await page.locator('dialog.amsg').click();
+    await page.waitForTimeout(40);
+    const snap = await page.evaluate(() => {
+      const dlg = document.querySelector('dialog.amsg') as HTMLDialogElement | null;
+      const sheet = document.querySelector('.amsg-sheet') as HTMLElement | null;
+      const veil = document.querySelector('.amsg-veil') as HTMLElement | null;
+      if (!dlg || !sheet || !veil) return null;
+      return {
+        open: dlg.open,
+        out: dlg.classList.contains('out'),
+        sheetOpacity: Number(getComputedStyle(sheet).opacity),
+        veilOpacity: Number(getComputedStyle(veil).opacity),
+        sheetTransform: getComputedStyle(sheet).transform,
+        sheetName: getComputedStyle(sheet).animationName,
+      };
+    });
+    expect(snap).toBeTruthy();
+    expect(snap!.open).toBe(true);
+    expect(snap!.out).toBe(true);
+    expect(snap!.sheetOpacity).toBeGreaterThan(0);
+    expect(snap!.sheetOpacity).toBeLessThan(1);
+    expect(snap!.veilOpacity).toBeGreaterThan(0);
+    expect(snap!.veilOpacity).toBeLessThan(1);
+    expect(
+      snap!.sheetTransform === 'none' || snap!.sheetTransform === 'matrix(1, 0, 0, 1, 0, 0)',
+    ).toBe(true);
+    expect(snap!.sheetName.toLowerCase()).toContain('amsgveilout');
+    await expect(page.locator('dialog.amsg[open]')).toHaveCount(0, { timeout: 1000 });
+    await expect(page.locator('.assoc-sheet')).toBeVisible();
+  });
+});
+
+test.describe('DEF-GS-44 Escape during pointer exit', () => {
+  test('Escape during the exit animation close()s immediately (D19)', async ({ page }) => {
+    await openOmarAndCall(page);
+    await page.locator('dialog.amsg').click();
+    await expect(page.locator('#amsg-bubble')).toBeVisible();
+    await page.waitForTimeout(300);
+    await page.locator('dialog.amsg').click();
+    await expect(page.locator('dialog.amsg')).toHaveClass(/out/);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('dialog.amsg[open]')).toHaveCount(0, { timeout: 200 });
     await expect(page.locator('.assoc-sheet')).toBeVisible();
   });
 });

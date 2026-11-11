@@ -135,4 +135,40 @@ describe('AppelDialog', () => {
     expect(document.activeElement?.id).toBe('af-call-omar');
     expect(onClose).toHaveBeenCalledOnce();
   });
+
+  it('a rapid double pointer advances only one state and stays open past the exit window (DEF-GS-44 D11)', () => {
+    vi.useFakeTimers();
+    const onClose = vi.fn();
+    render(<AppelDialog a={omar} returnFocusId="af-call-omar" onClose={onClose} />);
+    const dialog = document.querySelector('dialog.amsg') as HTMLDialogElement;
+    fireEvent.click(dialog);
+    fireEvent.click(dialog);
+    expect(dialog.open).toBe(true);
+    expect(dialog.classList.contains('out')).toBe(false);
+    expect(document.getElementById('amsg-bubble')?.textContent).toMatch(/On découpe le plan/);
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    expect(dialog.open).toBe(true);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('Escape during a pointer exit close()s immediately (DEF-GS-44 D19)', () => {
+    vi.useFakeTimers();
+    const onClose = vi.fn();
+    render(<AppelDialog a={omar} returnFocusId="af-call-omar" onClose={onClose} />);
+    const dialog = document.querySelector('dialog.amsg') as HTMLDialogElement;
+    fireEvent.click(dialog);
+    act(() => {
+      vi.advanceTimersByTime(260);
+    });
+    fireEvent.click(dialog);
+    expect(dialog.open).toBe(true);
+    expect(dialog.classList.contains('out')).toBe(true);
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent(dialog, new Event('cancel', { cancelable: true }));
+    expect(dialog.open).toBe(false);
+    expect(document.activeElement?.id).toBe('af-call-omar');
+    expect(onClose).toHaveBeenCalledOnce();
+  });
 });
