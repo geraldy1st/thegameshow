@@ -8,6 +8,7 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-24.04 # Playwright 1.55 has no browser build for ubuntu-latest (26.04)
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -24,7 +25,40 @@ jobs:
       - run: npm run check:no-budget-fake
       - run: npm run check:harness-detected
       - run: npm audit --audit-level=critical
-      - run: npx playwright install --with-deps chromium webkit
+      - name: Read Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}-chromium-webkit
+      # apt --with-deps hangs for 15+ min when azure.archive.ubuntu.com fails DNS
+      # (Temporary failure resolving; 20s Ign retries). Probe and fall back first.
+      - name: Fall back if the Azure Ubuntu apt mirror is unreachable
+        run: |
+          set -euo pipefail
+          printf '%s\n' 'Acquire::Retries "3";' 'Acquire::http::Timeout "15";' 'Acquire::https::Timeout "15";' | sudo tee /etc/apt/apt.conf.d/99-ci-timeouts >/dev/null
+          if ! curl -fsS --connect-timeout 5 --max-time 8 -o /dev/null http://azure.archive.ubuntu.com/ubuntu/dists/noble/InRelease; then
+            echo "azure.archive.ubuntu.com unreachable; switching apt to archive.ubuntu.com"
+            if [[ -f /etc/apt/apt-mirrors.txt ]]; then
+              printf '%s\n' 'http://archive.ubuntu.com/ubuntu/' 'http://security.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+            fi
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' \
+              /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          fi
+      - name: Install Playwright browsers
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if npx playwright install --with-deps chromium webkit; then
+              exit 0
+            fi
+            echo "Playwright install failed (attempt ${attempt}); retrying in 15s..."
+            sleep 15
+          done
+          exit 1
       # GS-V5-02 (D7): home budget <= 500 KB, blocking; then the gauge must fail on 600 KB fake.
       - run: npm run budget:home
       - run: npm run budget:gauge
@@ -33,6 +67,7 @@ jobs:
       - run: npm run budget:work
       - run: npm run budget:work:still
       - name: Install ffmpeg (fake video for the gauge)
+        timeout-minutes: 5
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: npm run budget:work:gauge
       - run: npm run test:e2e
