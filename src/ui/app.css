@@ -2050,6 +2050,9 @@ dialog:has(.assoc-sheet) {
   max-height: 100vh;
   overflow: hidden;
   box-sizing: border-box;
+  /* Match the navy sheet so the cream dialog card does not show through
+     the rounded corners of sticky « ← Retour ». */
+  background: var(--navy);
 }
 .assoc-sheet {
   display: flex;

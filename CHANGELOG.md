@@ -2,7 +2,19 @@
 
 Format : fichier / fait / pourquoi / à épurer / risque.
 
-## 0.5.2 — fiche Associés, recharge 4 h, Menu, roman, zoom (branche `release-052`, non publié)
+## Unreleased — correctifs testware 0.5.2 (branche `fix-052-testware`, non publié)
+
+Aucune publication. `main` reste à 0.5.2 (`a185fd3`).
+
+| Fichier                              | Fait                                                                                                                                                                                   | Pourquoi                                                   | À épurer                | Risque |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ----------------------- | ------ |
+| `src/ui/Partners.test.tsx`           | Attente déterministe de la fin de l’écriture puis de « Tirage en cours… » (`findByText`, promesse `pull`) ; plus de `setTimeout` 20/30 ms. Noms IDB uniques par passage (`--repeats`). | DEF-GS-45 : instabilité sous charge (1 échec / 20, timers) | —                       | —      |
+| `e2e/appel-dialogue.spec.ts`         | Sortie en reduced-motion aussi avec le réglage in-app « Réduire les animations » (`settings.reducedMotion = on` → `data-motion=reduce`). Mutant D25b tué.                              | DEF-GS-46                                                  | Preuve mutants en local | —      |
+| `e2e/appel-dialogue.spec.ts`         | « ← Retour » opaque : Haru 1★, Noa 2★, Omar 3★, aux défilements 120 et 200 px (styles calculés + pixels).                                                                              | Renforce DEF-GS-42                                         | —                       | —      |
+| `e2e/appel-dialogue.spec.ts`         | Échap pendant la sortie : lecture immédiate de `dialog.open`, plus d’attente 200 ms qui recouvrait les 180 ms d’animation.                                                             | Oracle D19 déterministe                                    | —                       | —      |
+| `app.css` `dialog:has(.assoc-sheet)` | Fond `var(--navy)` : plus de carte crème visible dans les coins arrondis de « ← Retour ».                                                                                              | Cosmétique, tokens Mirage seulement                        | —                       | —      |
+
+## 0.5.2 — fiche Associés, recharge 4 h, Menu, roman, zoom (publié, `main` = `a185fd3`)
 
 GO AVEC RÉSERVES Crypto (R-052-01 à 06). Périmètre validé par Geraldy (carte 10/11/2026, 19:32 Atlantic/Canary). Vélo et stats d'Aoi reportés en 0.6.0 / lot ultérieur. DEF-GS-32/35/36 restent ouverts. Aucune publication. Schéma **v5** inchangé.
 
