@@ -2152,8 +2152,14 @@ dialog:has(.assoc-sheet) {
 .assoc-sheet .assoc-sheet-back {
   background: var(--navy);
 }
+/* OBS-052D-12: the title's 3 px + 2 px gold ring is 5 px tall; the flex gap
+   is only --s-1 (4 px), so the sticky Retour slot clipped the top 1 px.
+   One extra --s-1 above the title leaves the ring fully visible. */
+.assoc-sheet-title {
+  margin-top: var(--s-1);
+}
 .assoc-sheet-title:focus {
-  outline: 3px solid #f5b83d;
+  outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {

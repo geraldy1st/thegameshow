@@ -394,11 +394,7 @@ test.describe('DEF-GS-42 sticky Retour button', () => {
   }
 });
 
-async function pixelsOfClip(
-  page: Page,
-  clip: { x: number; y: number; width: number; height: number },
-) {
-  const buf = await page.screenshot({ clip });
+async function imageFromPng(page: Page, buf: Buffer) {
   return page.evaluate(async (b64) => {
     const img = new Image();
     await new Promise<void>((resolve, reject) => {
@@ -414,10 +410,71 @@ async function pixelsOfClip(
     const data = ctx.getImageData(0, 0, c.width, c.height).data;
     const pixels: { r: number; g: number; b: number; a: number }[] = [];
     for (let i = 0; i < data.length; i += 4) {
-      pixels.push({ r: data[i], g: data[i + 1], b: data[i + 2], a: data[i + 3] });
+      pixels.push({ r: data[i]!, g: data[i + 1]!, b: data[i + 2]!, a: data[i + 3]! });
     }
-    return pixels;
+    return { pixels, width: c.width, height: c.height };
   }, buf.toString('base64'));
+}
+
+async function imageOfClip(
+  page: Page,
+  clip: { x: number; y: number; width: number; height: number },
+) {
+  return imageFromPng(page, await page.screenshot({ clip }));
+}
+
+/** Row counts computed in the page so the RGBA payload never crosses CDP. */
+async function goldNavyRows(page: Page, band: { x0: number; x1: number }) {
+  const buf = await page.screenshot({ scale: 'css' });
+  return page.evaluate(
+    async ({ b64, x0, x1 }) => {
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('png'));
+        img.src = `data:image/png;base64,${b64}`;
+      });
+      const c = document.createElement('canvas');
+      c.width = img.width;
+      c.height = img.height;
+      const ctx = c.getContext('2d')!;
+      ctx.drawImage(img, 0, 0);
+      const data = ctx.getImageData(0, 0, c.width, c.height).data;
+      const left = Math.max(0, Math.floor(x0));
+      const right = Math.min(c.width, Math.ceil(x1));
+      const goldCounts: number[] = [];
+      const navyCounts: number[] = [];
+      const samples: { y: number; r: number; g: number; b: number }[] = [];
+      for (let y = 0; y < c.height; y++) {
+        let gold = 0;
+        let navy = 0;
+        for (let x = left; x < right; x++) {
+          const i = (y * c.width + x) * 4;
+          const r = data[i]!;
+          const g = data[i + 1]!;
+          const b = data[i + 2]!;
+          if (r >= 120 && g >= 80 && b <= 130 && r - b >= 50 && r - g >= 10) gold += 1;
+          if (r <= 70 && g <= 90 && b <= 120 && b >= r + 10) navy += 1;
+        }
+        goldCounts.push(gold);
+        navyCounts.push(navy);
+        if (gold >= 10 && samples.length < 6) {
+          const mid = Math.floor((left + right) / 2);
+          const i = (y * c.width + mid) * 4;
+          samples.push({ y, r: data[i]!, g: data[i + 1]!, b: data[i + 2]! });
+        }
+      }
+      return { width: c.width, height: c.height, goldCounts, navyCounts, samples };
+    },
+    { b64: buf.toString('base64'), x0: band.x0, x1: band.x1 },
+  );
+}
+
+async function pixelsOfClip(
+  page: Page,
+  clip: { x: number; y: number; width: number; height: number },
+) {
+  return (await imageOfClip(page, clip)).pixels;
 }
 
 function parseCssColor(c: string) {
@@ -487,70 +544,122 @@ async function sampleRetourCorners(page: Page) {
   return out;
 }
 
-/** Painted background of the dialog frame next to each disclosure marker (DEF-GS-47). */
+/**
+ * DEF-GS-50 / DEF-GS-47: contrast of each chevron glyph pixel against the
+ * background painted directly under it (not the dominant colour of the dialog
+ * frame). Three aligned screenshots: normal, marker forced red (glyph mask),
+ * marker transparent (true background).
+ */
+const CHEVRON_MASK_STYLE =
+  'html[data-qa-mk="red"] .assoc-sheet details > summary::marker,' +
+  'html[data-qa-mk="red"] .assoc-sheet details > summary::-webkit-details-marker' +
+  '{color:#ff0000 !important}' +
+  'html[data-qa-mk="none"] .assoc-sheet details > summary::marker,' +
+  'html[data-qa-mk="none"] .assoc-sheet details > summary::-webkit-details-marker' +
+  '{color:transparent !important}';
+
+async function setChevronMask(page: Page, mode: '' | 'red' | 'none') {
+  await page.evaluate((m) => {
+    if (m) document.documentElement.dataset.qaMk = m;
+    else delete document.documentElement.dataset.qaMk;
+  }, mode);
+}
+
 async function contrastOfSheetChevrons(page: Page) {
+  await page.addStyleTag({ content: CHEVRON_MASK_STYLE });
   const metas = await page.evaluate(() => {
     const sheet = document.querySelector('.assoc-sheet');
     const dialog = sheet?.closest('dialog');
     if (!dialog) throw new Error('sheet dialog missing');
-    const d = dialog.getBoundingClientRect();
     return [
       ...document.querySelectorAll<HTMLElement>(
         '.assoc-sheet-apport > summary, .assoc-sheet-bio > summary',
       ),
     ].map((el) => {
       const s = el.getBoundingClientRect();
-      const width = Math.max(1, Math.floor(s.left) - Math.floor(d.left));
+      const det = el.parentElement!.getBoundingClientRect();
+      const x = Math.max(0, Math.round(det.left - 20));
       return {
         name: (el.textContent ?? '').trim(),
         open: !!(el.parentElement as HTMLDetailsElement).open,
         color: getComputedStyle(el).color,
         clip: {
-          x: Math.floor(d.left),
-          y: Math.floor(s.top),
-          width,
-          height: Math.max(1, Math.ceil(s.height)),
+          x,
+          y: Math.round(s.top),
+          width: 30,
+          height: Math.max(10, Math.round(Math.min(s.height, 26))),
         },
       };
     });
   });
   if (metas.length !== 2) throw new Error(`expected 2 summaries, got ${metas.length}`);
+  const hex = (c: { r: number; g: number; b: number }) =>
+    '#' + [c.r, c.g, c.b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
   const results = [];
-  for (const m of metas) {
-    const pixels = await pixelsOfClip(page, m.clip);
-    const marker = parseCssColor(m.color);
-    // Dominant painted colour in the frame, ignoring near-marker pixels (the chevron itself).
-    const buckets = new Map<string, { r: number; g: number; b: number; n: number }>();
-    for (const px of pixels) {
-      if (px.a < 250) continue;
-      const nearMarker =
-        Math.abs(px.r - marker.r) <= 18 &&
-        Math.abs(px.g - marker.g) <= 18 &&
-        Math.abs(px.b - marker.b) <= 18;
-      if (nearMarker) continue;
-      const key = `${Math.round(px.r / 8) * 8},${Math.round(px.g / 8) * 8},${Math.round(px.b / 8) * 8}`;
-      const b = buckets.get(key) ?? { r: 0, g: 0, b: 0, n: 0 };
-      b.r += px.r;
-      b.g += px.g;
-      b.b += px.b;
-      b.n += 1;
-      buckets.set(key, b);
+  const sels = ['.assoc-sheet-apport > summary', '.assoc-sheet-bio > summary'] as const;
+  for (let i = 0; i < metas.length; i++) {
+    const loc = page.locator(sels[i]!);
+    await loc.scrollIntoViewIfNeeded();
+    const m = await loc.evaluate((el) => {
+      const s = el.getBoundingClientRect();
+      const det = el.parentElement!.getBoundingClientRect();
+      const x = Math.max(0, Math.round(det.left - 20));
+      return {
+        name: (el.textContent ?? '').trim(),
+        open: !!(el.parentElement as HTMLDetailsElement).open,
+        color: getComputedStyle(el).color,
+        clip: {
+          x,
+          y: Math.round(s.top),
+          width: 30,
+          height: Math.max(10, Math.round(Math.min(s.height, 26))),
+        },
+      };
+    });
+    const ink = parseCssColor(m.color);
+    await setChevronMask(page, 'red');
+    const red = await pixelsOfClip(page, m.clip);
+    await setChevronMask(page, 'none');
+    const under = await pixelsOfClip(page, m.clip);
+    await setChevronMask(page, '');
+    if (red.length !== under.length) {
+      throw new Error(`chevron clip misaligned for ${m.name}`);
     }
-    const ranked = [...buckets.values()].sort((a, b) => b.n - a.n);
+    let glyph = 0;
+    let visible = 0;
+    let minContrast = Infinity;
+    const bgBuckets = new Map<string, { r: number; g: number; b: number; n: number }>();
+    for (let i = 0; i < red.length; i++) {
+      const a = red[i]!;
+      const b = under[i]!;
+      const delta = Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b);
+      // Pixel covered by the glyph: it changes frankly when the marker is forced red.
+      if (delta < 120) continue;
+      glyph += 1;
+      const contrast = contrastRatio(ink, b);
+      if (contrast < minContrast) minContrast = contrast;
+      if (contrast >= 3) visible += 1;
+      const key = `${Math.round(b.r / 8) * 8},${Math.round(b.g / 8) * 8},${Math.round(b.b / 8) * 8}`;
+      const bucket = bgBuckets.get(key) ?? { r: 0, g: 0, b: 0, n: 0 };
+      bucket.r += b.r;
+      bucket.g += b.g;
+      bucket.b += b.b;
+      bucket.n += 1;
+      bgBuckets.set(key, bucket);
+    }
+    const ranked = [...bgBuckets.values()].sort((a, b) => b.n - a.n);
     const bg = ranked[0]
       ? { r: ranked[0].r / ranked[0].n, g: ranked[0].g / ranked[0].n, b: ranked[0].b / ranked[0].n }
-      : marker;
-    const contrast = Math.round(contrastRatio(marker, bg) * 100) / 100;
-    const hex = (c: { r: number; g: number; b: number }) =>
-      '#' + [c.r, c.g, c.b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+      : ink;
     results.push({
       name: m.name,
       open: m.open,
-      markerHex: hex(marker),
+      markerHex: hex(ink),
       bgHex: hex(bg),
-      contrast,
-      sampled: pixels.length,
-      bgPixels: ranked[0]?.n ?? 0,
+      glyph,
+      visible,
+      visibleShare: glyph ? Math.round((visible / glyph) * 100) / 100 : 0,
+      minContrast: glyph ? Math.round(minContrast * 100) / 100 : 0,
     });
   }
   return results;
@@ -573,7 +682,7 @@ test.describe('OBS-052D-08 sticky Retour corners', () => {
 });
 
 test.describe('DEF-GS-47 disclosure chevron contrast', () => {
-  test('both section chevrons are at least 3:1 on their painted background (D27)', async ({
+  test('both section chevrons are at least 3:1 on the paint under the glyph (DEF-GS-50, D27, D33c)', async ({
     page,
   }) => {
     await ownAndOpen(page, OWNED[2]);
@@ -585,9 +694,91 @@ test.describe('DEF-GS-47 disclosure chevron contrast', () => {
     const opens = rows.map((r) => r.open);
     expect(opens.filter(Boolean).length, `open state ${JSON.stringify(rows)}`).toBe(1);
     for (const r of rows) {
-      expect(r.bgPixels, `${r.name} ${JSON.stringify(r)}`).toBeGreaterThan(0);
-      expect(r.contrast, `${r.name} ${JSON.stringify(r)}`).toBeGreaterThanOrEqual(3);
+      // Current product is partly on navy (OBS-052D-11): Chromium ~0.64 / 0.89,
+      // WebKit open chevron ~0.38. D33c (padding-left 12 px) puts the whole
+      // glyph on navy → share 0. Stay below the live WebKit floor, well above 0.
+      expect(r.glyph, `${r.name} ${JSON.stringify(r)}`).toBeGreaterThan(10);
+      expect(r.visible, `${r.name} ${JSON.stringify(r)}`).toBeGreaterThanOrEqual(5);
+      expect(r.visibleShare, `${r.name} ${JSON.stringify(r)}`).toBeGreaterThanOrEqual(0.25);
     }
+  });
+});
+
+test.describe('OBS-052D-12 title focus ring', () => {
+  test('the full 3 px gold ring around the title is visible when the sheet opens', async ({
+    page,
+  }) => {
+    await ownAndOpen(page, OWNED[2]);
+    const title = page.locator('.assoc-sheet-title');
+    await expect(title).toBeFocused();
+    const info = await page.evaluate(() => {
+      const h = document.querySelector('.assoc-sheet-title') as HTMLElement;
+      const slot = document.querySelector('.assoc-sheet-back-slot') as HTMLElement;
+      const t = h.getBoundingClientRect();
+      const s = slot.getBoundingClientRect();
+      const cs = getComputedStyle(h);
+      const width = parseFloat(cs.outlineWidth);
+      const offset = parseFloat(cs.outlineOffset);
+      return {
+        titleTop: t.top,
+        titleLeft: t.left,
+        titleRight: t.right,
+        slotBottom: s.bottom,
+        slotLeft: s.left,
+        slotRight: s.right,
+        outlineWidth: width,
+        outlineOffset: offset,
+        color: cs.outlineColor,
+      };
+    });
+    expect(info.outlineWidth).toBe(3);
+    expect(info.outlineOffset).toBe(2);
+    // Layout contract: 3 px stroke + 2 px offset need 5 px of clear space.
+    expect(info.slotBottom, JSON.stringify(info)).toBeLessThanOrEqual(info.titleTop - 5 + 0.5);
+    // Viewport screenshots and getBoundingClientRect do not share an origin
+    // under Chromium's isMobile emulation (~13 px). Scan the bitmap itself
+    // for the top gold bar and the navy gap above it, in the Retour overlap
+    // where the sticky slot used to clip the upper 1 px.
+    const x0 = Math.max(0, Math.floor(info.titleLeft - 6));
+    const x1 = Math.ceil(Math.min(info.slotRight, info.titleRight) + 6);
+    const rows = await goldNavyRows(page, { x0, x1 });
+    const { goldCounts, navyCounts } = rows;
+    const span = Math.min(rows.width, x1) - Math.max(0, x0);
+    const needWidth = Math.max(40, Math.round(span * 0.5));
+    const wide = goldCounts
+      .map((n, y) => ({ y, n }))
+      .filter((r) => r.n >= needWidth && r.y < rows.height * 0.6);
+    expect(
+      wide.length,
+      `no top gold bar, gold=${goldCounts
+        .map((n, y) => (n >= 10 ? `${y}:${n}` : ''))
+        .filter(Boolean)
+        .join(
+          ',',
+        )} ${JSON.stringify({ info, x0, x1, needWidth, img: { w: rows.width, h: rows.height, samples: rows.samples } })}`,
+    ).toBeGreaterThan(0);
+    const first = wide[0]!.y;
+    let solid = 0;
+    for (let y = first; y < rows.height && goldCounts[y]! >= needWidth; y++) solid += 1;
+    expect(
+      solid,
+      `top gold bar only ${solid} px thick at y=${first} ${JSON.stringify({ info, x0, x1 })}`,
+    ).toBeGreaterThanOrEqual(2);
+    let navyAbove = 0;
+    for (let y = first - 1; y >= 0; y--) {
+      if (goldCounts[y]! >= needWidth) continue;
+      if (navyCounts[y]! >= span * 0.5) navyAbove += 1;
+      else if (goldCounts[y]! >= 3)
+        continue; // antialiased edge or side stems
+      else break;
+    }
+    expect(
+      navyAbove,
+      `only ${navyAbove} navy rows above the ring at y=${first} (slot clips the top) gold=${goldCounts
+        .slice(Math.max(0, first - 8), first + solid + 2)
+        .map((n, i) => `${Math.max(0, first - 8) + i}:${n}`)
+        .join(',')}`,
+    ).toBeGreaterThanOrEqual(2);
   });
 });
 
