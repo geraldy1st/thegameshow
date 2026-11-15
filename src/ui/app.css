@@ -1755,7 +1755,7 @@ dialog .stats .bar i {
 .work-panel .pts {
   display: flex;
   align-items: baseline;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0 6px;
   min-width: 0;
   grid-column: 1;
@@ -1950,7 +1950,8 @@ dialog .btn-ghost,
     min-width: max-content;
     /* WebKit sets the label ~3 px wider, and « Convertir en Buck » is one letter
        longer than « Convertir en Yen »: keep room for « 987 654 pts » on one line. */
-    padding-inline: 6px;
+    padding-inline: 4px;
+    font-size: 15px;
   }
 }
 
