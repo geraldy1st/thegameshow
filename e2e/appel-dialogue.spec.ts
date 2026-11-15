@@ -545,11 +545,12 @@ async function sampleRetourCorners(page: Page) {
 }
 
 /**
- * DEF-GS-50 / DEF-GS-47: contrast of each chevron glyph pixel against the
- * background painted directly under it (not the dominant colour of the dialog
- * frame). Three aligned screenshots: normal, marker forced red (glyph mask),
- * marker transparent (true background).
+ * DEF-GS-50 / DEF-GS-54: contrast of each *painted* chevron glyph pixel against
+ * the background directly under it. Three aligned screenshots: normal, marker
+ * forced red (glyph mask), marker transparent (true background). Never uses
+ * getComputedStyle(summary).color — that is the title ink, not the ::marker.
  */
+
 const CHEVRON_MASK_STYLE =
   'html[data-qa-mk="red"] .assoc-sheet details > summary::marker,' +
   'html[data-qa-mk="red"] .assoc-sheet details > summary::-webkit-details-marker' +
@@ -616,29 +617,50 @@ async function contrastOfSheetChevrons(page: Page) {
         },
       };
     });
-    const ink = parseCssColor(m.color);
+    const normal = await pixelsOfClip(page, m.clip);
     await setChevronMask(page, 'red');
     const red = await pixelsOfClip(page, m.clip);
     await setChevronMask(page, 'none');
     const under = await pixelsOfClip(page, m.clip);
     await setChevronMask(page, '');
-    if (red.length !== under.length) {
+    if (red.length !== under.length || red.length !== normal.length) {
       throw new Error(`chevron clip misaligned for ${m.name}`);
     }
+    const lum = (c: { r: number; g: number; b: number }) => {
+      const f = (v: number) => {
+        const x = v / 255;
+        return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+    };
     let glyph = 0;
     let visible = 0;
+    let lightGlyph = 0;
+    let lightVisible = 0;
     let minContrast = Infinity;
+    let inkR = 0;
+    let inkG = 0;
+    let inkB = 0;
     const bgBuckets = new Map<string, { r: number; g: number; b: number; n: number }>();
     for (let i = 0; i < red.length; i++) {
       const a = red[i]!;
       const b = under[i]!;
+      const painted = normal[i]!;
       const delta = Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b);
       // Pixel covered by the glyph: it changes frankly when the marker is forced red.
       if (delta < 120) continue;
       glyph += 1;
-      const contrast = contrastRatio(ink, b);
+      inkR += painted.r;
+      inkG += painted.g;
+      inkB += painted.b;
+      const contrast = contrastRatio(painted, b);
       if (contrast < minContrast) minContrast = contrast;
       if (contrast >= 3) visible += 1;
+      // Cream panel vs navy overflow: K02/K08 stay contrasty on navy but vanish on cream.
+      if (lum(b) >= 0.4) {
+        lightGlyph += 1;
+        if (contrast >= 3) lightVisible += 1;
+      }
       const key = `${Math.round(b.r / 8) * 8},${Math.round(b.g / 8) * 8},${Math.round(b.b / 8) * 8}`;
       const bucket = bgBuckets.get(key) ?? { r: 0, g: 0, b: 0, n: 0 };
       bucket.r += b.r;
@@ -648,6 +670,8 @@ async function contrastOfSheetChevrons(page: Page) {
       bgBuckets.set(key, bucket);
     }
     const ranked = [...bgBuckets.values()].sort((a, b) => b.n - a.n);
+    const ink =
+      glyph > 0 ? { r: inkR / glyph, g: inkG / glyph, b: inkB / glyph } : { r: 0, g: 0, b: 0 };
     const bg = ranked[0]
       ? { r: ranked[0].r / ranked[0].n, g: ranked[0].g / ranked[0].n, b: ranked[0].b / ranked[0].n }
       : ink;
@@ -659,6 +683,9 @@ async function contrastOfSheetChevrons(page: Page) {
       glyph,
       visible,
       visibleShare: glyph ? Math.round((visible / glyph) * 100) / 100 : 0,
+      lightGlyph,
+      lightVisible,
+      lightShare: lightGlyph ? Math.round((lightVisible / lightGlyph) * 100) / 100 : 0,
       minContrast: glyph ? Math.round(minContrast * 100) / 100 : 0,
     });
   }
@@ -694,12 +721,15 @@ test.describe('DEF-GS-47 disclosure chevron contrast', () => {
     const opens = rows.map((r) => r.open);
     expect(opens.filter(Boolean).length, `open state ${JSON.stringify(rows)}`).toBe(1);
     for (const r of rows) {
-      // Current product is partly on navy (OBS-052D-11): Chromium ~0.64 / 0.89,
-      // WebKit open chevron ~0.38. D33c (padding-left 12 px) puts the whole
-      // glyph on navy → share 0. Stay below the live WebKit floor, well above 0.
+      // Painted ink vs the backdrop under the glyph (DEF-GS-54). D33c parks the
+      // whole glyph on navy → visibleShare 0. K02/K03/K08 stay contrasty on
+      // navy overflow but vanish on the cream panel: lightShare catches them.
+      // A recoloured title with an unchanged navy ::marker (K09) must still pass.
       expect(r.glyph, `${r.name} ${JSON.stringify(r)}`).toBeGreaterThan(10);
       expect(r.visible, `${r.name} ${JSON.stringify(r)}`).toBeGreaterThanOrEqual(5);
-      expect(r.visibleShare, `${r.name} ${JSON.stringify(r)}`).toBeGreaterThanOrEqual(0.25);
+      expect(r.visibleShare, `${r.name} ${JSON.stringify(r)}`).toBeGreaterThanOrEqual(0.2);
+      expect(r.lightGlyph, `${r.name} ${JSON.stringify(r)}`).toBeGreaterThanOrEqual(5);
+      expect(r.lightShare, `${r.name} ${JSON.stringify(r)}`).toBeGreaterThanOrEqual(0.5);
     }
   });
 });
@@ -741,43 +771,79 @@ test.describe('OBS-052D-12 title focus ring', () => {
     // where the sticky slot used to clip the upper 1 px.
     const x0 = Math.max(0, Math.floor(info.titleLeft - 6));
     const x1 = Math.ceil(Math.min(info.slotRight, info.titleRight) + 6);
-    const rows = await goldNavyRows(page, { x0, x1 });
-    const { goldCounts, navyCounts } = rows;
-    const span = Math.min(rows.width, x1) - Math.max(0, x0);
-    const needWidth = Math.max(40, Math.round(span * 0.5));
-    const wide = goldCounts
-      .map((n, y) => ({ y, n }))
-      .filter((r) => r.n >= needWidth && r.y < rows.height * 0.6);
-    expect(
-      wide.length,
-      `no top gold bar, gold=${goldCounts
-        .map((n, y) => (n >= 10 ? `${y}:${n}` : ''))
-        .filter(Boolean)
-        .join(
-          ',',
-        )} ${JSON.stringify({ info, x0, x1, needWidth, img: { w: rows.width, h: rows.height, samples: rows.samples } })}`,
-    ).toBeGreaterThan(0);
-    const first = wide[0]!.y;
-    let solid = 0;
-    for (let y = first; y < rows.height && goldCounts[y]! >= needWidth; y++) solid += 1;
+    // DEF-GS-55: a 1 px paint clip (R05 navy shadow) leaves a short first gold
+    // row then only 1–2 full rows under the slot. Require 3 full rows, as thick
+    // as outline-width, each at least 90 % of the bar's peak width. Chromium
+    // sometimes paints the third row a frame later: poll until it is solid.
+    await page.evaluate(
+      () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))),
+    );
+    type Bar = {
+      goldCounts: number[];
+      navyCounts: number[];
+      span: number;
+      needWidth: number;
+      peak: number;
+      full: number;
+      first: number;
+      solid: number;
+      around: { y: number; n: number }[];
+    };
+    let bar: Bar | undefined;
+    const measure = async (): Promise<Bar> => {
+      const rows = await goldNavyRows(page, { x0, x1 });
+      const { goldCounts, navyCounts } = rows;
+      const span = Math.min(rows.width, x1) - Math.max(0, x0);
+      const needWidth = Math.max(40, Math.round(span * 0.5));
+      const wide = goldCounts
+        .map((n, y) => ({ y, n }))
+        .filter((r) => r.n >= needWidth && r.y < rows.height * 0.6);
+      const peak = wide.length ? Math.max(...wide.map((r) => r.n)) : 0;
+      const full = Math.max(needWidth, Math.round(peak * 0.9));
+      const firstFull = wide.find((r) => r.n >= full);
+      const first = firstFull?.y ?? -1;
+      let solid = 0;
+      if (first >= 0) {
+        for (let y = first; y < rows.height && goldCounts[y]! >= full; y++) solid += 1;
+      }
+      const around = goldCounts
+        .map((n, y) => ({ y, n }))
+        .filter((r) => first < 0 || (r.y >= first - 4 && r.y <= first + 8));
+      return { goldCounts, navyCounts, span, needWidth, peak, full, first, solid, around };
+    };
+    await expect
+      .poll(
+        async () => {
+          bar = await measure();
+          return bar.solid;
+        },
+        { timeout: 2000, intervals: [50, 100, 200] },
+      )
+      .toBeGreaterThanOrEqual(info.outlineWidth);
+    if (!bar) throw new Error('ring bar not measured');
+    const { goldCounts, navyCounts, span, needWidth, peak, full, first, solid, around } = bar;
     expect(
       solid,
-      `top gold bar only ${solid} px thick at y=${first} ${JSON.stringify({ info, x0, x1 })}`,
-    ).toBeGreaterThanOrEqual(2);
-    let navyAbove = 0;
+      `top gold bar only ${solid} px thick at y=${first} (need ${info.outlineWidth}) ${JSON.stringify({ info, x0, x1, peak, full, around })}`,
+    ).toBeGreaterThanOrEqual(info.outlineWidth);
+    // At least 2 rows above the full bar that are not gold (clear space). Do
+    // not require a navy heuristic: Chromium's mobile screenshot origin can
+    // shift the slot band onto pixels that are dark but not "navy".
+    let clearAbove = 0;
     for (let y = first - 1; y >= 0; y--) {
-      if (goldCounts[y]! >= needWidth) continue;
-      if (navyCounts[y]! >= span * 0.5) navyAbove += 1;
-      else if (goldCounts[y]! >= 3)
-        continue; // antialiased edge or side stems
-      else break;
+      if (goldCounts[y]! >= full) break;
+      if (goldCounts[y]! >= Math.round(full * 0.3)) continue;
+      clearAbove += 1;
+      if (clearAbove >= 2) break;
     }
     expect(
-      navyAbove,
-      `only ${navyAbove} navy rows above the ring at y=${first} (slot clips the top) gold=${goldCounts
+      clearAbove,
+      `only ${clearAbove} clear rows above the ring at y=${first} gold=${goldCounts
         .slice(Math.max(0, first - 8), first + solid + 2)
         .map((n, i) => `${Math.max(0, first - 8) + i}:${n}`)
-        .join(',')}`,
+        .join(
+          ',',
+        )} ${JSON.stringify({ info, x0, x1, around, navySample: navyCounts.slice(Math.max(0, first - 4), first) })}`,
     ).toBeGreaterThanOrEqual(2);
   });
 });
