@@ -7,6 +7,7 @@ import {
   generateCourse,
   laneX,
   minGapTime,
+  nextRowZ,
   pause,
   resume,
   speedAt,
@@ -425,5 +426,102 @@ describe('bike reachability oracle (R-I1-01, depth-aware)', () => {
     );
     expect(travelTime(exitZ, z1 - BIKE.halfDepth)).toBeGreaterThan(2 * BIKE.laneTime);
     expect(courseIsReachable(mid)).toBe(false);
+  });
+});
+
+describe('historical I1 survivors (Crypto 50da75b)', () => {
+  it('does not recount an already-hit obstacle after invulnerability ends (B05)', () => {
+    const z0 = 10;
+    const hit = step(
+      bare({ z: z0, t: timeToZ(z0), obstacles: [obst(1, z0 + 0.05, 20)] }),
+      0.05,
+      idle,
+    );
+    expect(hit.lives).toBe(BIKE.lives - 1);
+    expect(hit.obstacles[0]!.hit).toBe(true);
+    const after = drive(hit, BIKE.invuln + 0.1);
+    expect(after.lives).toBe(hit.lives);
+    expect(after.z).toBeLessThan(z0 + 0.05 + 20);
+    expect(after.obstacles[0]!.hit).toBe(true);
+  });
+
+  it('ignores a second obstacle while invulnerable (B07)', () => {
+    const z0 = 10;
+    const first = obst(1, z0 + 0.05, 1);
+    const second: BikeObstacle = { ...obst(1, z0 + 2, 3), id: 1 };
+    const hit = step(bare({ z: z0, t: timeToZ(z0), obstacles: [first, second] }), 0.05, idle);
+    expect(hit.lives).toBe(BIKE.lives - 1);
+    expect(hit.invuln).toBe(BIKE.invuln);
+    expect(hit.obstacles.filter((o) => o.hit).map((o) => o.id)).toEqual([0]);
+    const during = drive(hit, BIKE.invuln - 0.05);
+    expect(during.invuln).toBeGreaterThan(0);
+    expect(during.z).toBeGreaterThan(second.z);
+    expect(during.lives).toBe(hit.lives);
+    expect(during.obstacles.filter((o) => o.hit).map((o) => o.id)).toEqual([0]);
+  });
+
+  it('counts at most one collision per step (B08)', () => {
+    const z0 = 10;
+    const a = obst(1, z0 + 0.05, 3.4);
+    const b: BikeObstacle = { ...obst(1, z0 + 0.1, 3.4), id: 1 };
+    const n = step(bare({ z: z0, t: timeToZ(z0), obstacles: [a, b] }), 0.05, idle);
+    expect(n.lives).toBe(BIKE.lives - 1);
+    expect(n.obstacles.filter((o) => o.hit)).toHaveLength(1);
+    expect(n.invuln).toBe(BIKE.invuln);
+  });
+
+  it('nextRowZ uses minGapTime when gapT is smaller (B11)', () => {
+    const z = BIKE.firstRowM;
+    expect(travelTime(z, nextRowZ(z, 0.01))).toBeCloseTo(minGapTime, 10);
+    expect(travelTime(z, nextRowZ(z, 1.45))).toBeCloseTo(1.45, 10);
+  });
+
+  it('minGapTime is two lane changes plus the reaction margin (B12)', () => {
+    expect(minGapTime).toBe(2 * BIKE.laneTime + BIKE.reactionMargin);
+    expect(minGapTime).toBeCloseTo(0.7, 10);
+  });
+
+  it('stops collecting at 20 coins even if more pickups overlap (B17)', () => {
+    const z0 = 10;
+    const pickups: BikePickup[] = Array.from({ length: 21 }, (_, i) => ({
+      id: i,
+      lane: 1,
+      z: z0,
+      collected: false,
+    }));
+    const n = step(bare({ z: z0, t: timeToZ(z0), pickups }), 0, idle);
+    expect(n.coins).toBe(20);
+    expect(n.pickups.filter((p) => p.collected)).toHaveLength(20);
+    expect(n.pickups.filter((p) => !p.collected)).toHaveLength(1);
+  });
+
+  it('never exposes negative lives (B30)', () => {
+    const n = step(
+      bare({
+        z: 10,
+        t: timeToZ(10),
+        lives: 0,
+        obstacles: [obst(1, 10.05, 3.4)],
+      }),
+      0.05,
+      idle,
+    );
+    expect(n.lives).toBe(0);
+    expect(n.phase).toBe('fail');
+  });
+
+  it('the generator never reaches the 20-coin cap (B19 equivalent; R-I1-02 open)', () => {
+    let maxRows = 0;
+    let maxCoins = 0;
+    for (let seed = 0; seed < 20_000; seed++) {
+      const course = generateCourse(seed);
+      if (course.rows.length > maxRows) maxRows = course.rows.length;
+      if (course.pickups.length > maxCoins) maxCoins = course.pickups.length;
+    }
+    // Current length and gapT (>= 1.0 s) keep the row count below the cap, so
+    // removing `if (pickups.length >= BIKE.maxCoins) break` does not change
+    // any generated course. Coin counts stay as they are; R-I1-02 stays open.
+    expect(maxRows).toBeLessThan(BIKE.maxCoins);
+    expect(maxCoins).toBeLessThanOrEqual(12);
   });
 });

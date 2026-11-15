@@ -305,3 +305,17 @@ describe('bikePay day rule mutants and invalid dates (R-I1-05, P05, P07)', () =>
     expect(settle('success', 0, { day: '2026-02-29', earnedTodayCents: 0 }, T0, T0).ok).toBe(false);
   });
 });
+
+describe('P04 remaining clamp is equivalent', () => {
+  it('isPayState already rejects earnedToday above the cap, so remaining cannot go negative (P04)', () => {
+    expect(settle('success', 20, fresh(BIKE_PAY.dailyCapCents + 1), T0, T0)).toEqual({
+      ok: false,
+      reason: 'invalid-state',
+    });
+    const atCap = settle('success', 20, fresh(BIKE_PAY.dailyCapCents), T0, T0);
+    expect(atCap.ok).toBe(true);
+    if (!atCap.ok) return;
+    expect(atCap.paidCents).toBe(0);
+    expect(atCap.newState.earnedTodayCents).toBe(BIKE_PAY.dailyCapCents);
+  });
+});

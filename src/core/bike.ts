@@ -163,7 +163,7 @@ function pickDistinctLanes(rng: RngState, count: 1 | 2): [Lane[], RngState] {
  * Next row z such that travel time is at least max(gapT, minGapTime).
  * Integrates the accelerating motion (not the proto's v*gapT shortcut alone).
  */
-function nextRowZ(z: number, gapT: number): number {
+export function nextRowZ(z: number, gapT: number): number {
   const need = Math.max(gapT, minGapTime);
   const t1 = timeToZ(z) + need;
   // z(t) = v0 t + 1/2 a t^2 while below vmax (always true on this track).
