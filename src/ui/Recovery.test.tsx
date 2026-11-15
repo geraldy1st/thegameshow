@@ -82,7 +82,7 @@ async function futureRecoveryApp(name: string) {
   });
   render(<App store={store} />);
   await act(() => store.getState().init());
-  return { store };
+  return { store, db };
 }
 
 describe('DEF-GS-30 reload banner on Recovery (future schema at load)', () => {
@@ -99,5 +99,58 @@ describe('DEF-GS-30 reload banner on Recovery (future schema at load)', () => {
     // Mutant kill: a Recovery early return that only keeps the visually-hidden live region fails here.
     expect(banner?.classList.contains('visually-hidden')).toBe(false);
     expect(screen.getByRole('button', { name: 'Recharger la page' })).toBeTruthy();
+  });
+});
+
+describe('DEF-GS-48 future schema does not offer Nouvelle partie or Importer', () => {
+  it('hides those actions, keeps Recharger, and does not touch backup-before-reset', async () => {
+    const name = 'ui-recovery-future-gs48';
+    const db = await openSaveDb(name);
+    const future = {
+      schemaVersion: 6,
+      revision: 1,
+      createdAt: 1,
+      lastSeenAt: 1,
+      maxSeenAt: 1,
+      yenCents: 42424,
+    };
+    const previousReset = { schemaVersion: 5, revision: 2, yenCents: 7777, tag: 'partie-A' };
+    await db.put('saves', future, 'current');
+    await db.put('saves', previousReset, 'backup-before-reset');
+    const store = createGameStore({
+      clock: new ManualClock(Date.UTC(2026, 9, 25)),
+      openDb: () => openSaveDb(name),
+      newSeed: () => 1,
+      acquireWriterLock: async () => true,
+      debounceMs: 5,
+    });
+    render(<App store={store} />);
+    await act(() => store.getState().init());
+    expect(store.getState().recoveryKind).toBe('future');
+    expect(
+      screen.getByText(
+        "Cette sauvegarde vient d'une version plus récente du jeu. Recharge la page pour obtenir la dernière version.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Recharger la page' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Exporter la sauvegarde' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Commencer une nouvelle partie' })).toBeNull();
+    expect(screen.queryByText('Importer une sauvegarde')).toBeNull();
+
+    const beforeReset = await db.get('saves', 'backup-before-reset');
+    const beforeImport = await db.get('saves', 'backup-before-import');
+    await act(async () => {
+      await store.getState().newGame();
+    });
+    expect(store.getState().status).toBe('recovery');
+    expect(store.getState().recoveryKind).toBe('future');
+    expect(store.getState().game).toBeNull();
+    expect(await db.get('saves', 'backup-before-reset')).toEqual(beforeReset);
+    expect(await db.get('saves', 'current')).toEqual(future);
+
+    const imported = await act(async () => store.getState().importSave('{"bad":1}'));
+    expect(imported.ok).toBe(false);
+    expect(await db.get('saves', 'backup-before-import')).toEqual(beforeImport);
+    expect(await db.get('saves', 'current')).toEqual(future);
   });
 });

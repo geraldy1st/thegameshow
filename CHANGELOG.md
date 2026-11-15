@@ -2,6 +2,16 @@
 
 Format : fichier / fait / pourquoi / à épurer / risque.
 
+## Unreleased — 0.5.3 micro-correctif schéma futur (branche `fix-053-future-save`, non publié)
+
+DEF-GS-48 (Majeure, avis Crypto note v6). Schéma **v5** inchangé, `DB_VERSION` inchangée. Aucune publication.
+
+| Fichier                   | Fait                                                                                                                                                                                                                                                                     | Pourquoi                                                                                                        | À épurer                                                                   | Risque |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------ |
+| `src/store/gameStore.ts`  | Sur `recoveryKind === 'future'`, `newGame` et `importSave` sont des no-op : aucun `put` sur `backup-before-reset` / `backup-before-import`, le statut reste `recovery`, `importSave` renvoie `{ ok: false, reason: 'future-schema' }` (jamais « Sauvegarde importée. »). | Un client 0.5.2 face à une v6 écrasait la copie de réinitialisation et affichait une partie jamais enregistrée. | Reporter la même garde en 0.6.0 pour une v7.                               | —      |
+| `src/ui/App.tsx` Recovery | L'écran « version future » ne propose plus « Importer » ni « Commencer une nouvelle partie ». Il garde « Recharger la page » et offre « Exporter la sauvegarde » (copie brute de `current`, libellés existants). Corps : `futureVersion` inchangé.                       | Crypto : ne proposer que Recharger (et Exporter si possible). Aucune copie française nouvelle.                  | Titre toujours « Sauvegarde illisible » (jeton existant, un peu trompeur). | —      |
+| Tests                     | `Recovery.test.tsx`, `lot3.test.ts`, E2E `lot3.spec.ts` : boutons absents, backups intacts, `current` v6 intacte, import et newGame no-op. Non-régression DEF-GS-01 (sauvegarde corrompue) et DEF-GS-30 (bandeau Recharger).                                             | Oracle ANO-060-01 / DEF-GS-48                                                                                   | —                                                                          | —      |
+
 ## 0.5.2 — fiche Associés, recharge 4 h, Menu, roman, zoom (branche `release-052`, non publié)
 
 GO AVEC RÉSERVES Crypto (R-052-01 à 06). Périmètre validé par Geraldy (carte 10/11/2026, 19:32 Atlantic/Canary). Vélo et stats d'Aoi reportés en 0.6.0 / lot ultérieur. DEF-GS-32/35/36 restent ouverts. Aucune publication. Schéma **v5** inchangé.

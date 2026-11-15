@@ -53,6 +53,31 @@ describe('lot 3 store: migration v2 → v5 (chain)', () => {
     const db = await openSaveDb(name);
     expect(await db.get('saves', 'current')).toEqual(future);
   });
+  it('newGame and importSave are no-ops on a future schema and leave backups alone (DEF-GS-48)', async () => {
+    const { store, name } = setup();
+    const future = { ...midgame, schemaVersion: 6, yenCents: 42424 };
+    const partieA = { ...midgame, yenCents: 7777, tag: 'partie-A' };
+    await seed(name, { current: future, 'backup-before-reset': partieA });
+    await store.getState().init();
+    expect(store.getState().recoveryKind).toBe('future');
+    const db = await openSaveDb(name);
+    await store.getState().newGame();
+    expect(store.getState().status).toBe('recovery');
+    expect(store.getState().game).toBeNull();
+    expect(await db.get('saves', 'backup-before-reset')).toEqual(partieA);
+    expect(await db.get('saves', 'current')).toEqual(future);
+    expect(await db.get('saves', 'backup-before-import')).toBeUndefined();
+
+    const readyStore = setup();
+    await readyStore.store.getState().init();
+    const valid = readyStore.store.getState().exportSave();
+    expect(valid).toBeTruthy();
+    const result = await store.getState().importSave(valid!);
+    expect(result).toEqual({ ok: false, reason: 'future-schema' });
+    expect(await db.get('saves', 'backup-before-import')).toBeUndefined();
+    expect(await db.get('saves', 'current')).toEqual(future);
+    expect(store.getState().status).toBe('recovery');
+  });
   it('announces the fallback to a backup copy', async () => {
     const { store, name } = setup();
     await seed(name, { current: { bad: 1 }, 'backup-before-migration': midgame });

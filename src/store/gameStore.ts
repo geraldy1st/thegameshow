@@ -540,8 +540,11 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         const parsed = parseImport(text);
         if (!parsed.ok) return parsed;
         if (!db) return { ok: false, reason: 'storage unavailable' };
-        const { status } = get();
+        const { status, recoveryKind } = get();
         if (status === 'readonly') return { ok: false, reason: 'read-only tab' };
+        // DEF-GS-48: a future schema must not get a false « Sauvegarde importée. »
+        // nor overwrite backup-before-import.
+        if (recoveryKind === 'future') return { ok: false, reason: 'future-schema' };
         await chain;
         await backupBeforeImport(db);
         persistedRevision = await storedRevision();
@@ -569,6 +572,8 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
 
       async newGame() {
         if (!db || get().status === 'readonly') return;
+        // DEF-GS-48: do not overwrite backup-before-reset or show an unsaved new game.
+        if (get().recoveryKind === 'future') return;
         await chain;
         persistedRevision = await storedRevision();
         await backupBeforeReset(db);

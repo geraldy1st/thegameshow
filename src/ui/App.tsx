@@ -226,10 +226,31 @@ function Recovery({ store }: { store: Store }) {
               {t('reloadPage')}
             </button>
           )}
-          <ImportButton store={store} />
-          <button type="button" className="btn btn-ghost" onClick={() => setConfirm(true)}>
-            {t('recoveryNew')}
-          </button>
+          {kind === 'future' && (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() =>
+                void store
+                  .getState()
+                  .rawCurrentSave()
+                  .then((raw) => {
+                    if (raw) {
+                      download(raw);
+                      store.getState().announce(t('exportDone'));
+                    }
+                  })
+              }
+            >
+              {t('exportSave')}
+            </button>
+          )}
+          {kind !== 'future' && <ImportButton store={store} />}
+          {kind !== 'future' && (
+            <button type="button" className="btn btn-ghost" onClick={() => setConfirm(true)}>
+              {t('recoveryNew')}
+            </button>
+          )}
         </div>
       </section>
       {/* RES-7 / ethics rule 14: list what is lost and offer to keep a copy first (DEF-GS-01). */}

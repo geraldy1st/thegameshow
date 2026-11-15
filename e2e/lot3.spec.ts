@@ -312,8 +312,15 @@ test.describe('migration and recovery (GS-V5-05/06/08)', () => {
         "Cette sauvegarde vient d'une version plus récente du jeu. Recharge la page pour obtenir la dernière version.",
       ),
     ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Recharger la page' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Exporter la sauvegarde' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Commencer une nouvelle partie' })).toHaveCount(
+      0,
+    );
+    await expect(page.getByText('Importer une sauvegarde')).toHaveCount(0);
     await page.waitForTimeout(500);
     expect(await readSlot(page, 'current')).toEqual(future);
+    expect(await readSlot(page, 'backup-before-reset')).toBeUndefined();
   });
 
   test('manual rollback restores the pre-migration save (R12)', async ({ page }) => {
