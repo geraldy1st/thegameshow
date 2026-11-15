@@ -15,7 +15,7 @@ Relecture Mirage de la copie 0.5.3, plus DEF-GS-59 à relire. Schéma **v5** inc
 
 | Devise « Buck » | Monnaie affichée : « Buck », symbole « B », suffixe avec espace insécable (« 100 B »). Formatteur `formatBucks`. Textes FR, sélecteurs E2E, identifiants non persistés (`bucksToCents`, `INITIAL.yen`, `convert().bucks`, …). Le champ sauvegardé `yenCents` est inchangé (exception documentée + test). | Décision Geraldy 15/11/2026, 21:15 Atlantic/Canary | — | Ne pas renommer `yenCents` dans les sauvegardes existantes. |
 
-| `fmt` / bio Haru | `fmt()` compacte au-dessus d'un million : les milliards s'abrègent **Md** (plus « B », réservé au Buck). Tests fr / en / es (EN/ES n'utilisent pas non plus « B » pour 10¹²). Bio de Haru : « chaque buck ». Aucun « 円 » dans le dépôt. | Relecture Mirage 15/11 21:15+ (Buck) | — | « Convertir en Buck » un caractère plus long : padding bouton 8→6 px pour garder DEF-GS-20/21. |
+| `fmt` / bio Haru | `fmt()` compacte au-dessus d'un million : les milliards s'abrègent **Md** (plus « B », réservé au Buck). Tests fr / en / es (EN/ES n'utilisent pas non plus « B » pour 10¹²). Bio de Haru : « chaque buck ». Aucun « 円 » dans le dépôt. | Relecture Mirage 15/11 21:15+ (Buck) | — | « Convertir en Buck » un caractère plus long : padding bouton 8→4 px, `.pts` nowrap pour garder DEF-GS-20/21. |
 
 ## Unreleased — 0.5.3 micro-correctif schéma futur (branche `fix-053-future-save`, non publié)
 
