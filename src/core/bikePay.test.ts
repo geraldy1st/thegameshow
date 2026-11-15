@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { ManualClock } from './clock';
-import { BIKE_PAY, grossCents, settle, type BikePayState } from './bikePay';
+import { isCalendarDay, ManualClock } from './clock';
+import {
+  BIKE_PAY,
+  BIKE_STAT_IDS,
+  grossCents,
+  progressDelta,
+  settle,
+  type BikePayState,
+  type BikeStatValues,
+} from './bikePay';
+import { MAX_STAT } from '../data/balance';
 
 /** Local calendar instants, so D1 tests do not depend on the runner's time zone. */
 const atLocal = (y: number, m: number, d: number, hh = 12, mm = 0, ss = 0, ms = 0): number =>
@@ -106,5 +115,151 @@ describe('bikePay day rule (D1, day of end)', () => {
     expect(r.newState.day).toBe('2026-11-15');
     expect(r.paidCents).toBe(1_000);
     expect(r.newState.earnedTodayCents).toBe(3_000);
+  });
+});
+
+const stats = (sante = 0, bonheur = 0, repu = 0): BikeStatValues => ({
+  sante,
+  bonheur,
+  repu,
+});
+
+describe('bikePay progressDelta (G-1 = C, 17:13)', () => {
+  it('applies +1 Santé, +1 Bonheur and +1 Réputation in one success call', () => {
+    const r = progressDelta('success', stats(3, 8, 12));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.successes).toBe(1);
+    expect(r.failures).toBe(0);
+    expect(r.deltas).toEqual({ sante: 1, bonheur: 1, repu: 1 });
+    expect(r.next).toEqual({ sante: 4, bonheur: 9, repu: 13 });
+    expect(BIKE_STAT_IDS).toEqual(['sante', 'bonheur', 'repu']);
+  });
+
+  it('a failure increments failures only and leaves all three skills unchanged', () => {
+    const before = stats(7, 7, 7);
+    const r = progressDelta('fail', before);
+    expect(r).toEqual({
+      ok: true,
+      successes: 0,
+      failures: 1,
+      deltas: { sante: 0, bonheur: 0, repu: 0 },
+      next: before,
+    });
+  });
+
+  it('abandon increments nothing and leaves skills unchanged', () => {
+    const before = stats(1, 2, 3);
+    const r = progressDelta('abandon', before);
+    expect(r).toEqual({
+      ok: true,
+      successes: 0,
+      failures: 0,
+      deltas: { sante: 0, bonheur: 0, repu: 0 },
+      next: before,
+    });
+  });
+
+  it('a skill at 99 goes to 100 while the other two rise normally', () => {
+    const r = progressDelta('success', stats(99, 4, 10));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.deltas).toEqual({ sante: 1, bonheur: 1, repu: 1 });
+    expect(r.next).toEqual({ sante: 100, bonheur: 5, repu: 11 });
+
+    const r2 = progressDelta('success', stats(4, 99, 10));
+    expect(r2.ok).toBe(true);
+    if (!r2.ok) return;
+    expect(r2.next).toEqual({ sante: 5, bonheur: 100, repu: 11 });
+
+    const r3 = progressDelta('success', stats(4, 10, 99));
+    expect(r3.ok).toBe(true);
+    if (!r3.ok) return;
+    expect(r3.next).toEqual({ sante: 5, bonheur: 11, repu: 100 });
+  });
+
+  it('a skill at 100 stays at 100 while the other two still get +1', () => {
+    const r = progressDelta('success', stats(100, 4, 10));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.successes).toBe(1);
+    expect(r.deltas).toEqual({ sante: 0, bonheur: 1, repu: 1 });
+    expect(r.next).toEqual({ sante: 100, bonheur: 5, repu: 11 });
+    expect(r.next.sante).toBe(MAX_STAT);
+
+    const r2 = progressDelta('success', stats(4, 100, 10));
+    expect(r2.ok).toBe(true);
+    if (!r2.ok) return;
+    expect(r2.deltas).toEqual({ sante: 1, bonheur: 0, repu: 1 });
+    expect(r2.next).toEqual({ sante: 5, bonheur: 100, repu: 11 });
+
+    const r3 = progressDelta('success', stats(4, 10, 100));
+    expect(r3.ok).toBe(true);
+    if (!r3.ok) return;
+    expect(r3.deltas).toEqual({ sante: 1, bonheur: 1, repu: 0 });
+    expect(r3.next).toEqual({ sante: 5, bonheur: 11, repu: 100 });
+  });
+
+  it('all three already at 100 stay at 100; the success is still counted', () => {
+    const r = progressDelta('success', stats(100, 100, 100));
+    expect(r).toEqual({
+      ok: true,
+      successes: 1,
+      failures: 0,
+      deltas: { sante: 0, bonheur: 0, repu: 0 },
+      next: { sante: 100, bonheur: 100, repu: 100 },
+    });
+  });
+
+  it('rejects a skill value outside 0..MAX_STAT', () => {
+    expect(progressDelta('success', stats(-1, 0, 0)).ok).toBe(false);
+    expect(progressDelta('success', stats(0, 101, 0))).toEqual({
+      ok: false,
+      reason: 'invalid-stats',
+    });
+    expect(progressDelta('success', stats(0, 0, 1.5)).ok).toBe(false);
+  });
+});
+
+describe('bikePay day rule mutants and invalid dates (R-I1-05, P05, P07)', () => {
+  it('does not reset on a clock rollback that crosses a day boundary (P05)', () => {
+    // Stored day is yesterday at the cap. nowCal is today, but earlier than maxSeenAt
+    // (also today). Without the rollback guard the later calendar day would reset and
+    // pay 14 000 cents; with the guard the cap still applies and the run pays 0.
+    const state: BikePayState = { day: '2026-11-15', earnedTodayCents: 100_000 };
+    const maxSeen = atLocal(2026, 10, 16, 18);
+    const nowCal = atLocal(2026, 10, 16, 10);
+    const r = settle('success', 20, state, nowCal, maxSeen);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.newState.day).toBe('2026-11-15');
+    expect(r.paidCents).toBe(0);
+    expect(r.capped).toBe(true);
+    expect(r.newState.earnedTodayCents).toBe(100_000);
+  });
+
+  it('does not reset when the stored day is still after today (P07)', () => {
+    // today !== state.day would wrongly reset a future stored day.
+    const state: BikePayState = { day: '2026-11-17', earnedTodayCents: 50_000 };
+    const r = settle('success', 20, state, T0, T0);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.newState.day).toBe('2026-11-17');
+    expect(r.paidCents).toBe(14_000);
+    expect(r.newState.earnedTodayCents).toBe(64_000);
+  });
+
+  it('rejects a non-calendar date such as 2026-02-30', () => {
+    expect(isCalendarDay('2026-02-30')).toBe(false);
+    expect(isCalendarDay('2026-02-29')).toBe(false);
+    expect(isCalendarDay('2026-02-28')).toBe(true);
+    expect(isCalendarDay('2024-02-29')).toBe(true);
+    expect(isCalendarDay('2026-13-01')).toBe(false);
+    expect(isCalendarDay('2026-11-15')).toBe(true);
+    expect(settle('success', 0, { day: '2026-02-30', earnedTodayCents: 0 }, T0, T0)).toEqual({
+      ok: false,
+      reason: 'invalid-state',
+    });
+    expect(settle('success', 0, { day: '2026-02-29', earnedTodayCents: 0 }, T0, T0).ok).toBe(false);
   });
 });

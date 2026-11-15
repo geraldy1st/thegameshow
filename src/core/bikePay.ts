@@ -1,9 +1,15 @@
-import { localDay } from './clock';
+import { MAX_STAT } from '../data/balance';
+import { isCalendarDay, localDay } from './clock';
 
 /**
  * Isolated bike settlement (0.6.0 I1). Pure: no DOM, no storage, no boosts, no profile.xp.
  * Amounts are integer yen-cents. Economy (according to Mirage, 08/11): 2 ¥ / coin, 20 coins
  * max, +100 ¥ on success, 1 000 ¥ / day bike-only cap.
+ *
+ * G-1 = C, corrected 15/11 17:13 (supersedes 17:09–17:11 « Santé only »): a committed
+ * success raises sante, bonheur and repu by +1 each, each capped at MAX_STAT independently;
+ * a failure or abandon raises 0 to all three. I1 only *computes* the delta (progressDelta).
+ * I2 writes it in the same transaction as the receipt. No UI here.
  */
 export const BIKE_PAY = {
   coinYenCents: 200,
@@ -62,7 +68,7 @@ function isCoinCount(n: unknown): n is number {
 function isPayState(s: BikePayState): boolean {
   return (
     typeof s.day === 'string' &&
-    /^\d{4}-\d{2}-\d{2}$/.test(s.day) &&
+    isCalendarDay(s.day) &&
     Number.isInteger(s.earnedTodayCents) &&
     s.earnedTodayCents >= 0 &&
     s.earnedTodayCents <= BIKE_PAY.dailyCapCents
@@ -94,4 +100,67 @@ export function settle(
     capped: paidCents < gross,
     newState: { day: rolled.day, earnedTodayCents },
   };
+}
+
+/** Rule version persisted on the v6 bike object (G-2). A later incompatible rule is a new version. */
+export const BIKE_PROGRESS_RULES_VERSION = 1 as const;
+
+/** Existing skill ids (STAT_IDS). Do not invent other names. */
+export const BIKE_STAT_IDS = ['sante', 'bonheur', 'repu'] as const;
+export type BikeStatId = (typeof BIKE_STAT_IDS)[number];
+export type BikeStatValues = Record<BikeStatId, number>;
+
+export type ProgressDeltaOk = {
+  ok: true;
+  /** Disjoint counters: a success increments only successes, a fail only failures. */
+  successes: 0 | 1;
+  failures: 0 | 1;
+  deltas: Record<BikeStatId, 0 | 1>;
+  next: BikeStatValues;
+};
+
+export type ProgressDeltaErr = {
+  ok: false;
+  reason: 'invalid-stats';
+};
+
+export type ProgressDeltaResult = ProgressDeltaOk | ProgressDeltaErr;
+
+function isStatValue(n: unknown): n is number {
+  return typeof n === 'number' && Number.isInteger(n) && n >= 0 && n <= MAX_STAT;
+}
+
+function isStatValues(s: BikeStatValues): boolean {
+  return BIKE_STAT_IDS.every((id) => isStatValue(s[id]));
+}
+
+function bump(stats: BikeStatValues): { deltas: Record<BikeStatId, 0 | 1>; next: BikeStatValues } {
+  const deltas = {} as Record<BikeStatId, 0 | 1>;
+  const next = {} as BikeStatValues;
+  for (const id of BIKE_STAT_IDS) {
+    const n = Math.min(MAX_STAT, stats[id] + 1);
+    deltas[id] = (n - stats[id]) as 0 | 1;
+    next[id] = n;
+  }
+  return { deltas, next };
+}
+
+/**
+ * Pure G-1/G-2 increment. Does not touch storage. Abandon: nothing. Fail: failures +1,
+ * all three skills unchanged. Success: successes +1 and each of sante, bonheur, repu +1,
+ * each capped independently at MAX_STAT (99→100 on one skill does not block the others;
+ * 100 stays 100 while the other two still rise). Paid yen (including 0 ¥ after the daily
+ * cap) do not change this rule: it follows `outcome`.
+ */
+export function progressDelta(outcome: BikePayOutcome, stats: BikeStatValues): ProgressDeltaResult {
+  if (!isStatValues(stats)) return { ok: false, reason: 'invalid-stats' };
+  const zero = { sante: 0, bonheur: 0, repu: 0 } as const;
+  if (outcome === 'abandon') {
+    return { ok: true, successes: 0, failures: 0, deltas: { ...zero }, next: { ...stats } };
+  }
+  if (outcome === 'fail') {
+    return { ok: true, successes: 0, failures: 1, deltas: { ...zero }, next: { ...stats } };
+  }
+  const { deltas, next } = bump(stats);
+  return { ok: true, successes: 1, failures: 0, deltas, next };
 }
