@@ -87,6 +87,15 @@ const distToVmax = BIKE.v0 * timeToVmax + 0.5 * BIKE.accel * timeToVmax * timeTo
 
 export const minGapTime = 2 * BIKE.laneTime + BIKE.reactionMargin;
 
+/**
+ * Measured minimum analytical slack (Crypto I1, seed 147938870): 0.1226 s between
+ * obstacle exit (rear + halfDepth) and next-row entry (front − halfDepth), minus
+ * lane-change time. The 0.20 s `BIKE.reactionMargin` used in minGapTime is a
+ * conservative unused floor (gaps are ~1.09–1.74 s). The independent oracle
+ * uses this measured 0.12 s (R-I1-01).
+ */
+export const ORACLE_REACTION_MARGIN = 0.12;
+
 export function speedAt(t: number): number {
   return Math.min(BIKE.vmax, BIKE.v0 + BIKE.accel * Math.max(0, t));
 }
@@ -226,20 +235,42 @@ export function generateCourse(seed: number): BikeCourse {
   return { rows, obstacles, pickups };
 }
 
-/** True when every origin lane can reach at least one free lane of the next row in time. */
-export function rowsAreReachable(rows: readonly BikeRow[]): boolean {
+/**
+ * Independent of the generator's gapT / minGapTime floor (R-I1-01 / DEF-BT-11).
+ * From every origin lane of row i−1, at least one free lane of row i is reachable
+ * after leaving the deepest obstacle actually crossed (rear + halfDepth) and
+ * before entering the next row (front − halfDepth), with
+ * |Δlane| × laneTime + ORACLE_REACTION_MARGIN.
+ */
+export function courseIsReachable(course: BikeCourse): boolean {
+  const { rows, obstacles } = course;
   for (let i = 1; i < rows.length; i++) {
     const prev = rows[i - 1]!;
     const row = rows[i]!;
-    const available = travelTime(prev.z, row.z);
-    if (available + 1e-12 < minGapTime) return false;
     if (row.free.length === 0) return false;
+    const prevObs = obstacles.filter((o) => o.row === prev.index);
+    const entryZ = row.z - BIKE.halfDepth;
     for (const origin of LANES) {
-      const ok = row.free.some((f) => Math.abs(f - origin) * BIKE.laneTime <= available + 1e-12);
+      const ok = row.free.some((dest) => {
+        const lo = Math.min(origin, dest);
+        const hi = Math.max(origin, dest);
+        const crossed = prevObs.filter((o) => o.lane >= lo && o.lane <= hi);
+        const exitZ = crossed.length
+          ? prev.z + Math.max(...crossed.map((o) => o.depth)) + BIKE.halfDepth
+          : prev.z;
+        const available = travelTime(exitZ, entryZ);
+        const need = Math.abs(dest - origin) * BIKE.laneTime + ORACLE_REACTION_MARGIN;
+        return available + 1e-12 >= need;
+      });
       if (!ok) return false;
     }
   }
   return true;
+}
+
+/** @deprecated tautological front-to-front check; use courseIsReachable. */
+export function rowsAreReachable(rows: readonly BikeRow[]): boolean {
+  return courseIsReachable({ rows, obstacles: [], pickups: [] });
 }
 
 export function createRun(seed: number, runId: string): BikeRun {
@@ -271,7 +302,9 @@ export function pause(run: BikeRun): BikeRun {
 /** Resume with held inputs cleared: the caller passes a fresh input on the next step. */
 export function resume(run: BikeRun): BikeRun {
   if (run.phase !== 'paused') return run;
-  return { ...run, phase: 'running', laneT: Math.max(run.laneT, BIKE.laneTime) };
+  // R-I1-04: pause freezes a lane change in progress; resume continues from saved laneT
+  // (no snap, no teleport). Held inputs are cleared by the caller on the next step.
+  return { ...run, phase: 'running' };
 }
 
 function changing(run: BikeRun): boolean {
@@ -306,7 +339,8 @@ function inLane(x: number, lane: Lane): boolean {
 
 export function step(run: BikeRun, dt: number, input: BikeInput): BikeRun {
   if (run.phase !== 'running') return run;
-  const bounded = Math.min(BIKE.maxDt, Math.max(0, dt));
+  // DEF-GS-49: NaN / ±Infinity must not corrupt t/z (the run would never end).
+  const bounded = Number.isFinite(dt) ? Math.min(BIKE.maxDt, Math.max(0, dt)) : 0;
   const next = applySteer(run, input);
   const z0 = next.z;
   const t1 = next.t + bounded;
