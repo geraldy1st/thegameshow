@@ -10,7 +10,7 @@ Aucun texte inventé. EN/ES non validés : la production affiche le FR dans tout
 Auteur : Geraldy (carte blanche via Mirage)
 Date : 2026-11-09
 Statut : approuvé par Geraldy
-Texte : Haru tient un petit carnet où chaque Buck a sa ligne. Ancien livreur, il a appris à mettre un peu de côté à chaque paie plutôt que d'attendre un gros coup de chance. Calme et patient, il aime montrer qu'une épargne régulière, même modeste, finit par compter. Son envie : que plus personne n'ait peur d'ouvrir ses relevés.
+Texte : Haru tient un petit carnet où chaque buck a sa ligne. Ancien livreur, il a appris à mettre un peu de côté à chaque paie plutôt que d'attendre un gros coup de chance. Calme et patient, il aime montrer qu'une épargne régulière, même modeste, finit par compter. Son envie : que plus personne n'ait peur d'ouvrir ses relevés.
 
 ### kei
 
