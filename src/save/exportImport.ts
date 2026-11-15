@@ -15,9 +15,22 @@ export function fnv1a(text: string): string {
   return h.toString(16).padStart(8, '0');
 }
 
-export function serializeExport(save: GameState): string {
+export function serializeUnknownExport(save: unknown): string {
   const payload = JSON.stringify(save);
   return JSON.stringify({ format: EXPORT_FORMAT, checksum: fnv1a(payload), save }, null, 2);
+}
+
+export function serializeExport(save: GameState): string {
+  return serializeUnknownExport(save);
+}
+
+/** DEF-GS-52: wrap a raw slot (pretty-printed or not) in the standard export envelope. */
+export function envelopeFromRawJson(raw: string): string {
+  try {
+    return serializeUnknownExport(JSON.parse(raw) as unknown);
+  } catch {
+    return serializeUnknownExport(raw);
+  }
 }
 
 /** Parses and validates an imported file. Never throws; never touches storage. */

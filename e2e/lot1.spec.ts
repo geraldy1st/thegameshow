@@ -52,6 +52,8 @@ test('starting over from an unreadable save needs a confirmation (DEF-GS-01)', a
   await corruptSave(page);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Sauvegarde illisible' })).toBeVisible();
+  // DEF-GS-53 / M12: a corrupt save still offers Import (only a future schema hides it).
+  await expect(page.getByText('Importer une sauvegarde')).toBeVisible();
 
   await page.getByRole('button', { name: 'Commencer une nouvelle partie' }).click();
   const dialog = page.getByRole('dialog', { name: 'Commencer une nouvelle partie ?' });
@@ -66,6 +68,8 @@ test('starting over from an unreadable save needs a confirmation (DEF-GS-01)', a
 
   await dialog.getByRole('button', { name: 'Annuler' }).click();
   await expect(page.getByRole('heading', { name: 'Sauvegarde illisible' })).toBeVisible();
+  // DEF-GS-53 / M12: a corrupt save still offers Import (only a future schema hides it).
+  await expect(page.getByText('Importer une sauvegarde')).toBeVisible();
 
   await page.getByRole('button', { name: 'Commencer une nouvelle partie' }).click();
   await dialog.getByRole('button', { name: 'Oui, commencer une nouvelle partie' }).click();

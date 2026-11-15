@@ -15,13 +15,20 @@ import {
   validateSaveV5,
 } from './schema';
 import { migrateToCurrent } from './migrations';
-import { MAX_IMPORT_BYTES, fnv1a, parseImport, serializeExport } from './exportImport';
+import {
+  MAX_IMPORT_BYTES,
+  envelopeFromRawJson,
+  fnv1a,
+  parseImport,
+  serializeExport,
+} from './exportImport';
 import {
   FutureSchemaWriteError,
   RevisionConflictError,
   DB_VERSION,
   backupBeforeImport,
   backupBeforeMigration,
+  backupBeforeReset,
   backupBeforeRestore,
   loadSave,
   openSaveDb,
@@ -137,6 +144,20 @@ describe('golden saves and migration chain (RES-7a)', () => {
     });
     const r = parseImport(text);
     expect(r.ok && r.value.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+  });
+  it('wraps a raw future record in the standard envelope (DEF-GS-52 / NV6-13)', () => {
+    const future = { schemaVersion: CURRENT_SCHEMA_VERSION + 1, yenCents: 42424, extra: 'v6' };
+    const raw = JSON.stringify(future, null, 2);
+    const text = envelopeFromRawJson(raw);
+    const env = JSON.parse(text) as { format: string; checksum: string; save: unknown };
+    expect(Object.keys(env).sort()).toEqual(['checksum', 'format', 'save']);
+    expect(env.format).toBe('thegameshow-save');
+    expect(env.checksum).toBe(fnv1a(JSON.stringify(future)));
+    expect(env.save).toEqual(future);
+    // 0.5.x cannot migrate a v6 payload; 0.6.0 will, with the same envelope.
+    const r = parseImport(text);
+    expect(r.ok).toBe(false);
+    expect(r.ok === false && r.reason).not.toMatch(/envelope/);
   });
   it('is idempotent', () => {
     const once = migrateToCurrent(midgame);
@@ -300,6 +321,18 @@ describe('IndexedDB persistence (RES-2, RES-3, RES-7d)', () => {
     const a = await writeSave(db, createInitialState(T0, 1), -1);
     await backupBeforeImport(db);
     expect(await db.get('saves', 'backup-before-import')).toEqual(a);
+  });
+  it('does not overwrite import or reset backups when current is a future schema (DEF-GS-51)', async () => {
+    const db = await freshDb();
+    const keptImport = { tag: 'kept-import' };
+    const keptReset = { tag: 'kept-reset' };
+    await db.put('saves', { schemaVersion: CURRENT_SCHEMA_VERSION + 1, yenCents: 9 }, 'current');
+    await db.put('saves', keptImport, 'backup-before-import');
+    await db.put('saves', keptReset, 'backup-before-reset');
+    expect(await backupBeforeImport(db)).toBe('future');
+    expect(await backupBeforeReset(db)).toBe('future');
+    expect(await db.get('saves', 'backup-before-import')).toEqual(keptImport);
+    expect(await db.get('saves', 'backup-before-reset')).toEqual(keptReset);
   });
 });
 

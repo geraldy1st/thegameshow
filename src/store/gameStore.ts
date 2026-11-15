@@ -540,13 +540,25 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         const parsed = parseImport(text);
         if (!parsed.ok) return parsed;
         if (!db) return { ok: false, reason: 'storage unavailable' };
-        const { status, recoveryKind } = get();
+        const { status, recoveryKind, game: before } = get();
         if (status === 'readonly') return { ok: false, reason: 'read-only tab' };
         // DEF-GS-48: a future schema must not get a false « Sauvegarde importée. »
         // nor overwrite backup-before-import.
         if (recoveryKind === 'future') return { ok: false, reason: 'future-schema' };
         await chain;
-        await backupBeforeImport(db);
+        // DEF-GS-51: also refuse if *disk* already holds a future schema (ready tab).
+        const backup = await backupBeforeImport(db);
+        if (backup === 'future') {
+          set({
+            game: before,
+            status: status === 'recovery' ? 'recovery' : 'readonly',
+            recoveryKind: 'future',
+            reloadNeeded: true,
+            writeError: true,
+          });
+          get().announce(t('reloadNeeded'));
+          return { ok: false, reason: 'future-schema' };
+        }
         persistedRevision = await storedRevision();
         const now = deps.clock.now();
         // An imported save may come from another device clock: never let it block settlement.
@@ -566,7 +578,17 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
           ),
         };
         set({ game: imported, status: 'ready', recoveryReason: null, recoveryKind: null });
-        await persistNow();
+        const ok = await persistNow();
+        if (!ok) {
+          const future = get().recoveryKind === 'future';
+          set({
+            game: before,
+            ...(future
+              ? {}
+              : { status, recoveryReason: get().recoveryReason, recoveryKind: get().recoveryKind }),
+          });
+          return { ok: false, reason: future ? 'future-schema' : 'write-failed' };
+        }
         return { ok: true };
       },
 
@@ -574,16 +596,34 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         if (!db || get().status === 'readonly') return;
         // DEF-GS-48: do not overwrite backup-before-reset or show an unsaved new game.
         if (get().recoveryKind === 'future') return;
+        const { status, game: before } = get();
         await chain;
+        const backup = await backupBeforeReset(db);
+        if (backup === 'future') {
+          set({
+            game: before,
+            status: status === 'recovery' ? 'recovery' : 'readonly',
+            recoveryKind: 'future',
+            reloadNeeded: true,
+            writeError: true,
+          });
+          get().announce(t('reloadNeeded'));
+          return;
+        }
         persistedRevision = await storedRevision();
-        await backupBeforeReset(db);
         set({
           game: createInitialState(deps.clock.now(), deps.newSeed()),
           status: 'ready',
           recoveryReason: null,
           recoveryKind: null,
         });
-        await persistNow();
+        const ok = await persistNow();
+        if (!ok) {
+          set({
+            game: before,
+            ...(get().recoveryKind === 'future' ? {} : { status }),
+          });
+        }
       },
 
       async rawCurrentSave() {

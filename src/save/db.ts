@@ -276,20 +276,34 @@ export async function backupBeforeRestore(db: IDBPDatabase<TgsDB>): Promise<void
   await tx.done;
 }
 
-/** Keeps a copy of the current save before an import replaces it (RES-7c). */
-export async function backupBeforeImport(db: IDBPDatabase<TgsDB>): Promise<void> {
+/**
+ * DEF-GS-51: copy `current` to a backup slot in the same transaction, but
+ * refuse (and write nothing) when the stored schema is already newer.
+ */
+async function copyCurrentIfCompatible(
+  db: IDBPDatabase<TgsDB>,
+  slot: 'backup-before-import' | 'backup-before-reset',
+): Promise<'ok' | 'future'> {
   const tx = db.transaction('saves', 'readwrite');
   const cur = await tx.store.get('current');
-  if (cur !== undefined) await tx.store.put(cur, 'backup-before-import');
+  if (cur !== undefined && versionOf(cur) > CURRENT_SCHEMA_VERSION) {
+    tx.abort();
+    await tx.done.catch(() => undefined);
+    return 'future';
+  }
+  if (cur !== undefined) await tx.store.put(cur, slot);
   await tx.done;
+  return 'ok';
+}
+
+/** Keeps a copy of the current save before an import replaces it (RES-7c). */
+export async function backupBeforeImport(db: IDBPDatabase<TgsDB>): Promise<'ok' | 'future'> {
+  return copyCurrentIfCompatible(db, 'backup-before-import');
 }
 
 /** Keeps the raw current record (even unreadable) before a new game overwrites it (DEF-GS-01). */
-export async function backupBeforeReset(db: IDBPDatabase<TgsDB>): Promise<void> {
-  const tx = db.transaction('saves', 'readwrite');
-  const cur = await tx.store.get('current');
-  if (cur !== undefined) await tx.store.put(cur, 'backup-before-reset');
-  await tx.done;
+export async function backupBeforeReset(db: IDBPDatabase<TgsDB>): Promise<'ok' | 'future'> {
+  return copyCurrentIfCompatible(db, 'backup-before-reset');
 }
 
 /** Raw JSON of a slot, readable or not, so the player can download it before a reset. */

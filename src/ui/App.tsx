@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { DESC_TODO, Dot, DotDescription, Modal } from './common';
 import { pendingQuestsFor } from '../core/questTargets';
 import { download, claimableCount, revealPending } from './helpers';
+import { envelopeFromRawJson } from '../save/exportImport';
 import { Home } from './Home';
 import { currentRoute, goHome, navigate, replaceRoute, useRoute, type Route } from './router';
 import { Mission } from './Mission';
@@ -236,7 +237,8 @@ function Recovery({ store }: { store: Store }) {
                   .rawCurrentSave()
                   .then((raw) => {
                     if (raw) {
-                      download(raw);
+                      // DEF-GS-52: standard envelope so 0.6.0 can import this file.
+                      download(envelopeFromRawJson(raw));
                       store.getState().announce(t('exportDone'));
                     }
                   })

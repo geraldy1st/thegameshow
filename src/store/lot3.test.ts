@@ -78,6 +78,38 @@ describe('lot 3 store: migration v2 → v5 (chain)', () => {
     expect(await db.get('saves', 'current')).toEqual(future);
     expect(store.getState().status).toBe('recovery');
   });
+  it('a ready tab does not clobber backups or claim a false import when disk is already v6 (DEF-GS-51)', async () => {
+    const { store, name } = setup();
+    await seed(name, { current: midgame });
+    await store.getState().init();
+    expect(store.getState().status).toBe('ready');
+    const yenBefore = store.getState().game?.yenCents;
+    const db = await openSaveDb(name);
+    const partieA = { ...midgame, yenCents: 7777, tag: 'partie-A' };
+    const partieB = { ...midgame, yenCents: 8888, tag: 'partie-B' };
+    await db.put('saves', partieA, 'backup-before-reset');
+    await db.put('saves', partieB, 'backup-before-import');
+    const future = { ...midgame, schemaVersion: 6, yenCents: 42424 };
+    await db.put('saves', future, 'current');
+
+    const incoming = setup();
+    await incoming.store.getState().init();
+    const valid = incoming.store.getState().exportSave();
+    expect(valid).toBeTruthy();
+    const result = await store.getState().importSave(valid!);
+    expect(result).toEqual({ ok: false, reason: 'future-schema' });
+    expect(store.getState().announcement).not.toBe('Sauvegarde importée.');
+    expect(store.getState().game?.yenCents).toBe(yenBefore);
+    expect(await db.get('saves', 'backup-before-import')).toEqual(partieB);
+    expect(await db.get('saves', 'current')).toEqual(future);
+
+    await store.getState().newGame();
+    expect(store.getState().game?.yenCents).toBe(yenBefore);
+    expect(await db.get('saves', 'backup-before-reset')).toEqual(partieA);
+    expect(await db.get('saves', 'current')).toEqual(future);
+    expect(store.getState().recoveryKind).toBe('future');
+    expect(store.getState().status).toBe('readonly');
+  });
   it('announces the fallback to a backup copy', async () => {
     const { store, name } = setup();
     await seed(name, { current: { bad: 1 }, 'backup-before-migration': midgame });

@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ManualClock } from '../core/clock';
 import { openSaveDb } from '../save/db';
 import { createGameStore } from '../store/gameStore';
 import { App } from './App';
+import { fnv1a, parseImport } from '../save/exportImport';
+import * as helpers from './helpers';
 
 beforeAll(() => {
   // jsdom has no <dialog> modal API.
@@ -36,6 +38,7 @@ async function recoveryApp(name: string) {
 describe('recovery screen (DEF-GS-01)', () => {
   it('asks for a confirmation listing the losses before starting over', async () => {
     const { store, db } = await recoveryApp('ui-recovery-1');
+    expect(document.querySelector('label[for="import-file"]')).toBeTruthy(); // DEF-GS-53 / M12
     fireEvent.click(screen.getByRole('button', { name: 'Commencer une nouvelle partie' }));
     expect(store.getState().status).toBe('recovery'); // nothing happened yet
     const dialog = screen.getByRole('dialog', { name: 'Commencer une nouvelle partie ?' });
@@ -152,5 +155,29 @@ describe('DEF-GS-48 future schema does not offer Nouvelle partie or Importer', (
     expect(imported.ok).toBe(false);
     expect(await db.get('saves', 'backup-before-import')).toEqual(beforeImport);
     expect(await db.get('saves', 'current')).toEqual(future);
+  });
+});
+
+describe('DEF-GS-52 / DEF-GS-53 future export envelope and announcements', () => {
+  it('exports a standard envelope and announces « Sauvegarde exportée. » (M09)', async () => {
+    const captured: string[] = [];
+    const spy = vi.spyOn(helpers, 'download').mockImplementation((text) => {
+      captured.push(text);
+    });
+    const { store, db } = await futureRecoveryApp('ui-recovery-export-env');
+    const current = await db.get('saves', 'current');
+    fireEvent.click(screen.getByRole('button', { name: 'Exporter la sauvegarde' }));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    expect(captured).toHaveLength(1);
+    const text = captured[0]!;
+    const env = JSON.parse(text) as { format: string; checksum: string; save: unknown };
+    expect(env.format).toBe('thegameshow-save');
+    expect(env.save).toEqual(current);
+    expect(env.checksum).toBe(fnv1a(JSON.stringify(current)));
+    expect(parseImport(text).ok).toBe(false); // v6 is not a 0.5.x save; envelope itself is valid
+    expect(store.getState().announcement).toBe('Sauvegarde exportée.');
+    spy.mockRestore();
   });
 });
