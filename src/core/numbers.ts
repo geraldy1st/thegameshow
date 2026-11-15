@@ -13,6 +13,7 @@ export function addAmount(a: number, b: number): number {
   return Math.floor(sum);
 }
 
-export const bucksToCents = (bucks: number): number => Math.min(MAX_AMOUNT, Math.round(bucks * 100));
+export const bucksToCents = (bucks: number): number =>
+  Math.min(MAX_AMOUNT, Math.round(bucks * 100));
 /** Display rule: floor to whole Bucks. */
 export const centsToBucks = (cents: number): number => Math.floor(cents / 100);
