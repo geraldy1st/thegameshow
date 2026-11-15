@@ -140,10 +140,10 @@ describe('tap (GS-V5-46, 47, 58)', () => {
 });
 
 describe('conversion (GS-V5-48)', () => {
-  it('n × 100 + r pts → n × 10 ¥ in exact cents, r kept, +1 Créativité per conversion', () => {
+  it('n × 100 + r pts → n × 10 B in exact cents, r kept, +1 Créativité per conversion', () => {
     const g = { ...fresh(), work: { ...fresh().work, points: 1234, pointsTotal: 1234 } };
     const r = convert(g);
-    expect(r.yen).toBe(120);
+    expect(r.bucks).toBe(120);
     expect(r.state.yenCents).toBe(g.yenCents + 12_000);
     expect(r.state.work.points).toBe(34);
     expect(r.state.work.pointsTotal).toBe(1234);
@@ -151,7 +151,7 @@ describe('conversion (GS-V5-48)', () => {
   });
   it('below 100 points nothing changes; Créativité capped at 100', () => {
     const g = { ...fresh(), work: { ...fresh().work, points: 99, pointsTotal: 99 } };
-    expect(convert(g)).toEqual({ state: g, yen: 0 });
+    expect(convert(g)).toEqual({ state: g, bucks: 0 });
     const full = {
       ...fresh(),
       stats: { ...fresh().stats, crea: 100 },
@@ -159,15 +159,15 @@ describe('conversion (GS-V5-48)', () => {
     };
     expect(convert(full).state.stats.crea).toBe(100);
   });
-  it('property: yen and rest are exact (1 000 cases)', () => {
+  it('property: bucks and rest are exact (1 000 cases)', () => {
     fc.assert(
       fc.property(fc.integer({ min: 0, max: 10 ** 9 }), (points) => {
         const g = { ...fresh(), work: { ...fresh().work, points, pointsTotal: points } };
         const r = convert(g);
         return (
-          r.yen === Math.floor(points / 100) * 10 &&
+          r.bucks === Math.floor(points / 100) * 10 &&
           r.state.work.points === points % 100 &&
-          r.state.yenCents === g.yenCents + r.yen * 100
+          r.state.yenCents === g.yenCents + r.bucks * 100
         );
       }),
       { numRuns: 1000, seed: 77 },

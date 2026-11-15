@@ -3,8 +3,8 @@ import { isCalendarDay, localDay } from './clock';
 
 /**
  * Isolated bike settlement (0.6.0 I1). Pure: no DOM, no storage, no boosts, no profile.xp.
- * Amounts are integer yen-cents. Economy (according to Mirage, 08/11): 2 ¥ / coin, 20 coins
- * max, +100 ¥ on success, 1 000 ¥ / day bike-only cap.
+ * Amounts are integer bucks-cents. Economy (according to Mirage, 08/11): 2\u00a0B / coin, 20 coins
+ * max, +100\u00a0B on success, 1 000\u00a0B / day bike-only cap.
  *
  * G-1 = C, corrected 15/11 17:13 (supersedes 17:09–17:11 « Santé only »): a committed
  * success raises sante, bonheur and repu by +1 each, each capped at MAX_STAT independently;
@@ -149,7 +149,7 @@ function bump(stats: BikeStatValues): { deltas: Record<BikeStatId, 0 | 1>; next:
  * Pure G-1/G-2 increment. Does not touch storage. Abandon: nothing. Fail: failures +1,
  * all three skills unchanged. Success: successes +1 and each of sante, bonheur, repu +1,
  * each capped independently at MAX_STAT (99→100 on one skill does not block the others;
- * 100 stays 100 while the other two still rise). Paid yen (including 0 ¥ after the daily
+ * 100 stays 100 while the other two still rise). Paid Bucks (including 0\u00a0B after the daily
  * cap) do not change this rule: it follows `outcome`.
  */
 export function progressDelta(outcome: BikePayOutcome, stats: BikeStatValues): ProgressDeltaResult {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HOUR_MS, INITIAL, MAX_AMOUNT, OFFLINE_CAP_MS } from '../data/balance';
 import { ManualClock, localDay } from './clock';
-import { buy, click, clickValueYen, incomeCentsPerSecond, nextCostYen } from './economy';
+import { buy, click, clickValueBucks, incomeCentsPerSecond, nextCostBucks } from './economy';
 import { collectOffline, settle } from './idle';
 import { addAmount } from './numbers';
 import { createRng, nextFloat } from './rng';
@@ -44,19 +44,19 @@ describe('rng', () => {
 });
 
 describe('click and investments', () => {
-  it('a click earns 1 yen at start', () => {
+  it('a click earns 1 bucks at start', () => {
     const s = click(fresh());
-    expect(clickValueYen(fresh())).toBe(1);
+    expect(clickValueBucks(fresh())).toBe(1);
     expect(s.yenCents).toBe(12100);
     expect(s.totalClicks).toBe(1);
   });
   it('costs follow base x growth^level, rounded up', () => {
-    expect(nextCostYen('save', 0)).toBe(50);
-    expect(nextCostYen('save', 1)).toBe(58); // 57.5 -> 58
-    expect(nextCostYen('stock', 0)).toBe(250);
-    expect(nextCostYen('stock', 1)).toBe(293); // 292.5
-    expect(nextCostYen('estate', 0)).toBe(2000);
-    expect(nextCostYen('estate', 1)).toBe(2400);
+    expect(nextCostBucks('save', 0)).toBe(50);
+    expect(nextCostBucks('save', 1)).toBe(58); // 57.5 -> 58
+    expect(nextCostBucks('stock', 0)).toBe(250);
+    expect(nextCostBucks('stock', 1)).toBe(293); // 292.5
+    expect(nextCostBucks('estate', 0)).toBe(2000);
+    expect(nextCostBucks('estate', 1)).toBe(2400);
   });
   it('buying deducts the cost and refuses when short', () => {
     const r = buy(fresh(), 'save');
@@ -80,7 +80,7 @@ describe('click and investments', () => {
 });
 
 describe('idle settlement (RES-5)', () => {
-  const base = () => withLevels(fresh(), 10); // 6 yen/s = 600 cents/s
+  const base = () => withLevels(fresh(), 10); // 6 bucks/s = 600 cents/s
 
   it('credits elapsed time silently under 60 s', () => {
     const r = settle(base(), T0 + 1000);

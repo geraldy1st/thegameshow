@@ -20,7 +20,7 @@ export interface SettleResult {
   clockRollback: boolean;
 }
 
-/** Instantaneous income (hundredths of yen per second) at given clocks. */
+/** Instantaneous income (hundredths of a Buck per second) at given clocks. */
 export function incomeCentsPerSecondAt(state: GameState, now: number, wallNow: number): number {
   return INVESTMENT_IDS.reduce(
     (sum, id) =>

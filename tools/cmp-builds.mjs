@@ -174,7 +174,7 @@ if (WORK) {
   else if (i >= 0) diff[i] = `work(${wd.filter((k) => !allowed.includes(k)).join(',')})`;
 }
 console.log(
-  `versions ${a.schemaVersion} -> ${c.schemaVersion}, tickets ${a.tickets}/${c.tickets}, pity ${a.gacha.pity}/${c.gacha.pity}, yen ${a.yenCents}/${c.yenCents}`,
+  `versions ${a.schemaVersion} -> ${c.schemaVersion}, tickets ${a.tickets}/${c.tickets}, pity ${a.gacha.pity}/${c.gacha.pity}, yenCents ${a.yenCents}/${c.yenCents}`,
 );
 console.log(
   diff.length ? `§2.4 KO, fields differ: ${diff.join(', ')}` : '§2.4 OK: no field differs',

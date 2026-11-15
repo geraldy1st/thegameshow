@@ -39,7 +39,7 @@ describe('recovery screen (DEF-GS-01)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Commencer une nouvelle partie' }));
     expect(store.getState().status).toBe('recovery'); // nothing happened yet
     const dialog = screen.getByRole('dialog', { name: 'Commencer une nouvelle partie ?' });
-    for (const loss of ['tes yens', 'tes tickets', 'tes investissements et leurs niveaux']) {
+    for (const loss of ['tes Buck', 'tes tickets', 'tes investissements et leurs niveaux']) {
       expect(dialog.textContent).toContain(loss);
     }
     expect(

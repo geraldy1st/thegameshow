@@ -6,10 +6,10 @@ import { useStore, type StoreApi } from 'zustand';
 import { PITY_LIMIT, QUEST_IDS, STAT_IDS, MAX_STAT, BALANCE, xpNeed } from '../data/balance';
 import { incomeCentsPerSecond } from '../core/economy';
 import { questDone } from '../core/quests';
-import { centsToYen } from '../core/numbers';
+import { centsToBucks } from '../core/numbers';
 import { t, type MessageKey } from '../i18n/fr';
 import type { GameStoreState } from '../store/gameStore';
-import { formatAppelRemain, formatDuration, formatRate, formatYen } from './format';
+import { formatAppelRemain, formatDuration, formatRate, formatBucks } from './format';
 import { ASSOCIATES } from '../data/balance';
 import { displayWallNow, remainingMs, statusAt, toCoreEntry } from '../core/appel';
 import { displayName } from './helpers';
@@ -193,7 +193,7 @@ function Infos({ store }: { store: Store }) {
   const done = useStore(store, (s) =>
     s.game ? QUEST_IDS.filter((q) => questDone(s.game!, q)).length : 0,
   );
-  const pending = useStore(store, (s) => centsToYen(s.game?.pendingOfflineCents ?? 0));
+  const pending = useStore(store, (s) => centsToBucks(s.game?.pendingOfflineCents ?? 0));
   const absence = useStore(store, (s) => s.absenceMs);
   const readonly = useStore(store, (s) => s.status !== 'ready');
   const stats = useStore(store, (s) => s.game?.stats);
@@ -202,7 +202,7 @@ function Infos({ store }: { store: Store }) {
   const left = PITY_LIMIT - pity;
   const collect = async () => {
     await store.getState().collectOffline();
-    store.getState().announce(t('collected', { n: formatYen(pending) }));
+    store.getState().announce(t('collected', { n: formatBucks(pending) }));
   };
   return (
     <section className="infos" aria-label={t('homeTitle')}>
@@ -228,7 +228,7 @@ function Infos({ store }: { store: Store }) {
       <article className="card info" aria-labelledby="offline-title">
         <h2 id="offline-title">{t('offlineTitle')}</h2>
         <p className="info-big num">
-          {pending >= 1 ? `+${formatYen(pending)} ¥` : t('offlineNone')}
+          {pending >= 1 ? `+${formatBucks(pending)}` : t('offlineNone')}
         </p>
         <p className="small">
           {pending >= 1 && absence > 0

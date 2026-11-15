@@ -21,7 +21,7 @@ export interface FriendState {
 
 /**
  * Save schema v1 (SPEC-ADDENDUM RES-4: every number is a JS number, amounts are integers,
- * yen are stored in integer hundredths). The in-memory game state is the same shape.
+ * amounts are stored in integer hundredths (persisted field: `yenCents`, a documented exception). The in-memory game state is the same shape.
  */
 export interface SaveV1 {
   schemaVersion: 1;

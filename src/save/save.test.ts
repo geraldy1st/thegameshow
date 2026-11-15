@@ -157,7 +157,7 @@ describe('golden saves and migration chain (RES-7a)', () => {
 
 describe('validation bounds (RES-7c)', () => {
   const bad: Array<[string, unknown]> = [
-    ['negative yen', { ...midgame, yenCents: -1 }],
+    ['negative bucks', { ...midgame, yenCents: -1 }],
     ['NaN tickets', { ...midgame, tickets: NaN }],
     ['fractional cents', { ...midgame, yenCents: 1.5 }],
     ['above 2^53', { ...midgame, yenCents: 2 ** 53 }],

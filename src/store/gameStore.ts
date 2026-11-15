@@ -81,7 +81,7 @@ export interface GameStoreState {
    * (totalClicks, « clic » quest). A read-only tab counts nothing.
    */
   tap(mult?: number): TapOutcome;
-  /** Converts the points (100 pts = 10 ¥, +1 Créativité); resolves the yen credited (0: none). */
+  /** Converts the points (100 pts = 10 B, +1 Créativité); resolves the Buck credited (0: none). */
   convertPoints(): Promise<number>;
   buy(id: InvestmentId): Promise<boolean>;
   collectOffline(): Promise<void>;
@@ -401,13 +401,13 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
       },
 
       async convertPoints() {
-        let yen = 0;
+        let bucks = 0;
         const stored = await committed((g) => {
           const r = coreConvert(g);
-          yen = r.yen;
+          bucks = r.bucks;
           return r.state;
         });
-        return stored ? yen : 0;
+        return stored ? bucks : 0;
       },
 
       async buy(id) {

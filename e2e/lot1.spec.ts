@@ -56,7 +56,7 @@ test('starting over from an unreadable save needs a confirmation (DEF-GS-01)', a
   await page.getByRole('button', { name: 'Commencer une nouvelle partie' }).click();
   const dialog = page.getByRole('dialog', { name: 'Commencer une nouvelle partie ?' });
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText('tes yens');
+  await expect(dialog).toContainText('tes Buck');
   await expect(dialog).toContainText('tes investissements');
   expect(await axeViolations(page)).toEqual([]);
 

@@ -279,7 +279,7 @@ test.describe('migration and recovery (GS-V5-05/06/08)', () => {
       .toBe(5);
     expect(await readSlot(page, 'backup-before-migration')).toEqual(v2);
     const offline = page.getByRole('article', { name: 'Gains hors ligne' });
-    await expect(offline.getByText(/^\+.+ ¥$/)).toBeVisible();
+    await expect(offline.getByText(/^\+.+\u00a0B$/)).toBeVisible();
     await expect(offline.getByText(/plafond 8 h/)).toBeVisible();
     await page.getByRole('button', { name: 'Récolter' }).click();
     await expect(page.getByText('Rien à récolter')).toBeVisible();

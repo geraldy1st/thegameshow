@@ -8,11 +8,16 @@ const compact = new Intl.NumberFormat('fr-FR', { notation: 'compact', maximumFra
 const nfPct = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
 export const formatPercent = (p: number): string => nfPct.format(p);
 
-/** Whole yen; compact above one million (long form goes into aria-label). */
-export const formatYen = (yen: number): string =>
-  yen >= 1e6 ? compact.format(yen) : nf.format(yen);
-export const formatYenLong = (yen: number): string => `${nf.format(yen)} yens`;
-export const formatRate = (yenPerSecond: number): string => nf1.format(yenPerSecond);
+/** Unitless whole-number display (points, etc.). Compact above one million. */
+export const formatAmount = (amount: number): string =>
+  amount >= 1e6 ? compact.format(amount) : nf.format(amount);
+
+/** Mirage: suffix the unit with a non-breaking space, e.g. « 100\u00a0B ». */
+export const BUCK_SUFFIX = '\u00a0B';
+export const formatBucks = (amount: number): string => `${formatAmount(amount)}${BUCK_SUFFIX}`;
+/** Long form for aria-label: « 100\u00a0Buck ». */
+export const formatBucksLong = (amount: number): string => `${nf.format(amount)}\u00a0Buck`;
+export const formatRate = (bucksPerSecond: number): string => nf1.format(bucksPerSecond);
 
 export function formatDuration(ms: number): string {
   const m = Math.max(0, Math.round(ms / 60000));

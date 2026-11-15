@@ -106,7 +106,7 @@ test.describe('P2 home and Mission (GS-V5-82/83, R-P43-14)', () => {
     await expect(page).toHaveURL(/#mission$/);
     const h1 = page.getByRole('heading', { level: 1, name: 'Mission' });
     await expect(h1).toBeFocused();
-    await expect(page.getByText('Des petites missions pour gagner des Yen.')).toBeVisible();
+    await expect(page.getByText('Des petites missions pour gagner des Buck.')).toBeVisible();
     await expect(tab(page, 'Accueil')).toHaveAttribute('aria-current', 'true');
     expect(await axeViolations(page)).toEqual([]);
   });
@@ -242,19 +242,19 @@ test.describe('P5 Travailler full screen (GS-V5-88, R-P43-13)', () => {
       if (!(await h.loadSave({ ...g, work }))) throw new Error('loadSave refused');
     });
     await expect(page.locator('.work-panel .num')).toHaveText('100');
-    await page.getByRole('button', { name: 'Convertir en Yen' }).click();
+    await page.getByRole('button', { name: 'Convertir en Buck' }).click();
     await expect
       .poll(() => lives(page))
-      .toContainEqual(expect.stringMatching(/^\+10 ¥ · solde 130 ¥/));
+      .toContainEqual(expect.stringMatching(/^\+10\u00a0B · solde 130\u00a0B/));
     await page.goto('./#home');
     await expect(page.locator('.topbar')).toHaveCount(1);
   });
 
-  test('DEF-GS-21: « Convertir en Yen » on one line at 100 % (360 and 390)', async ({ page }) => {
+  test('DEF-GS-21: « Convertir en Buck » on one line at 100 % (360 and 390)', async ({ page }) => {
     for (const width of [360, 390]) {
       await page.setViewportSize({ width, height: 640 });
       await start(page, '#work');
-      const btn = page.getByRole('button', { name: 'Convertir en Yen' });
+      const btn = page.getByRole('button', { name: 'Convertir en Buck' });
       const lines = await btn.evaluate((e) => {
         const r = document.createRange();
         r.selectNodeContents(e);

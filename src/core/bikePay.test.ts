@@ -21,7 +21,7 @@ const fresh = (earned = 0, day = '2026-11-15'): BikePayState => ({
 });
 
 describe('bikePay economy (raw, no boosts)', () => {
-  it('pays 2 ¥ per coin plus 100 ¥ on success, capped at the daily remainder', () => {
+  it('pays 2\u00a0B per coin plus 100\u00a0B on success, capped at the daily remainder', () => {
     const r = settle('success', 20, fresh(), T0, T0);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -30,7 +30,7 @@ describe('bikePay economy (raw, no boosts)', () => {
     expect(r.newState.earnedTodayCents).toBe(14_000);
   });
 
-  it('on failure pays collected coins only, never the 100 ¥ bonus', () => {
+  it('on failure pays collected coins only, never the 100\u00a0B bonus', () => {
     const r = settle('fail', 20, fresh(), T0, T0);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -55,18 +55,18 @@ describe('bikePay economy (raw, no boosts)', () => {
   });
 
   it.each([0, 1, 19, 20] as const)(
-    'success and fail for %i coins, remainder 0/1/139/140/141 ¥',
+    'success and fail for %i coins, remainder 0/1/139/140/141\u00a0B',
     (p) => {
       const grossS = 200 * p + 10_000;
       const grossF = 200 * p;
-      for (const remainYen of [0, 1, 139, 140, 141]) {
-        const earned = BIKE_PAY.dailyCapCents - remainYen * 100;
+      for (const remainBucks of [0, 1, 139, 140, 141]) {
+        const earned = BIKE_PAY.dailyCapCents - remainBucks * 100;
         const success = settle('success', p, fresh(earned), T0, T0);
         const fail = settle('fail', p, fresh(earned), T0, T0);
         expect(success.ok && fail.ok).toBe(true);
         if (!success.ok || !fail.ok) return;
-        expect(success.paidCents).toBe(Math.min(grossS, remainYen * 100));
-        expect(fail.paidCents).toBe(Math.min(grossF, remainYen * 100));
+        expect(success.paidCents).toBe(Math.min(grossS, remainBucks * 100));
+        expect(fail.paidCents).toBe(Math.min(grossF, remainBucks * 100));
         expect(success.paidCents).toBeGreaterThanOrEqual(0);
         expect(success.newState.earnedTodayCents).toBeLessThanOrEqual(BIKE_PAY.dailyCapCents);
       }
