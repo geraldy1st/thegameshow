@@ -261,6 +261,32 @@ describe('bikePay progressDelta (G-1 = C, 17:13)', () => {
     });
     expect(progressDelta('success', stats(0, 0, 1.5)).ok).toBe(false);
   });
+
+  it('a success at 0 paid still gives +1; a failure at 0 paid gives 0 (option a)', () => {
+    const atCap = settle('success', 20, fresh(BIKE_PAY.dailyCapCents), T0, T0);
+    expect(atCap.ok).toBe(true);
+    if (!atCap.ok) return;
+    expect(atCap.paidCents).toBe(0);
+    const win = progressDelta('success', stats(3, 8, 12));
+    expect(win.ok).toBe(true);
+    if (!win.ok) return;
+    expect(win.successes).toBe(1);
+    expect(win.failures).toBe(0);
+    expect(win.deltas).toEqual({ sante: 1, bonheur: 1, repu: 1 });
+    expect(win.next).toEqual({ sante: 4, bonheur: 9, repu: 13 });
+
+    const losePay = settle('fail', 0, fresh(BIKE_PAY.dailyCapCents), T0, T0);
+    expect(losePay.ok).toBe(true);
+    if (!losePay.ok) return;
+    expect(losePay.paidCents).toBe(0);
+    const lose = progressDelta('fail', stats(3, 8, 12));
+    expect(lose.ok).toBe(true);
+    if (!lose.ok) return;
+    expect(lose.successes).toBe(0);
+    expect(lose.failures).toBe(1);
+    expect(lose.deltas).toEqual({ sante: 0, bonheur: 0, repu: 0 });
+    expect(lose.next).toEqual({ sante: 3, bonheur: 8, repu: 12 });
+  });
 });
 
 describe('bikePay day rule mutants and invalid dates (R-I1-05, P05, P07)', () => {
