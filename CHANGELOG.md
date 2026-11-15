@@ -19,6 +19,8 @@ GO AVEC RÉSERVES Crypto (avis 15/11, 16:00 environ, Atlantic/Canary) : **I1 aut
 
 | Devise « Buck » (`formatBucks`, i18n, E2E, identifiants non persistés) | Monnaie affichée : « Buck », symbole « B », suffixe avec espace insécable (« 100 B »). Identifiants non persistés (`bucksToCents`, `convert().bucks`, `clickValueBucks`, …). Le champ sauvegardé `yenCents` et les clés gelées du module balance (`INITIAL.yen`, `CLICK_BASE_YEN`, `yenPerConversion`, `maxYenPerDay`, R-P43-6) restent inchangés (exception documentée + test). | Décision Geraldy 15/11/2026, 21:15 Atlantic/Canary | — | Ne pas renommer `yenCents` dans les sauvegardes existantes. |
 
+| `fmt` / bio Haru | `fmt()` compacte au-dessus d'un million : les milliards s'abrègent **Md** (plus « B », réservé au Buck). Tests fr / en / es (le 10¹² anglais/espagnol utilise « T », pas « B »). Bio de Haru : « chaque buck ». Aucun « 円 » dans le dépôt. | Relecture Mirage (Buck) | — | Padding bouton « Convertir en Buck » 8→6 px (DEF-GS-20/21, WebKit). |
+
 ## 0.5.2 — fiche Associés, recharge 4 h, Menu, roman, zoom (branche `release-052`, non publié)
 
 GO AVEC RÉSERVES Crypto (R-052-01 à 06). Périmètre validé par Geraldy (carte 10/11/2026, 19:32 Atlantic/Canary). Vélo et stats d'Aoi reportés en 0.6.0 / lot ultérieur. DEF-GS-32/35/36 restent ouverts. Aucune publication. Schéma **v5** inchangé.

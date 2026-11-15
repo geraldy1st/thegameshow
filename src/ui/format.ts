@@ -3,14 +3,60 @@ import type { AssociateDef, BonusTarget } from '../data/balance';
 
 const nf = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
 const nf1 = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
-const compact = new Intl.NumberFormat('fr-FR', { notation: 'compact', maximumFractionDigits: 1 });
 /** Percent points for UI (DEF-GS-34): 2.5 → « 2,5 », never a hand-rolled replace. */
 const nfPct = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
 export const formatPercent = (p: number): string => nfPct.format(p);
 
-/** Unitless whole-number display (points, etc.). Compact above one million. */
-export const formatAmount = (amount: number): string =>
-  amount >= 1e6 ? compact.format(amount) : nf.format(amount);
+/** Locales with their own compact suffixes. « B » is reserved for Buck. */
+export type FormatLocale = 'fr' | 'en' | 'es';
+
+const GROUPING: Record<FormatLocale, Intl.NumberFormat> = {
+  fr: nf,
+  en: new Intl.NumberFormat('en', { maximumFractionDigits: 0 }),
+  es: new Intl.NumberFormat('es', { maximumFractionDigits: 0 }),
+};
+const COMPACT_NUM: Record<FormatLocale, Intl.NumberFormat> = {
+  fr: new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }),
+  en: new Intl.NumberFormat('en', { maximumFractionDigits: 1 }),
+  es: new Intl.NumberFormat('es', { maximumFractionDigits: 1 }),
+};
+/** Billions are always « Md » so the symbol « B » never means a short scale. */
+const COMPACT: Record<FormatLocale, readonly { min: number; div: number; suffix: string }[]> = {
+  fr: [
+    { min: 1e12, div: 1e12, suffix: 'Bn' },
+    { min: 1e9, div: 1e9, suffix: 'Md' },
+    { min: 1e6, div: 1e6, suffix: 'M' },
+  ],
+  en: [
+    { min: 1e12, div: 1e12, suffix: 'T' },
+    { min: 1e9, div: 1e9, suffix: 'Md' },
+    { min: 1e6, div: 1e6, suffix: 'M' },
+  ],
+  es: [
+    { min: 1e12, div: 1e12, suffix: 'T' },
+    { min: 1e9, div: 1e9, suffix: 'Md' },
+    { min: 1e6, div: 1e6, suffix: 'M' },
+  ],
+};
+
+/**
+ * Unitless amount. Compact above one million. Never uses « B » (reserved for Buck).
+ * Default locale is French (the only UI dictionary today).
+ */
+export function fmt(amount: number, locale: FormatLocale = 'fr'): string {
+  const n = Number.isFinite(amount) ? amount : 0;
+  const abs = Math.abs(n);
+  for (const { min, div, suffix } of COMPACT[locale]) {
+    if (abs >= min) {
+      return `${COMPACT_NUM[locale].format(n / div)}\u00a0${suffix}`;
+    }
+  }
+  return GROUPING[locale].format(Math.round(n));
+}
+
+/** Unitless whole-number display (points, etc.). Same rules as `fmt`. */
+export const formatAmount = (amount: number, locale: FormatLocale = 'fr'): string =>
+  fmt(amount, locale);
 
 /** Mirage: suffix the unit with a non-breaking space, e.g. « 100\u00a0B ». */
 export const BUCK_SUFFIX = '\u00a0B';
