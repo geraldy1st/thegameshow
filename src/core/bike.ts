@@ -219,22 +219,111 @@ export function generateCourse(seed: number): BikeCourse {
     index += 1;
   }
 
-  const pickups: BikePickup[] = [];
-  for (const row of rows) {
-    if (pickups.length >= BIKE.maxCoins) break;
-    if (row.free.length === 0) continue;
-    const [u, next] = nextFloat(rng);
-    rng = next;
-    if (u >= 0.7 && row.index > 0) continue;
-    const [u2, next2] = nextFloat(rng);
-    rng = next2;
-    const lane = row.free[Math.floor(u2 * row.free.length)]!;
-    // Sit the coin slightly before the row so it is on the clear lane, not inside an obstacle.
+  // R-I1-02: place coins along one clear path (prefer staying in lane, else
+  // the closest free lane) so a 20-coin run can actually be fully collected.
+  // Row gaps and obstacles are unchanged, so courseIsReachable is unchanged.
+  // Only slots a path-follower can reach in time are kept (a mid-gap coin
+  // after a 2-lane change can otherwise sit before the rider arrives).
+  // Candidates still exceed the cap (approach + mid-gap + row + filler)
+  // so the generation-cap break is reached (B19).
+  const path = courseClearPath(rows);
+  const blocked = (lane: Lane, z: number): boolean =>
+    obstacles.some((o) => o.lane === lane && z >= o.z && z <= o.z + o.depth);
+  const arrivalZ = pathArrivalZ(path, rows, obstacles);
+  const reachable = (lane: Lane, z: number, i: number): boolean =>
+    !blocked(lane, z) && arrivalZ[i]! <= z + BIKE.coinPickZ;
+  const slots: { lane: Lane; z: number }[] = [];
+  const firstLane = path[0]!;
+  const firstCoinZ = Math.max(0, rows[0]!.z - 2);
+  for (let z = 6; z < firstCoinZ - 1; z += 6) {
+    if (reachable(firstLane, z, 0)) slots.push({ lane: firstLane, z });
+  }
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    const lane = path[i]!;
+    if (i > 0) {
+      const mid = (rows[i - 1]!.z + row.z) / 2;
+      if (reachable(lane, mid, i) && mid < row.z - 2 - 1) slots.push({ lane, z: mid });
+    }
     const coinZ = Math.max(0, row.z - 2);
-    pickups.push({ id: pickups.length, lane, z: coinZ, collected: false });
+    if (reachable(lane, coinZ, i)) slots.push({ lane, z: coinZ });
+  }
+  // Filler on later clear stretches so every seed still has > 20 candidates.
+  for (let i = 0; i < rows.length && slots.length < BIKE.maxCoins + 8; i++) {
+    const lane = path[i]!;
+    const z0 = i === 0 ? 4 : rows[i - 1]!.z + 1;
+    const z1 = rows[i]!.z - 3;
+    for (let z = z0; z < z1; z += 4) {
+      if (reachable(lane, z, i) && slots.every((s) => Math.abs(s.z - z) > 1.5 || s.lane !== lane)) {
+        slots.push({ lane, z });
+      }
+    }
+  }
+  slots.sort((a, b) => a.z - b.z || a.lane - b.lane);
+
+  const pickups: BikePickup[] = [];
+  for (const slot of slots) {
+    if (pickups.length >= BIKE.maxCoins) break;
+    pickups.push({ id: pickups.length, lane: slot.lane, z: slot.z, collected: false });
   }
 
   return { rows, obstacles, pickups };
+}
+
+/** Distance after time t from a standing start (v0, accel, then vmax). */
+function zAtTime(t: number): number {
+  const tt = Math.max(0, t);
+  if (tt <= timeToVmax) return BIKE.v0 * tt + 0.5 * BIKE.accel * tt * tt;
+  return distToVmax + BIKE.vmax * (tt - timeToVmax);
+}
+
+/** Earliest z a path-follower is settled in path[i] (after clearing crossed obstacles). */
+function pathArrivalZ(
+  path: readonly Lane[],
+  rows: readonly BikeRow[],
+  obstacles: readonly BikeObstacle[],
+): number[] {
+  const arrival: number[] = [];
+  const startLane: Lane = 1;
+  const first = path[0] ?? startLane;
+  arrival[0] = first === startLane ? 0 : zAtTime(Math.abs(first - startLane) * BIKE.laneTime);
+  for (let i = 1; i < path.length; i++) {
+    const from = path[i - 1]!;
+    const to = path[i]!;
+    const lo = Math.min(from, to);
+    const hi = Math.max(from, to);
+    const crossed = obstacles.filter(
+      (o) => o.row === rows[i - 1]!.index && o.lane >= lo && o.lane <= hi,
+    );
+    const exitZ = crossed.length
+      ? rows[i - 1]!.z + Math.max(...crossed.map((o) => o.depth)) + BIKE.halfDepth
+      : rows[i - 1]!.z;
+    const startChangeZ = Math.max(arrival[i - 1]!, exitZ);
+    arrival[i] =
+      to === from
+        ? startChangeZ
+        : zAtTime(timeToZ(startChangeZ) + Math.abs(to - from) * BIKE.laneTime);
+  }
+  return arrival;
+}
+
+/** One free lane per row: stay if possible, otherwise the closest free lane. */
+export function courseClearPath(rows: readonly BikeRow[]): Lane[] {
+  if (rows.length === 0) return [];
+  const first = rows[0]!;
+  const path: Lane[] = [first.free.includes(1) ? 1 : first.free[0]!];
+  for (let i = 1; i < rows.length; i++) {
+    const prev = path[i - 1]!;
+    const free = rows[i]!.free;
+    path.push(
+      free.includes(prev)
+        ? prev
+        : free.reduce((best, lane) =>
+            Math.abs(lane - prev) < Math.abs(best - prev) ? lane : best,
+          ),
+    );
+  }
+  return path;
 }
 
 /**

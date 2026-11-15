@@ -3,6 +3,7 @@ import {
   BIKE,
   courseIsReachable,
   ORACLE_REACTION_MARGIN,
+  courseClearPath,
   createRun,
   generateCourse,
   laneX,
@@ -325,19 +326,22 @@ describe('bike step: clamps, collisions, coins, resume (R-I1 / DEF-GS-49)', () =
     expect(got.coins).toBe(1);
   });
 
-  it('places every coin slightly before its row, never inside an obstacle (B27)', () => {
+  it('places every coin on a clear lane, never inside an obstacle (B27)', () => {
     for (let seed = 0; seed < 400; seed++) {
       const course = generateCourse(seed);
+      expect(course.pickups.length).toBe(BIKE.maxCoins);
       for (const p of course.pickups) {
-        const row = course.rows.reduce((best, row) =>
-          Math.abs(row.z - 2 - p.z) < Math.abs(best.z - 2 - p.z) ? row : best,
-        );
-        expect(p.z).toBeLessThanOrEqual(row.z);
-        expect(p.z).toBe(Math.max(0, row.z - 2));
         for (const o of course.obstacles) {
           if (o.lane !== p.lane) continue;
           expect(p.z < o.z || p.z > o.z + o.depth).toBe(true);
         }
+        // Approach, mid-gap, row.z-2, or filler on the clear path in the
+        // approach to a row — never inside an obstacle (already checked).
+        const onClearApproach = course.rows.some((row, i) => {
+          const prevZ = i === 0 ? 0 : course.rows[i - 1]!.z;
+          return row.free.includes(p.lane) && p.z > prevZ && p.z < row.z;
+        });
+        expect(onClearApproach).toBe(true);
       }
     }
   });
@@ -510,18 +514,70 @@ describe('historical I1 survivors (Crypto 50da75b)', () => {
     expect(n.phase).toBe('fail');
   });
 
-  it('the generator never reaches the 20-coin cap (B19 equivalent; R-I1-02 open)', () => {
-    let maxRows = 0;
-    let maxCoins = 0;
+  it('the generation-cap break is reached: every seed places exactly 20 coins (B19, R-I1-02)', () => {
     for (let seed = 0; seed < 20_000; seed++) {
       const course = generateCourse(seed);
-      if (course.rows.length > maxRows) maxRows = course.rows.length;
-      if (course.pickups.length > maxCoins) maxCoins = course.pickups.length;
+      expect(course.pickups.length).toBe(BIKE.maxCoins);
+      const ids = new Set(course.pickups.map((p) => p.id));
+      expect(ids.size).toBe(BIKE.maxCoins);
     }
-    // Current length and gapT (>= 1.0 s) keep the row count below the cap, so
-    // removing `if (pickups.length >= BIKE.maxCoins) break` does not change
-    // any generated course. Coin counts stay as they are; R-I1-02 stays open.
-    expect(maxRows).toBeLessThan(BIKE.maxCoins);
-    expect(maxCoins).toBeLessThanOrEqual(12);
+    // Without `if (pickups.length >= BIKE.maxCoins) break`, the same seeds
+    // would exceed 20 (approach + mid-gap + row slots). That is how B19 dies.
+  });
+
+  it('a 20-coin course can be fully collected on its clear path (R-I1-02)', () => {
+    const follow = (start: BikeRun): BikeRun => {
+      const path = courseClearPath(start.rows);
+      const targetLane = (r: BikeRun) => {
+        const i = start.rows.findLastIndex((row) => row.z <= r.z);
+        if (i < 0) return path[0]!;
+        const next = i + 1 < path.length ? i + 1 : i;
+        if (next === i) return path[i]!;
+        const lo = Math.min(path[i]!, path[next]!);
+        const hi = Math.max(path[i]!, path[next]!);
+        const crossed = start.obstacles.filter(
+          (o) => o.row === start.rows[i]!.index && o.lane >= lo && o.lane <= hi,
+        );
+        const exitZ = crossed.length
+          ? start.rows[i]!.z + Math.max(...crossed.map((o) => o.depth)) + BIKE.halfDepth
+          : start.rows[i]!.z;
+        return r.z >= exitZ ? path[next]! : path[i]!;
+      };
+      let r = start;
+      while (r.phase === 'running') {
+        const target = targetLane(r);
+        let input = idle;
+        if (r.laneT >= BIKE.laneTime && target !== r.lane) {
+          input = target < r.lane ? { left: true, right: false } : { left: false, right: true };
+        }
+        r = step(r, BIKE.maxDt, input);
+      }
+      return r;
+    };
+    let collected = 0;
+    let runs = 0;
+    const seeds = [
+      1,
+      2,
+      77,
+      1008,
+      42_424,
+      147938870,
+      0,
+      7,
+      99,
+      2026,
+      ...Array.from({ length: 190 }, (_, i) => 2000 + i),
+    ];
+    for (const seed of seeds) {
+      const done = follow(createRun(seed, 'collect'));
+      runs += 1;
+      expect(done.lives, `seed=${seed} died`).toBeGreaterThan(0);
+      expect(done.coins, `seed=${seed}`).toBe(BIKE.maxCoins);
+      expect(done.pickups.filter((p) => p.collected)).toHaveLength(BIKE.maxCoins);
+      collected += done.coins;
+    }
+    expect(runs).toBe(200);
+    expect(collected).toBe(200 * BIKE.maxCoins);
   });
 });
