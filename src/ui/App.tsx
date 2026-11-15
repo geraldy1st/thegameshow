@@ -111,7 +111,15 @@ function ImportButton({ store }: { store: Store }) {
     if (pending === null) return;
     const r = await store.getState().importSave(pending);
     setPending(null);
-    store.getState().announce(r.ok ? t('importDone') : t('importFailed', { reason: r.reason }));
+    store
+      .getState()
+      .announce(
+        r.ok
+          ? t('importDone')
+          : r.reason === 'write-failed'
+            ? t('saveWriteFailed')
+            : t('importFailed', { reason: r.reason }),
+      );
   };
   return (
     <>
@@ -155,11 +163,15 @@ function SaveMenu({ store }: { store: Store }) {
           type="button"
           className="btn btn-ghost"
           onClick={() => {
-            const text = store.getState().exportSave();
-            if (text) {
-              download(text);
-              store.getState().announce(t('exportDone'));
-            }
+            void store
+              .getState()
+              .exportSave()
+              .then((text) => {
+                if (text) {
+                  download(text);
+                  store.getState().announce(t('exportDone'));
+                }
+              });
           }}
         >
           {t('exportSave')}

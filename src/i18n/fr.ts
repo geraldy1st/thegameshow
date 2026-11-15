@@ -33,6 +33,7 @@ export const fr = {
     'Remplacer ta partie actuelle par ce fichier ? Une copie de ta partie actuelle est gardée.',
   importDone: 'Sauvegarde importée.',
   importFailed: 'Fichier refusé : {reason}',
+  saveWriteFailed: 'La sauvegarde n’a pas pu être écrite.',
   exportDone: 'Sauvegarde exportée.',
   checksumNote: 'Le contrôle détecte un fichier abîmé, pas une modification volontaire.',
   reset: 'Nouvelle partie',

@@ -75,7 +75,7 @@ describe('game store', () => {
     const { store, name } = setup();
     await store.getState().init();
     store.getState().tap();
-    const text = store.getState().exportSave()!;
+    const text = (await store.getState().exportSave())!;
     expect((await store.getState().importSave('{"bad":1}')).ok).toBe(false);
     await store.getState().buy('save');
     expect(await store.getState().importSave(text)).toEqual({ ok: true });

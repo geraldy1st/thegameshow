@@ -39,7 +39,7 @@ import {
   clampAppelForImport,
   makeActivationId,
 } from '../core/appel';
-import { parseImport, serializeExport } from '../save/exportImport';
+import { envelopeFromRawJson, parseImport, serializeExport } from '../save/exportImport';
 
 function applyAppelCooldownCap(g: GameState): GameState {
   return { ...g, appel: capAppelCooldowns(g.appel) };
@@ -85,7 +85,7 @@ export interface GameStoreState {
   convertPoints(): Promise<number>;
   buy(id: InvestmentId): Promise<boolean>;
   collectOffline(): Promise<void>;
-  exportSave(): string | null;
+  exportSave(): Promise<string | null>;
   importSave(text: string): Promise<{ ok: true } | { ok: false; reason: string }>;
   newGame(): Promise<void>;
   /** Raw stored save (even unreadable), for download before a reset. */
@@ -524,15 +524,22 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         }
       },
 
-      exportSave() {
-        const { game } = get();
+      async exportSave() {
+        const { game, status } = get();
+        // OBS-053-01: a read-only (or recovery) tab must not export its in-memory
+        // v5 snapshot. Safer to export the record on disk, in the same standard
+        // envelope as the future-schema Recovery screen, than to hand the player
+        // a stale file that looks like the current save.
+        if (status !== 'ready') {
+          if (!db) return null;
+          const raw = await readRawSlot(db, 'current');
+          return raw ? envelopeFromRawJson(raw) : null;
+        }
         if (!game) return null;
         const exportedAt = deps.clock.now();
         const next = { ...game, backup: { ...game.backup, lastExportAt: exportedAt } };
-        if (get().status === 'ready') {
-          set({ game: next });
-          void persistNow();
-        }
+        set({ game: next });
+        void persistNow();
         return serializeExport(next);
       },
 

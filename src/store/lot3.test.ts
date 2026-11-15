@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ManualClock } from '../core/clock';
+import * as saveDb from '../save/db';
 import { openSaveDb } from '../save/db';
 import { createGameStore } from './gameStore';
 import midgame from '../save/__fixtures__/v2-midgame.json';
@@ -70,7 +71,7 @@ describe('lot 3 store: migration v2 → v5 (chain)', () => {
 
     const readyStore = setup();
     await readyStore.store.getState().init();
-    const valid = readyStore.store.getState().exportSave();
+    const valid = await readyStore.store.getState().exportSave();
     expect(valid).toBeTruthy();
     const result = await store.getState().importSave(valid!);
     expect(result).toEqual({ ok: false, reason: 'future-schema' });
@@ -94,7 +95,7 @@ describe('lot 3 store: migration v2 → v5 (chain)', () => {
 
     const incoming = setup();
     await incoming.store.getState().init();
-    const valid = incoming.store.getState().exportSave();
+    const valid = await incoming.store.getState().exportSave();
     expect(valid).toBeTruthy();
     const result = await store.getState().importSave(valid!);
     expect(result).toEqual({ ok: false, reason: 'future-schema' });
@@ -102,6 +103,10 @@ describe('lot 3 store: migration v2 → v5 (chain)', () => {
     expect(store.getState().game?.yenCents).toBe(yenBefore);
     expect(await db.get('saves', 'backup-before-import')).toEqual(partieB);
     expect(await db.get('saves', 'current')).toEqual(future);
+    // DEF-GS-57 / M21: read-only immediately, without waiting for autosave or newGame.
+    expect(store.getState().status).toBe('readonly');
+    expect(store.getState().recoveryKind).toBe('future');
+    expect(store.getState().reloadNeeded).toBe(true);
 
     await store.getState().newGame();
     expect(store.getState().game?.yenCents).toBe(yenBefore);
@@ -169,5 +174,75 @@ describe('lot 4 store: migration v3 → v5 (R-L4-1 + R-MV5)', () => {
     expect(b.kind === 'ok' && b.save.yenCents).toBe(midgameV3.yenCents);
     expect(await store.getState().restoreMigrationBackup()).toBe(true);
     expect(store.getState().game?.totalClicks).toBe(midgameV3.totalClicks);
+  });
+});
+
+describe('write failures and read-only export (DEF-GS-56, DEF-GS-57, OBS-053-01)', () => {
+  it('importSave reports write-failed and keeps the previous game when writeSave fails (M16, M22)', async () => {
+    const { store, name } = setup();
+    await store.getState().init();
+    const yenBefore = store.getState().game!.yenCents;
+    const incoming = setup();
+    await incoming.store.getState().init();
+    incoming.store.setState({
+      game: { ...incoming.store.getState().game!, yenCents: 99_999 },
+    });
+    const valid = await incoming.store.getState().exportSave();
+    expect(valid).toBeTruthy();
+
+    const spy = vi.spyOn(saveDb, 'writeSave').mockRejectedValueOnce(new Error('disk full'));
+    const result = await store.getState().importSave(valid!);
+    spy.mockRestore();
+
+    expect(result).toEqual({ ok: false, reason: 'write-failed' });
+    expect(store.getState().game?.yenCents).toBe(yenBefore);
+    expect(store.getState().status).toBe('ready');
+    const db = await openSaveDb(name);
+    expect(((await db.get('saves', 'current')) as { yenCents: number }).yenCents).toBe(yenBefore);
+  });
+
+  it('newGame keeps the previous game when writeSave fails (M17)', async () => {
+    const { store, name } = setup();
+    await store.getState().init();
+    const yenBefore = store.getState().game!.yenCents;
+    const revBefore = store.getState().game!.revision;
+
+    const spy = vi.spyOn(saveDb, 'writeSave').mockRejectedValueOnce(new Error('disk full'));
+    await store.getState().newGame();
+    spy.mockRestore();
+
+    expect(store.getState().game?.yenCents).toBe(yenBefore);
+    expect(store.getState().game?.revision).toBe(revBefore);
+    expect(store.getState().status).toBe('ready');
+    const db = await openSaveDb(name);
+    const current = (await db.get('saves', 'current')) as { yenCents: number; revision: number };
+    expect(current.yenCents).toBe(yenBefore);
+    expect(current.revision).toBe(revBefore);
+  });
+
+  it('a read-only tab exports the on-disk record, not the in-memory v5 snapshot (OBS-053-01)', async () => {
+    const { store, name } = setup();
+    await seed(name, { current: midgame });
+    await store.getState().init();
+    expect(store.getState().status).toBe('ready');
+    store.setState({
+      game: { ...store.getState().game!, yenCents: 12_000 },
+    });
+    const db = await openSaveDb(name);
+    const future = { ...midgame, schemaVersion: 6, yenCents: 42_424 };
+    await db.put('saves', future, 'current');
+    await store.getState().flush();
+    expect(store.getState().status).toBe('readonly');
+    expect(store.getState().game?.yenCents).toBe(12_000);
+
+    const text = await store.getState().exportSave();
+    expect(text).toBeTruthy();
+    const envelope = JSON.parse(text!) as {
+      format: string;
+      save: { schemaVersion: number; yenCents: number };
+    };
+    expect(envelope.save.schemaVersion).toBe(6);
+    expect(envelope.save.yenCents).toBe(42_424);
+    expect(envelope.format).toBe('thegameshow-save');
   });
 });
