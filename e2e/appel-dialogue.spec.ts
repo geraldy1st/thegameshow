@@ -477,11 +477,6 @@ async function pixelsOfClip(
   return (await imageOfClip(page, clip)).pixels;
 }
 
-function parseCssColor(c: string) {
-  const m = c.match(/[\d.]+/g)!.map(Number);
-  return { r: m[0], g: m[1], b: m[2], a: m.length > 3 ? m[3] : 1 };
-}
-
 function contrastRatio(
   a: { r: number; g: number; b: number },
   b: { r: number; g: number; b: number },
@@ -821,7 +816,7 @@ test.describe('OBS-052D-12 title focus ring', () => {
       )
       .toBeGreaterThanOrEqual(info.outlineWidth);
     if (!bar) throw new Error('ring bar not measured');
-    const { goldCounts, navyCounts, span, needWidth, peak, full, first, solid, around } = bar;
+    const { goldCounts, navyCounts, peak, full, first, solid, around } = bar;
     expect(
       solid,
       `top gold bar only ${solid} px thick at y=${first} (need ${info.outlineWidth}) ${JSON.stringify({ info, x0, x1, peak, full, around })}`,
