@@ -104,9 +104,11 @@ export function AssociateSheet({
   return (
     <Modal open onClose={onClose} labelId={titleId} initialFocusId={titleId}>
       <article className={`assoc-sheet r${a.rarity}${owned ? '' : ' lock'}`}>
-        <button type="button" className="assoc-sheet-back btn btn-ghost" onClick={onClose}>
-          {t('sheetBack')}
-        </button>
+        <div className="assoc-sheet-back-slot">
+          <button type="button" className="assoc-sheet-back btn btn-ghost" onClick={onClose}>
+            {t('sheetBack')}
+          </button>
+        </div>
         <h2 id={titleId} tabIndex={-1} className="assoc-sheet-title">
           {displayName(a.id)}
         </h2>

@@ -394,6 +394,203 @@ test.describe('DEF-GS-42 sticky Retour button', () => {
   }
 });
 
+async function pixelsOfClip(
+  page: Page,
+  clip: { x: number; y: number; width: number; height: number },
+) {
+  const buf = await page.screenshot({ clip });
+  return page.evaluate(async (b64) => {
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('png'));
+      img.src = `data:image/png;base64,${b64}`;
+    });
+    const c = document.createElement('canvas');
+    c.width = img.width;
+    c.height = img.height;
+    const ctx = c.getContext('2d')!;
+    ctx.drawImage(img, 0, 0);
+    const data = ctx.getImageData(0, 0, c.width, c.height).data;
+    const pixels: { r: number; g: number; b: number; a: number }[] = [];
+    for (let i = 0; i < data.length; i += 4) {
+      pixels.push({ r: data[i], g: data[i + 1], b: data[i + 2], a: data[i + 3] });
+    }
+    return pixels;
+  }, buf.toString('base64'));
+}
+
+function parseCssColor(c: string) {
+  const m = c.match(/[\d.]+/g)!.map(Number);
+  return { r: m[0], g: m[1], b: m[2], a: m.length > 3 ? m[3] : 1 };
+}
+
+function contrastRatio(
+  a: { r: number; g: number; b: number },
+  b: { r: number; g: number; b: number },
+) {
+  const lum = (c: { r: number; g: number; b: number }) => {
+    const f = (v: number) => {
+      const x = v / 255;
+      return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+    };
+    return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+  };
+  const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
+  return (x + 0.05) / (y + 0.05);
+}
+
+async function shrinkSheetDialog(page: Page) {
+  await page.evaluate(() => {
+    const sheet = document.querySelector('.assoc-sheet') as HTMLElement;
+    const dialog = sheet.closest('dialog') as HTMLElement;
+    dialog.style.maxHeight = '360px';
+    dialog.style.height = '360px';
+    dialog.style.overflow = 'auto';
+  });
+}
+
+async function scrollSheetDialog(page: Page, y: number) {
+  const scrolled = await page.evaluate((top) => {
+    const sheet = document.querySelector('.assoc-sheet') as HTMLElement;
+    const dialog = sheet.closest('dialog') as HTMLElement;
+    dialog.scrollTop = top;
+    return { scrollTop: dialog.scrollTop, scrollHeight: dialog.scrollHeight };
+  }, y);
+  expect(scrolled.scrollTop, `scroll ${y}`).toBeGreaterThanOrEqual(y);
+}
+
+/** OBS-052D-08: the rounded-corner pixels of « ← Retour », not its opaque padding. */
+async function sampleRetourCorners(page: Page) {
+  const back = page.locator('.assoc-sheet-back');
+  const box = await back.boundingBox();
+  if (!box) throw new Error('Retour box missing');
+  const size = 3;
+  const corners = [
+    { name: 'tl', x: box.x, y: box.y },
+    { name: 'tr', x: box.x + box.width - size, y: box.y },
+    { name: 'bl', x: box.x, y: box.y + box.height - size },
+    { name: 'br', x: box.x + box.width - size, y: box.y + box.height - size },
+  ];
+  const out: { name: string; pixels: { r: number; g: number; b: number; a: number }[] }[] = [];
+  for (const c of corners) {
+    out.push({
+      name: c.name,
+      pixels: await pixelsOfClip(page, {
+        x: Math.round(c.x),
+        y: Math.round(c.y),
+        width: size,
+        height: size,
+      }),
+    });
+  }
+  return out;
+}
+
+/** Painted background of the dialog frame next to each disclosure marker (DEF-GS-47). */
+async function contrastOfSheetChevrons(page: Page) {
+  const metas = await page.evaluate(() => {
+    const sheet = document.querySelector('.assoc-sheet');
+    const dialog = sheet?.closest('dialog');
+    if (!dialog) throw new Error('sheet dialog missing');
+    const d = dialog.getBoundingClientRect();
+    return [
+      ...document.querySelectorAll<HTMLElement>(
+        '.assoc-sheet-apport > summary, .assoc-sheet-bio > summary',
+      ),
+    ].map((el) => {
+      const s = el.getBoundingClientRect();
+      const width = Math.max(1, Math.floor(s.left) - Math.floor(d.left));
+      return {
+        name: (el.textContent ?? '').trim(),
+        open: !!(el.parentElement as HTMLDetailsElement).open,
+        color: getComputedStyle(el).color,
+        clip: {
+          x: Math.floor(d.left),
+          y: Math.floor(s.top),
+          width,
+          height: Math.max(1, Math.ceil(s.height)),
+        },
+      };
+    });
+  });
+  if (metas.length !== 2) throw new Error(`expected 2 summaries, got ${metas.length}`);
+  const results = [];
+  for (const m of metas) {
+    const pixels = await pixelsOfClip(page, m.clip);
+    const marker = parseCssColor(m.color);
+    // Dominant painted colour in the frame, ignoring near-marker pixels (the chevron itself).
+    const buckets = new Map<string, { r: number; g: number; b: number; n: number }>();
+    for (const px of pixels) {
+      if (px.a < 250) continue;
+      const nearMarker =
+        Math.abs(px.r - marker.r) <= 18 &&
+        Math.abs(px.g - marker.g) <= 18 &&
+        Math.abs(px.b - marker.b) <= 18;
+      if (nearMarker) continue;
+      const key = `${Math.round(px.r / 8) * 8},${Math.round(px.g / 8) * 8},${Math.round(px.b / 8) * 8}`;
+      const b = buckets.get(key) ?? { r: 0, g: 0, b: 0, n: 0 };
+      b.r += px.r;
+      b.g += px.g;
+      b.b += px.b;
+      b.n += 1;
+      buckets.set(key, b);
+    }
+    const ranked = [...buckets.values()].sort((a, b) => b.n - a.n);
+    const bg = ranked[0]
+      ? { r: ranked[0].r / ranked[0].n, g: ranked[0].g / ranked[0].n, b: ranked[0].b / ranked[0].n }
+      : marker;
+    const contrast = Math.round(contrastRatio(marker, bg) * 100) / 100;
+    const hex = (c: { r: number; g: number; b: number }) =>
+      '#' + [c.r, c.g, c.b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+    results.push({
+      name: m.name,
+      open: m.open,
+      markerHex: hex(marker),
+      bgHex: hex(bg),
+      contrast,
+      sampled: pixels.length,
+      bgPixels: ranked[0]?.n ?? 0,
+    });
+  }
+  return results;
+}
+
+test.describe('OBS-052D-08 sticky Retour corners', () => {
+  test('Omar: rounded corners stay navy at 120 and 200 px', async ({ page }) => {
+    await ownAndOpen(page, OWNED[2]);
+    const bio = page.locator('.assoc-sheet-bio summary');
+    if (await bio.count()) await bio.click();
+    await shrinkSheetDialog(page);
+    for (const y of [120, 200]) {
+      await scrollSheetDialog(page, y);
+      const corners = await sampleRetourCorners(page);
+      for (const c of corners) {
+        assertNavyPixels(c.pixels, `Omar ${c.name} at ${y}px`);
+      }
+    }
+  });
+});
+
+test.describe('DEF-GS-47 disclosure chevron contrast', () => {
+  test('both section chevrons are at least 3:1 on their painted background (D27)', async ({
+    page,
+  }) => {
+    await ownAndOpen(page, OWNED[2]);
+    const rows = await contrastOfSheetChevrons(page);
+    expect(rows.map((r) => r.name)).toEqual([
+      expect.stringMatching(/apporte/i),
+      expect.stringMatching(/Biographie/i),
+    ]);
+    const opens = rows.map((r) => r.open);
+    expect(opens.filter(Boolean).length, `open state ${JSON.stringify(rows)}`).toBe(1);
+    for (const r of rows) {
+      expect(r.bgPixels, `${r.name} ${JSON.stringify(r)}`).toBeGreaterThan(0);
+      expect(r.contrast, `${r.name} ${JSON.stringify(r)}`).toBeGreaterThanOrEqual(3);
+    }
+  });
+});
+
 async function snapExitFade(page: Page) {
   await expect(page.locator('#amsg-bubble')).toBeVisible();
   await page.locator('dialog.amsg').click();

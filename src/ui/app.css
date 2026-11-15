@@ -2050,9 +2050,6 @@ dialog:has(.assoc-sheet) {
   max-height: 100vh;
   overflow: hidden;
   box-sizing: border-box;
-  /* Match the navy sheet so the cream dialog card does not show through
-     the rounded corners of sticky « ← Retour ». */
-  background: var(--navy);
 }
 .assoc-sheet {
   display: flex;
@@ -2119,11 +2116,19 @@ dialog:has(.assoc-sheet) {
 .assoc-sheet .portrait.gray {
   filter: grayscale(1);
 }
-.assoc-sheet-back {
+/* OBS-052D-08: sticky opaque slot behind « ← Retour » so scrolling cream
+   cards do not show in the button's rounded corners. Square --navy, same
+   as the sheet: invisible at rest, no change to the button itself.
+   Do not paint the <dialog> navy to fake this (DEF-GS-47, WCAG 1.4.11). */
+.assoc-sheet-back-slot {
   align-self: flex-start;
   position: sticky;
   top: 0;
   z-index: 1;
+  background: var(--navy);
+}
+.assoc-sheet-back {
+  display: block;
 }
 /* DEF-GS-38: the associate sheet is navy inside a <dialog>, so `dialog .btn-ghost`
    (DEF-GS-18, ink on cream) would paint navy on navy. Cream / muted cream on navy
