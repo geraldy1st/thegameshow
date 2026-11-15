@@ -97,8 +97,8 @@ test('a friend visit adds affinity', async ({ page }) => {
   await expect(page.getByText('Affinité : 5 sur 100').first()).toBeVisible();
 });
 
-// Lot 4 (QA §2.4, G-9): the home button « Travailler avec Aoi » (+1 B, quest « clic ») is gone.
-// Replacement of the old 100 clicks: +100 B written through the harness (normal compare-and-set),
+// Lot 4 (QA §2.4, G-9): the home button « Travailler avec Aoi » (+1 B, quest « clic ») is gone.
+// Replacement of the old 100 clicks: +100 B written through the harness (normal compare-and-set),
 // then 100 accepted taps on #work, with clock.advance(1000) every 15 taps (15/s cap) and
 // setEnergy(50) after the 50th. Same oracle: quest « clic » at 100, Épargne level 3, 10 tickets.
 async function earnLikeHundredClicks(page: Page) {
