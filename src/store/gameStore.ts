@@ -81,7 +81,7 @@ export interface GameStoreState {
    * (totalClicks, « clic » quest). A read-only tab counts nothing.
    */
   tap(mult?: number): TapOutcome;
-  /** Converts the points (100 pts = 10 B, +1 Créativité); resolves the Buck credited (0: none). */
+  /** Converts the points (100 pts = 10 B, +1 Créativité); resolves the Buck credited (0: none). */
   convertPoints(): Promise<number>;
   buy(id: InvestmentId): Promise<boolean>;
   collectOffline(): Promise<void>;

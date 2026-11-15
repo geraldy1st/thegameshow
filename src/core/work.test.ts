@@ -140,7 +140,7 @@ describe('tap (GS-V5-46, 47, 58)', () => {
 });
 
 describe('conversion (GS-V5-48)', () => {
-  it('n × 100 + r pts → n × 10 B in exact cents, r kept, +1 Créativité per conversion', () => {
+  it('n × 100 + r pts → n × 10 B in exact cents, r kept, +1 Créativité per conversion', () => {
     const g = { ...fresh(), work: { ...fresh().work, points: 1234, pointsTotal: 1234 } };
     const r = convert(g);
     expect(r.bucks).toBe(120);

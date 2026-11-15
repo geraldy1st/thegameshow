@@ -529,7 +529,13 @@ describe('historical I1 survivors (Crypto 50da75b)', () => {
     const follow = (start: BikeRun): BikeRun => {
       const path = courseClearPath(start.rows);
       const targetLane = (r: BikeRun) => {
-        const i = start.rows.findLastIndex((row) => row.z <= r.z);
+        let i = -1;
+        for (let k = start.rows.length - 1; k >= 0; k--) {
+          if (start.rows[k]!.z <= r.z) {
+            i = k;
+            break;
+          }
+        }
         if (i < 0) return path[0]!;
         const next = i + 1 < path.length ? i + 1 : i;
         if (next === i) return path[i]!;
