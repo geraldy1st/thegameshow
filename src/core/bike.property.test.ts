@@ -48,7 +48,6 @@ function hasHitFreePath(seed: number, dt = 0.05): boolean {
 }
 
 describe('bike course properties (fast-check, 10 000 seeds, R-I1-01)', () => {
-
   it('every seed is reachable by the depth-aware analytical oracle (kills B13)', () => {
     fc.assert(
       fc.property(fc.integer({ min: 0, max: 0xffffffff }), (seed) => {
