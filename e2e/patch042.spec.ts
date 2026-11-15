@@ -664,7 +664,7 @@ test.describe('Travailler (GS-V5-73 to 78)', () => {
         expect(m.button, at).toBeGreaterThanOrEqual(44);
       }
     }
-    await expect(page.locator('.work-panel .rate-l')).toHaveText('100 pts = 10 ¥');
+    await expect(page.locator('.work-panel .rate-l')).toHaveText('100 pts = 10\u00a0B');
   });
 
   test('GS-V5-78 / R-P42-6: Aoi shows ≥ 120 % of the 0.4.1 source height at 360x640', async ({

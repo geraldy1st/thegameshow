@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { associatePercent, capAppelCooldowns, clampAppelForImport, toCoreEntry } from './appel';
-import { bonusMultiplier, clickValueYen } from './economy';
+import { bonusMultiplier, clickValueBucks } from './economy';
 import { ManualClock } from './clock';
 import { createInitialState } from './state';
 import { openSaveDb, writeSave } from '../save/db';
@@ -39,17 +39,17 @@ function seeded(): GameState {
 }
 
 describe('R-052D-04 Jun target all also doubles the click', () => {
-  it('associatePercent, bonusMultiplier(click) and clickValueYen all take the ×2', () => {
+  it('associatePercent, bonusMultiplier(click) and clickValueBucks all take the ×2', () => {
     const g = seeded();
-    const quiet = clickValueYen(g);
+    const quiet = clickValueBucks(g);
     expect(associatePercent('jun', 1, 'click', undefined, T0, T0)).toBe(8);
     expect(bonusMultiplier(g, 'click', T0, T0)).toBe(1.08);
     const ev = entry({ activatedAt: T0, endsAt: T0 + H, cooldownUntil: T0 + FOUR });
     const during: GameState = { ...g, appel: { ...g.appel, jun: ev } };
     expect(associatePercent('jun', 1, 'click', toCoreEntry(ev), T0, T0)).toBe(16);
     expect(bonusMultiplier(during, 'click', T0, T0)).toBe(1.16);
-    // clickValueYen rounds a 1-yen base, so the ×2 is asserted on the multiplier.
-    expect(clickValueYen(during)).toBe(Math.max(1, Math.round(1 * 1.16)));
+    // clickValueBucks rounds a 1-Buck base, so the ×2 is asserted on the multiplier.
+    expect(clickValueBucks(during)).toBe(Math.max(1, Math.round(1 * 1.16)));
     expect(quiet).toBe(Math.max(1, Math.round(1 * 1.08)));
   });
 });

@@ -78,7 +78,7 @@ h3 {
   font-weight: 700;
   font-size: var(--fs-xl);
 }
-.pill-yen {
+.pill-buck {
   flex: 1;
   background: var(--gold);
   color: var(--ink);
@@ -1744,7 +1744,7 @@ dialog .stats .bar i {
   object-position: 50% 100%;
   background: var(--bg-deep);
 }
-/* Point 3c: « Convertir en yen » on one line, 44 px button, 22 px figure. */
+/* Point 3c: « Convertir en Buck » on one line, 44 px button, 22 px figure. */
 .work-panel {
   /* DEF-GS-19: points and rate stacked on the left, button on the right: ≤ 64 px high. */
   grid-template-columns: minmax(0, 1fr) fit-content(50%);
@@ -1938,7 +1938,7 @@ dialog .btn-ghost,
   margin-top: max(var(--s-2), env(safe-area-inset-top)) !important;
 }
 
-/* DEF-GS-21: « Convertir en Yen » on one line when the panel has room (100 % font at
+/* DEF-GS-21: « Convertir en Buck » on one line when the panel has room (100 % font at
    360 px); at 120 % and more the label may wrap again (DEF-GS-20). Container units follow
    the root font size, unlike media queries. */
 .work-panel {

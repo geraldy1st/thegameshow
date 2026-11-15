@@ -9,7 +9,7 @@ import {
   type StatId,
 } from '../data/balance';
 import { localDay } from './clock';
-import { yenToCents } from './numbers';
+import { bucksToCents } from './numbers';
 import { createRng } from './rng';
 import type { FriendState, GameState, SaveV3, SaveV4, SaveV5 } from './types';
 
@@ -41,7 +41,7 @@ export function initialV5Fields(): Pick<SaveV5, 'appel' | 'appelReceipts' | 'bik
   return { appel: {}, appelReceipts: [], bike: null };
 }
 
-/** Initial state per spec (RES-7e): 120 yen, 3 tickets, everything else at zero. */
+/** Initial state per spec (RES-7e): 120 Buck, 3 tickets, everything else at zero. */
 export function createInitialState(now: number, seed: number): GameState {
   return {
     schemaVersion: 5,
@@ -53,7 +53,7 @@ export function createInitialState(now: number, seed: number): GameState {
     lastSeenAt: now,
     maxSeenAt: now,
     rng: createRng(seed),
-    yenCents: yenToCents(INITIAL.yen),
+    yenCents: bucksToCents(INITIAL.yen),
     pendingOfflineCents: 0,
     tickets: INITIAL.tickets,
     totalClicks: 0,

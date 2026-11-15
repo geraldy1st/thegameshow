@@ -5,8 +5,8 @@ import { boostMult, cursorAt, secondsLeft } from '../../core/boost';
 import { clickValuePoints } from '../../core/work';
 import { t } from '../../i18n/fr';
 import type { GameStoreState } from '../../store/gameStore';
-import { centsToYen } from '../../core/numbers';
-import { formatYen } from '../format';
+import { centsToBucks } from '../../core/numbers';
+import { formatAmount, formatBucks } from '../format';
 import { AoiVideo, type AoiState } from './AoiVideo';
 import { boostStore, resetBoost, setVisible, takeJoy, tick, touch } from './boostStore';
 import { FloatingPoints, type FloatingHandle } from './FloatingPoints';
@@ -34,7 +34,7 @@ function useStill(store: Store): boolean {
 
 /**
  * Travailler (#work, lot 4): Aoi writes, each accepted tap on the document gives points;
- * 100 pts = 10 ¥ (+1 Créativité); the power boost doubles points for 5 s. Every gain is
+ * 100 pts = 10\u00a0B (+1 Créativité); the power boost doubles points for 5 s. Every gain is
  * decided in core/ from the game clock at the event; timers here only redraw.
  */
 export function Work({ store }: { store: Store }) {
@@ -115,11 +115,11 @@ export function Work({ store }: { store: Store }) {
       }
       return;
     }
-    fx.current?.spawn(`+${formatYen(out.gained)} pts`, x, y);
+    fx.current?.spawn(`+${formatAmount(out.gained)} pts`, x, y);
     if (out.levelUp) announce(t('workLevelUp', { n: st.game?.profile.level ?? 1 }));
     else if (n - lastPointsLive.current >= BALANCE.fx.announceEveryMs) {
       lastPointsLive.current = n;
-      announce(t('workPointsLive', { n: formatYen(st.game?.work.points ?? 0) }));
+      announce(t('workPointsLive', { n: formatAmount(st.game?.work.points ?? 0) }));
     }
     if (out.milestone) joy();
   };
@@ -150,10 +150,10 @@ export function Work({ store }: { store: Store }) {
       announce(t('workConvertMin'));
       return;
     }
-    const yen = await store.getState().convertPoints();
-    if (yen > 0) {
-      const balance = centsToYen(store.getState().game?.yenCents ?? 0);
-      announce(t('workConverted', { n: formatYen(yen), s: formatYen(balance) }));
+    const bucks = await store.getState().convertPoints();
+    if (bucks > 0) {
+      const balance = centsToBucks(store.getState().game?.yenCents ?? 0);
+      announce(t('workConverted', { n: formatBucks(bucks), s: formatBucks(balance) }));
       joy();
     }
   };
@@ -250,7 +250,7 @@ export function Work({ store }: { store: Store }) {
       <div className="work-panel card">
         <p className="pts">
           <span className="small">{t('workPoints')}</span>
-          <b className="num">{formatYen(work.points)}</b>
+          <b className="num">{formatAmount(work.points)}</b>
         </p>
         <p className="small rate-l">{t('workRate')}</p>
         <button

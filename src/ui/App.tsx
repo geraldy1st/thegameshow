@@ -12,26 +12,25 @@ import { Quests } from './Quests';
 import { Work } from './work/Work';
 import { useStore, type StoreApi } from 'zustand';
 import { INVESTMENT_IDS, INVESTMENTS, type InvestmentId } from '../data/balance';
-import { canBuy, nextCostYen } from '../core/economy';
-import { centsToYen } from '../core/numbers';
+import { canBuy, nextCostBucks } from '../core/economy';
+import { centsToBucks } from '../core/numbers';
 import { t, type MessageKey } from '../i18n/fr';
 import type { GameStoreState } from '../store/gameStore';
-import { formatRate, formatYen } from './format';
+import { formatRate, formatBucks } from './format';
 
 type Store = StoreApi<GameStoreState>;
 
 function TopBar({ store, onQuests }: { store: Store; onQuests: () => void }) {
   const ready = useStore(store, (s) => claimableCount(s.game));
-  const yen = useStore(store, (s) => centsToYen(s.game?.yenCents ?? 0));
+  const bucks = useStore(store, (s) => centsToBucks(s.game?.yenCents ?? 0));
   const tickets = useStore(store, (s) => s.game?.tickets ?? 0);
   return (
     <header className="topbar">
       {/* Plain text, read in document order; no aria-label on <p> (axe aria-prohibited-attr),
           no live region so per-second income does not spam screen readers. */}
-      <p className="pill pill-yen num">
-        <span className="visually-hidden">{t('yen')} : </span>
-        <span aria-hidden="true">¥</span>
-        <span>{formatYen(yen)}</span>
+      <p className="pill pill-buck num">
+        <span className="visually-hidden">{t('buck')} : </span>
+        <span>{formatBucks(bucks)}</span>
       </p>
       <p className="pill pill-tickets num">
         <span className="visually-hidden">{t('tickets')} : </span>
@@ -50,7 +49,7 @@ function InvestmentCard({ store, id }: { store: Store; id: InvestmentId }) {
   const level = useStore(store, (s) => s.game?.investments[id] ?? 0);
   const affordable = useStore(store, (s) => (s.game ? canBuy(s.game, id) : false));
   const readonly = useStore(store, (s) => s.status !== 'ready');
-  const cost = nextCostYen(id, level);
+  const cost = nextCostBucks(id, level);
   const name = t(id);
   const disabled = !affordable || readonly;
   const onBuy = async () => {
@@ -77,7 +76,7 @@ function InvestmentCard({ store, id }: { store: Store; id: InvestmentId }) {
           onClick={onBuy}
         >
           {/* Accessible name starts with the visible text (WCAG 2.5.3). */}
-          {t('buy', { n: formatYen(cost) })}
+          {t('buy', { n: formatBucks(cost) })}
           <span className="visually-hidden">{t('buyLabelSuffix', { name })}</span>
         </button>
         {!affordable && <span className="meta">{t('notEnough')}</span>}
@@ -274,7 +273,7 @@ function Recovery({ store }: { store: Store }) {
         <h2 id="recovery-confirm-title">{t('recoveryConfirmTitle')}</h2>
         <p>{t('recoveryConfirmBody')}</p>
         <ul>
-          <li>{t('recoveryLossYen')}</li>
+          <li>{t('recoveryLossBucks')}</li>
           <li>{t('recoveryLossTickets')}</li>
           <li>{t('recoveryLossInvestments')}</li>
           <li>{t('recoveryLossProgress')}</li>

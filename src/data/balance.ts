@@ -18,11 +18,11 @@ export type InvestmentId = 'save' | 'stock' | 'estate';
 export const INVESTMENT_IDS: readonly InvestmentId[] = ['save', 'stock', 'estate'];
 
 export interface InvestmentDef {
-  /** Base cost in whole yen. */
+  /** Base cost in whole Bucks. */
   baseCost: number;
   /** Cost growth factor per level. */
   growth: number;
-  /** Income per level in yen per second. */
+  /** Income per level in Bucks per second. */
   ratePerLevel: number;
 }
 
@@ -32,10 +32,10 @@ export const INVESTMENTS: Readonly<Record<InvestmentId, InvestmentDef>> = {
   estate: { baseCost: 2000, growth: 1.2, ratePerLevel: 14 },
 };
 
-/** Base yen per click before partner bonuses (click levels are out of the MVP). */
+/** Base Bucks per click before partner bonuses. Identifier kept (R-P43-6 hash, seeds yenCents). */
 export const CLICK_BASE_YEN = 1;
 
-/** Initial state values (SPEC-ADDENDUM RES-7e). Not the mockup demo values. */
+/** Initial state values (SPEC-ADDENDUM RES-7e). `yen` is a frozen key (R-P43-6); it seeds persisted `yenCents`. Display unit is Buck. */
 export const INITIAL = { yen: 120, tickets: 3 } as const;
 
 // ---- Gacha (lot 2 logic; constants are fixed now so the save schema is stable) ----
