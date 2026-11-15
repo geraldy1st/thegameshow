@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BIKE,
   courseIsReachable,
+  ORACLE_REACTION_MARGIN,
   createRun,
   generateCourse,
   laneX,
@@ -176,6 +177,42 @@ describe('bike step: lives, coins, pause', () => {
     const hold = drive(left, BIKE.laneTime, { left: true, right: false });
     expect(hold.lane).toBe(0);
   });
+
+  it('the third life loss fails the run immediately (B20)', () => {
+    const dt = 0.05;
+    const z0 = 10;
+    const t0 = timeToZ(z0);
+    const r = bare({
+      z: z0,
+      t: t0,
+      lives: 1,
+      invuln: 0,
+      obstacles: [obst(1, z0 + 0.1, 3.4)],
+    });
+    const n = step(r, dt, idle);
+    expect(n.lives).toBe(0);
+    expect(n.phase).toBe('fail');
+  });
+
+  it('ignores a new steer while a lane change is already in progress (B25)', () => {
+    const start = bare();
+    const right = step(start, BIKE.maxDt, { left: false, right: true });
+    expect(right.lane).toBe(2);
+    expect(right.laneFrom).toBe(1);
+    expect(right.laneT).toBeLessThan(BIKE.laneTime);
+    const mid = step(right, BIKE.maxDt, { left: true, right: false });
+    expect(mid.lane).toBe(2);
+    expect(mid.laneFrom).toBe(1);
+    expect(mid.laneT).toBeGreaterThan(right.laneT);
+  });
+
+  it('pause has no effect outside the running phase (B29)', () => {
+    for (const phase of ['success', 'fail', 'paused'] as const) {
+      const r = bare({ phase, lives: phase === 'fail' ? 0 : BIKE.lives });
+      expect(pause(r)).toEqual(r);
+      expect(pause(r).phase).toBe(phase);
+    }
+  });
 });
 
 const bare = (overrides: Partial<BikeRun> = {}): BikeRun => ({
@@ -324,7 +361,7 @@ describe('bike step: clamps, collisions, coins, resume (R-I1 / DEF-GS-49)', () =
   });
 });
 
-describe('bike reachability oracle (R-I1-01, depth-aware, 0.12 s)', () => {
+describe('bike reachability oracle (R-I1-01, depth-aware)', () => {
   it('accepts generated courses and rejects a halved-gap mutant (B13)', () => {
     for (const seed of [1, 2, 77, 1008, 42_424, 147938870]) {
       expect(courseIsReachable(generateCourse(seed))).toBe(true);
@@ -349,5 +386,44 @@ describe('bike reachability oracle (R-I1-01, depth-aware, 0.12 s)', () => {
       pickups: [],
     };
     expect(courseIsReachable(tight)).toBe(false);
+  });
+
+  it('rejects a two-lane gap with 0.05 s slack, below the 0.12 s floor (N05)', () => {
+    // available = 2 × laneTime + 0.05 s. Margin 0.12 → need 0.55 (rejected).
+    // Margin 0 (N05) → need 0.50 (accepted). The generator's tightest slack
+    // (0.1226 s) is already above the floor, so this mid-band course is what
+    // gives the oracle real slack to fail N05.
+    expect(ORACLE_REACTION_MARGIN).toBe(0.12);
+    const z0 = 26;
+    const slack = 0.05;
+    const destNeed = 2 * BIKE.laneTime + slack;
+    const exitZ = z0 + BIKE.depths.voiture + BIKE.halfDepth;
+    let lo = exitZ;
+    let hi = exitZ + 30;
+    for (let i = 0; i < 60; i++) {
+      const midZ = (lo + hi) / 2;
+      if (travelTime(exitZ, midZ) < destNeed) lo = midZ;
+      else hi = midZ;
+    }
+    const entryZ = (lo + hi) / 2;
+    const z1 = entryZ + BIKE.halfDepth;
+    const mid = {
+      rows: [
+        { index: 0, z: z0, occupied: [0, 1] as Lane[], free: [2] as Lane[] },
+        { index: 1, z: z1, occupied: [1, 2] as Lane[], free: [0] as Lane[] },
+      ],
+      obstacles: [
+        obst(0, z0, BIKE.depths.voiture),
+        { ...obst(1, z0, BIKE.depths.voiture), id: 1 },
+        { ...obst(1, z1, BIKE.depths.voiture), id: 2, row: 1 },
+        { ...obst(2, z1, BIKE.depths.voiture), id: 3, row: 1 },
+      ],
+      pickups: [],
+    };
+    expect(travelTime(exitZ, z1 - BIKE.halfDepth)).toBeLessThan(
+      2 * BIKE.laneTime + ORACLE_REACTION_MARGIN,
+    );
+    expect(travelTime(exitZ, z1 - BIKE.halfDepth)).toBeGreaterThan(2 * BIKE.laneTime);
+    expect(courseIsReachable(mid)).toBe(false);
   });
 });

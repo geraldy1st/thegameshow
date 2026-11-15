@@ -116,6 +116,48 @@ describe('bikePay day rule (D1, day of end)', () => {
     expect(r.paidCents).toBe(1_000);
     expect(r.newState.earnedTodayCents).toBe(3_000);
   });
+
+  it('rejects earnedTodayCents above the daily cap (P11)', () => {
+    expect(settle('success', 0, fresh(BIKE_PAY.dailyCapCents + 1), T0, T0)).toEqual({
+      ok: false,
+      reason: 'invalid-state',
+    });
+    expect(settle('fail', 0, fresh(-1), T0, T0).ok).toBe(false);
+  });
+
+  it('abandon neither rolls the day nor pays, even with 21 coins or a later day (P16, P17)', () => {
+    const state = fresh(500);
+    const later = atLocal(2026, 10, 16, 12);
+    expect(settle('abandon', 20, state, later, later)).toEqual({
+      ok: true,
+      paidCents: 0,
+      capped: false,
+      newState: state,
+    });
+    expect(settle('abandon', 21, state, T0, T0)).toEqual({
+      ok: true,
+      paidCents: 0,
+      capped: false,
+      newState: state,
+    });
+  });
+
+  it('rolls the counter on the local calendar day, not the UTC date (P20)', () => {
+    const morning = atLocal(2026, 10, 16, 0, 30);
+    const evening = atLocal(2026, 10, 16, 22, 0);
+    const prior = fresh(50_000, '2026-11-15');
+    const am = settle('fail', 0, prior, morning, morning);
+    expect(am.ok).toBe(true);
+    if (!am.ok) return;
+    expect(am.newState.day).toBe('2026-11-16');
+    expect(am.paidCents).toBe(0);
+    expect(am.newState.earnedTodayCents).toBe(0);
+    const pm = settle('fail', 0, prior, evening, evening);
+    expect(pm.ok).toBe(true);
+    if (!pm.ok) return;
+    expect(pm.newState.day).toBe('2026-11-16');
+    expect(pm.newState.earnedTodayCents).toBe(0);
+  });
 });
 
 const stats = (sante = 0, bonheur = 0, repu = 0): BikeStatValues => ({

@@ -65,15 +65,27 @@ describe('bike course properties (fast-check, 10 000 seeds, R-I1-01)', () => {
     );
   });
 
-  it('at least 1 000 seeds have a hit-free path under the real step (simulation oracle)', () => {
+  it('at least 1 000 seeds have a hit-free path under the real 50 ms step', () => {
     fc.assert(
       fc.property(fc.integer({ min: 0, max: 0xffffffff }), (seed) => {
-        expect(hasHitFreePath(seed)).toBe(true);
+        expect(hasHitFreePath(seed, 0.05), `seed=${seed} dt=0.05`).toBe(true);
         return true;
       }),
       { numRuns: 1_000, seed: 62 },
     );
   }, 120_000);
+
+  it('at least 150 seeds have a hit-free path at 16 ms and at 33 ms', () => {
+    for (const dt of [1 / 60, 1 / 30] as const) {
+      fc.assert(
+        fc.property(fc.integer({ min: 0, max: 0xffffffff }), (seed) => {
+          expect(hasHitFreePath(seed, dt), `seed=${seed} dt=${dt}`).toBe(true);
+          return true;
+        }),
+        { numRuns: 150, seed: 63 + Math.round(dt * 1000) },
+      );
+    }
+  }, 180_000);
 
   it('the same seed and input trace is deterministic and dt is capped', () => {
     const steer = fc.record({

@@ -20,6 +20,15 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm test
+      # P20 / R-I1-05: bikePay must run under non-UTC zones, not only localDay.
+      - name: bikePay under Pacific/Kiritimati
+        run: npx vitest run src/core/bikePay.test.ts
+        env:
+          TZ: Pacific/Kiritimati
+      - name: bikePay under America/Juneau
+        run: npx vitest run src/core/bikePay.test.ts
+        env:
+          TZ: America/Juneau
       - run: npm run build
       - run: npm run check:no-test-hook
       - run: npm run check:no-budget-fake

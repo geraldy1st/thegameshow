@@ -92,7 +92,9 @@ export const minGapTime = 2 * BIKE.laneTime + BIKE.reactionMargin;
  * obstacle exit (rear + halfDepth) and next-row entry (front − halfDepth), minus
  * lane-change time. The 0.20 s `BIKE.reactionMargin` used in minGapTime is a
  * conservative unused floor (gaps are ~1.09–1.74 s). The independent oracle
- * uses this measured 0.12 s (R-I1-01).
+ * uses 0.12 s, just under that measured minimum so generated courses stay
+ * reachable (R-I1-01). Tests add a mid-slack course (N05) and several `dt`
+ * values so a zero margin cannot hide.
  */
 export const ORACLE_REACTION_MARGIN = 0.12;
 

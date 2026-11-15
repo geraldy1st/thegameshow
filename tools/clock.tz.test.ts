@@ -25,10 +25,10 @@ describe.skipIf(!isChild)('localDay in the process time zone', () => {
 });
 
 describe.skipIf(isChild)('R-I1-05 day computation under non-UTC zones', () => {
-  function runInTz(tz: string) {
+  function runInTz(tz: string, files: string[]) {
     const r = spawnSync(
       process.execPath,
-      [path.join(root, 'node_modules/vitest/vitest.mjs'), 'run', 'tools/clock.tz.test.ts'],
+      [path.join(root, 'node_modules/vitest/vitest.mjs'), 'run', ...files],
       {
         cwd: root,
         env: { ...process.env, TZ: tz, TGS_TZ_CHILD: '1' },
@@ -39,10 +39,33 @@ describe.skipIf(isChild)('R-I1-05 day computation under non-UTC zones', () => {
   }
 
   it('Pacific/Kiritimati (UTC+14)', () => {
-    runInTz('Pacific/Kiritimati');
+    runInTz('Pacific/Kiritimati', ['tools/clock.tz.test.ts']);
   });
 
   it('America/Juneau (negative offset)', () => {
-    runInTz('America/Juneau');
+    runInTz('America/Juneau', ['tools/clock.tz.test.ts']);
+  });
+});
+
+describe.skipIf(isChild)('bikePay suite under non-UTC zones (P20)', () => {
+  function runPay(tz: string) {
+    const r = spawnSync(
+      process.execPath,
+      [path.join(root, 'node_modules/vitest/vitest.mjs'), 'run', 'src/core/bikePay.test.ts'],
+      {
+        cwd: root,
+        env: { ...process.env, TZ: tz, TGS_TZ_CHILD: '1' },
+        encoding: 'utf8',
+      },
+    );
+    expect(r.status, `${tz}\n${r.stdout}\n${r.stderr}`).toBe(0);
+  }
+
+  it('Pacific/Kiritimati (UTC+14)', () => {
+    runPay('Pacific/Kiritimati');
+  });
+
+  it('America/Juneau (negative offset)', () => {
+    runPay('America/Juneau');
   });
 });
