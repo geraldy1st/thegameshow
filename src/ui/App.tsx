@@ -226,7 +226,9 @@ function Recovery({ store }: { store: Store }) {
         </p>
       )}
       <section>
-        <h1 id="recovery-title">{t('recoveryTitle')}</h1>
+        <h1 id="recovery-title">
+          {kind === 'future' ? t('futureVersionTitle') : t('recoveryTitle')}
+        </h1>
         <p>{kind === 'future' ? t('futureVersion') : t('recoveryBody')}</p>
         <p className="muted">{reason}</p>
         <div className="row">

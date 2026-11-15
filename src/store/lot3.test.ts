@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ManualClock } from '../core/clock';
 import * as saveDb from '../save/db';
 import { openSaveDb } from '../save/db';
+import { t } from '../i18n/fr';
 import { createGameStore } from './gameStore';
 import midgame from '../save/__fixtures__/v2-midgame.json';
 import midgameV3 from '../save/__fixtures__/v3-midgame.json';
@@ -178,10 +179,16 @@ describe('lot 4 store: migration v3 → v5 (R-L4-1 + R-MV5)', () => {
 });
 
 describe('write failures and read-only export (DEF-GS-56, DEF-GS-57, OBS-053-01)', () => {
-  it('importSave reports write-failed and keeps the previous game when writeSave fails (M16, M22)', async () => {
+  it('importSave reports write-failed and leaves current and backup-before-import unchanged (M16, M22)', async () => {
     const { store, name } = setup();
     await store.getState().init();
     const yenBefore = store.getState().game!.yenCents;
+    const revBefore = store.getState().game!.revision;
+    const db = await openSaveDb(name);
+    const currentBefore = await db.get('saves', 'current');
+    const previousBefore = await db.get('saves', 'previous');
+    const marker = { ...midgame, yenCents: 7777, tag: 'backup-marker' };
+    await db.put('saves', marker, 'backup-before-import');
     const incoming = setup();
     await incoming.store.getState().init();
     incoming.store.setState({
@@ -190,15 +197,24 @@ describe('write failures and read-only export (DEF-GS-56, DEF-GS-57, OBS-053-01)
     const valid = await incoming.store.getState().exportSave();
     expect(valid).toBeTruthy();
 
+    // Spying writeSave (the only writer of current + backup-before-import on this
+    // path) also proves a two-transaction backup-then-write would fail this test:
+    // backup-before-import would already have been overwritten.
     const spy = vi.spyOn(saveDb, 'writeSave').mockRejectedValueOnce(new Error('disk full'));
     const result = await store.getState().importSave(valid!);
     spy.mockRestore();
 
     expect(result).toEqual({ ok: false, reason: 'write-failed' });
     expect(store.getState().game?.yenCents).toBe(yenBefore);
+    expect(store.getState().game?.revision).toBe(revBefore);
     expect(store.getState().status).toBe('ready');
-    const db = await openSaveDb(name);
-    expect(((await db.get('saves', 'current')) as { yenCents: number }).yenCents).toBe(yenBefore);
+    expect(await db.get('saves', 'current')).toEqual(currentBefore);
+    expect(await db.get('saves', 'backup-before-import')).toEqual(marker);
+    expect(await db.get('saves', 'previous')).toEqual(previousBefore);
+    // DEF-GS-58: the exact player-facing copy, used when reason is write-failed.
+    expect(t('saveWriteFailed')).toBe(
+      'L’import n’a pas pu être enregistré. Ta partie actuelle n’a pas changé : réessaie.',
+    );
   });
 
   it('newGame keeps the previous game when writeSave fails (M17)', async () => {

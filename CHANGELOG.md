@@ -2,6 +2,17 @@
 
 Format : fichier / fait / pourquoi / à épurer / risque.
 
+## Unreleased — 0.5.4 copie d'import (branche `fix-054-import-messages`, non publié)
+
+Relecture Mirage de la copie 0.5.3, plus DEF-GS-59 à relire. Schéma **v5** inchangé. Aucune publication. Ne pas fusionner dans `fix-053-future-save`.
+
+| Fichier                                          | Fait                                                                                                                                                                                                                   | Pourquoi                                                                        | À épurer                                                                | Risque |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ------ |
+| `db.ts` `writeSave`, `gameStore.ts` `importSave` | La copie `backup-before-import` et le remplacement de `current` sont dans **la même** transaction. Un échec d'écriture (y compris `write-failed`) laisse `current`, `previous` et `backup-before-import` intacts.      | Garantir le message long DEF-GS-56 : pas d'écriture partielle.                  | —                                                                       | —      |
+| `src/i18n/fr.ts` `saveWriteFailed`               | « L’import n’a pas pu être enregistré. Ta partie actuelle n’a pas changé : réessaie. »                                                                                                                                 | Relecture Mirage. Le message long est vrai une fois l'écriture atomique testée. | Relecture Mirage                                                        | —      |
+| `fr.ts`, `App.tsx` Recovery                      | Écran version future : titre « Cette partie vient d’une version plus récente », corps « Recharge la page pour obtenir la dernière version. » (sans répéter le titre). L'écran corrompu garde « Sauvegarde illisible ». | Titre trompeur sur une partie plus récente.                                     | —                                                                       | —      |
+| Tests                                            | Échec d'import : `current` et `backup-before-import` inchangés, texte exact de `saveWriteFailed` (DEF-GS-58). Écran future : nouveau titre et nouveau corps (E2E lot 3 et Recovery).                                   | Atomicité + copie                                                               | DEF-GS-59 (raisons techniques) reste à relire par Mirage, non codé ici. | —      |
+
 ## Unreleased — 0.5.3 micro-correctif schéma futur (branche `fix-053-future-save`, non publié)
 
 DEF-GS-48 (Majeure, avis Crypto note v6) et réserves DEF-GS-51 / 52 / 53 / 56 / 57. Schéma **v5** inchangé, `DB_VERSION` inchangée. Aucune publication.

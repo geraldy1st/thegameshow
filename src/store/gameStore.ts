@@ -22,7 +22,6 @@ import { migrateToCurrent } from '../save/migrations';
 import {
   FutureSchemaWriteError,
   RevisionConflictError,
-  backupBeforeImport,
   loadSave,
   readRevision,
   writeSave,
@@ -200,7 +199,7 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
      * On a revision conflict this tab becomes read-only AND shows the stored state, so gains
      * or purchases that were never saved are not displayed (lot 1 PROGRESS note, DEF-GS-04).
      */
-    const persistNow = (): Promise<boolean> => {
+    const persistNow = (opts?: { backupCurrentTo?: 'backup-before-import' }): Promise<boolean> => {
       if (timer) {
         clearTimeout(timer);
         timer = null;
@@ -210,7 +209,7 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         const { game, status } = get();
         if (!db || !game || status !== 'ready') return;
         try {
-          const written = await writeSave(db, game, persistedRevision);
+          const written = await writeSave(db, game, persistedRevision, opts);
           persistedRevision = written.revision;
           const latest = get().game;
           if (latest) set({ game: { ...latest, revision: written.revision } });
@@ -553,19 +552,9 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         // nor overwrite backup-before-import.
         if (recoveryKind === 'future') return { ok: false, reason: 'future-schema' };
         await chain;
-        // DEF-GS-51: also refuse if *disk* already holds a future schema (ready tab).
-        const backup = await backupBeforeImport(db);
-        if (backup === 'future') {
-          set({
-            game: before,
-            status: status === 'recovery' ? 'recovery' : 'readonly',
-            recoveryKind: 'future',
-            reloadNeeded: true,
-            writeError: true,
-          });
-          get().announce(t('reloadNeeded'));
-          return { ok: false, reason: 'future-schema' };
-        }
+        // DEF-GS-51: a future schema on disk is refused by writeSave (same
+        // transaction as the backup copy), so backup-before-import is not
+        // touched. persistNow maps that error to recoveryKind 'future'.
         persistedRevision = await storedRevision();
         const now = deps.clock.now();
         // An imported save may come from another device clock: never let it block settlement.
@@ -585,7 +574,7 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
           ),
         };
         set({ game: imported, status: 'ready', recoveryReason: null, recoveryKind: null });
-        const ok = await persistNow();
+        const ok = await persistNow({ backupCurrentTo: 'backup-before-import' });
         if (!ok) {
           const future = get().recoveryKind === 'future';
           set({

@@ -33,7 +33,8 @@ export const fr = {
     'Remplacer ta partie actuelle par ce fichier ? Une copie de ta partie actuelle est gardée.',
   importDone: 'Sauvegarde importée.',
   importFailed: 'Fichier refusé : {reason}',
-  saveWriteFailed: 'La sauvegarde n’a pas pu être écrite.',
+  saveWriteFailed:
+    'L’import n’a pas pu être enregistré. Ta partie actuelle n’a pas changé : réessaie.',
   exportDone: 'Sauvegarde exportée.',
   checksumNote: 'Le contrôle détecte un fichier abîmé, pas une modification volontaire.',
   reset: 'Nouvelle partie',
@@ -44,6 +45,7 @@ export const fr = {
   cancel: 'Annuler',
   readonlyBanner: 'Le jeu est ouvert dans un autre onglet. Recharge cette page pour continuer ici.',
   recoveryTitle: 'Sauvegarde illisible',
+  futureVersionTitle: 'Cette partie vient d’une version plus récente',
   recoveryBody:
     'Ta sauvegarde n’a pas pu être lue. Tu peux importer un fichier exporté, ou commencer une nouvelle partie.',
   recoveryNew: 'Commencer une nouvelle partie',
@@ -197,8 +199,7 @@ export const fr = {
   resetBackupDone: 'Partie précédente restaurée.',
   // ---- Lot 3: save migration and rollback ----
   restoredFromBackup: 'Une copie de secours de ta sauvegarde a été restaurée.',
-  futureVersion:
-    "Cette sauvegarde vient d'une version plus récente du jeu. Recharge la page pour obtenir la dernière version.",
+  futureVersion: 'Recharge la page pour obtenir la dernière version.',
   futureSchemaWrite:
     'Une version plus récente du jeu a déjà enregistré ta partie sur cet appareil. Recharge la page pour la reprendre — rien n’a été écrasé.',
   reloadNeeded:

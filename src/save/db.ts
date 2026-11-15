@@ -153,10 +153,16 @@ function storedRevision(v: unknown): number {
  * IndexedDB serialises readwrite transactions on the same store, so the compare and the
  * write are atomic even without Web Locks (fallback documented in SPEC-ADDENDUM RES-3).
  */
+export type WriteSaveOpts = {
+  /** Copy `current` to this slot in the same transaction, before replacing it. */
+  backupCurrentTo?: 'backup-before-import';
+};
+
 export async function writeSave(
   db: IDBPDatabase<TgsDB>,
   save: GameState,
   expectedRevision: number,
+  opts?: WriteSaveOpts,
 ): Promise<GameState> {
   const tx = db.transaction('saves', 'readwrite');
   const store = tx.objectStore('saves');
@@ -174,6 +180,11 @@ export async function writeSave(
     throw new RevisionConflictError(stored, expectedRevision);
   }
   const next: GameState = { ...save, revision: Math.max(expectedRevision, save.revision) + 1 };
+  // Same transaction as the new `current`: a failed import aborts both the
+  // backup copy and the replacement (no partial write).
+  if (opts?.backupCurrentTo && current !== undefined) {
+    await store.put(current, opts.backupCurrentTo);
+  }
   if (current !== undefined) await store.put(current, 'previous');
   await store.put(next, 'current');
   await tx.done;

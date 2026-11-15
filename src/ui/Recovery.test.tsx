@@ -131,10 +131,9 @@ describe('DEF-GS-48 future schema does not offer Nouvelle partie or Importer', (
     await act(() => store.getState().init());
     expect(store.getState().recoveryKind).toBe('future');
     expect(
-      screen.getByText(
-        "Cette sauvegarde vient d'une version plus récente du jeu. Recharge la page pour obtenir la dernière version.",
-      ),
+      screen.getByRole('heading', { name: 'Cette partie vient d’une version plus récente' }),
     ).toBeTruthy();
+    expect(screen.getByText('Recharge la page pour obtenir la dernière version.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Recharger la page' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Exporter la sauvegarde' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Commencer une nouvelle partie' })).toBeNull();
