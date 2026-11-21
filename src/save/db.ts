@@ -326,3 +326,32 @@ export async function readRevision(db: IDBPDatabase<TgsDB>): Promise<number> {
 }
 
 export type SaveDb = IDBPDatabase<TgsDB>;
+
+/** Readable local path copies that enter the today anchor (NV6-19, NV6-23). Does not open `-v4`. */
+export const PATH_COPY_SLOTS: readonly Slot[] = [
+  'previous',
+  'backup-before-reset',
+  'backup-before-import',
+  'backup-before-restore',
+  'backup-before-migration-v5',
+  'backup-before-migration-v3',
+  'backup-before-migration',
+];
+
+/**
+ * Current (if provided) plus every readable v6 path copy. Unreadable or
+ * pre-v6 raw records that cannot be migrated are omitted (the write continues).
+ */
+export async function loadPathCopies(
+  db: IDBPDatabase<TgsDB>,
+  current: CurrentSave | null = null,
+): Promise<CurrentSave[]> {
+  const copies: CurrentSave[] = current ? [current] : [];
+  const raws = await Promise.all(PATH_COPY_SLOTS.map((slot) => db.get('saves', slot)));
+  for (const raw of raws) {
+    if (raw === undefined) continue;
+    const m = migrateToCurrent(raw);
+    if (m.ok) copies.push(m.value);
+  }
+  return copies;
+}

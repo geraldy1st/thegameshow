@@ -38,6 +38,10 @@ jobs:
         run: npx vitest run src/core/clock.test.ts src/core/bikePay.test.ts
         env:
           TZ: Pacific/Kwajalein
+      - name: day-anchor under Atlantic/Canary
+        run: npx vitest run src/core/dailyCap.test.ts
+        env:
+          TZ: Atlantic/Canary
       - run: npm run build
       - run: npm run check:no-test-hook
       - run: npm run check:no-budget-fake

@@ -14,14 +14,14 @@ import {
 } from '../data/balance';
 import { isAmount } from '../core/numbers';
 import type { SaveV1, SaveV2, SaveV3, SaveV4, SaveV5, SaveV6 } from '../core/types';
-import { isCalendarDay } from '../core/clock';
+import { isCalendarDay, localDay } from '../core/clock';
+import { ECMA_DATE_MAX } from '../core/dayAnchor';
 import { isCanonicalUuid } from '../core/gameId';
 import { WORK_CURSOR_MAX } from '../data/workTexts';
 
-export const CURRENT_SCHEMA_VERSION = 6;
+export { ECMA_DATE_MAX };
 
-/** Inclusive ECMA-262 Date bound (NV6-16 / NV6-20). */
-export const ECMA_DATE_MAX = 8.64e15;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 export type ValidationResult<T> = { ok: true; value: T } | { ok: false; reason: string };
 
@@ -366,6 +366,15 @@ function instant(v: unknown, path: string): number {
   return int(v, path, ECMA_DATE_MAX, 0);
 }
 
+/** Representable instants whose localDay is not a 4-digit civil day (E8-import). */
+function civilInstant(v: unknown, path: string): number {
+  const t = instant(v, path);
+  if (!isCalendarDay(localDay(t))) {
+    throw new Invalid(`${path}: civil day year 0100-9999 expected`);
+  }
+  return t;
+}
+
 /** Validates SaveV6: v5 rules (with bike:null) plus gameId and the bike object. Never throws. */
 export function validateSaveV6(input: unknown): ValidationResult<SaveV6> {
   try {
@@ -385,9 +394,9 @@ export function validateSaveV6(input: unknown): ValidationResult<SaveV6> {
     if (typeof s.gameId !== 'string' || !isCanonicalUuid(s.gameId)) {
       throw new Invalid('save.gameId: canonical UUID expected');
     }
-    instant(s.createdAt, 'save.createdAt');
-    instant(s.lastSeenAt, 'save.lastSeenAt');
-    instant(s.maxSeenAt, 'save.maxSeenAt');
+    civilInstant(s.createdAt, 'save.createdAt');
+    civilInstant(s.lastSeenAt, 'save.lastSeenAt');
+    civilInstant(s.maxSeenAt, 'save.maxSeenAt');
     const bike = obj(s.bike, 'save.bike', [
       'day',
       'earnedTodayCents',
@@ -440,7 +449,7 @@ export function validateSaveV6(input: unknown): ValidationResult<SaveV6> {
       }
       int(r.paidCents, `save.bike.receipts[${i}].paidCents`, 14_000);
       oneOf(r.outcome, `save.bike.receipts[${i}].outcome`, ['success', 'fail'] as const);
-      instant(r.at, `save.bike.receipts[${i}].at`);
+      civilInstant(r.at, `save.bike.receipts[${i}].at`);
       if (r.day === bike.day || r.day === prevDay) recentReceipts += 1;
     }
     const scored = (bike.successes as number) + (bike.failures as number);
