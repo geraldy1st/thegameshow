@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isCalendarDay, ManualClock } from './clock';
+import { isCalendarDay, localDay, ManualClock } from './clock';
 import {
   BIKE_PAY,
   BIKE_STAT_IDS,
@@ -329,6 +329,34 @@ describe('bikePay day rule mutants and invalid dates (R-I1-05, P05, P07)', () =>
       reason: 'invalid-state',
     });
     expect(settle('success', 0, { day: '2026-02-29', earnedTodayCents: 0 }, T0, T0).ok).toBe(false);
+  });
+
+  it('resets the cap on a new calendar day even when maxSeenAt is still yesterday (N39, DEF-GS-61)', () => {
+    const yesterday = new Date(2026, 10, 14, 23, 0).getTime();
+    const now = new Date(2026, 10, 15, 10, 0).getTime();
+    const r = settle(
+      'success',
+      0,
+      { day: localDay(yesterday), earnedTodayCents: BIKE_PAY.dailyCapCents },
+      now,
+      yesterday,
+    );
+    expect(r.ok && r.paidCents).toBeGreaterThan(0);
+    expect(r.ok && r.newState.day).toBe(localDay(now));
+  });
+
+  // The former N19/N22 "equivalence proofs" sampled 5 years and assumed local
+  // midnight always exists. They are replaced by timezone-independent oracles
+  // (DEF-GS-63 / DEF-GS-64). The Kiritimati / Juneau / Apia / Kwajalein CI
+  // steps also run this file.
+  it('accepts civil days that some zones skip at local midnight (N22, DEF-GS-63)', () => {
+    expect(isCalendarDay('1994-12-31')).toBe(true); // Pacific/Kiritimati
+    expect(isCalendarDay('2011-12-30')).toBe(true); // Pacific/Apia
+    expect(isCalendarDay('1993-08-21')).toBe(true); // Pacific/Kwajalein
+  });
+
+  it("rejects '1995-01-00' under any TZ including Kiritimati (N19, DEF-GS-64)", () => {
+    expect(isCalendarDay('1995-01-00')).toBe(false);
   });
 });
 

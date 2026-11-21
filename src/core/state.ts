@@ -10,8 +10,9 @@ import {
 } from '../data/balance';
 import { localDay } from './clock';
 import { bucksToCents } from './numbers';
+import { gameIdFromCreatedAt } from './gameId';
 import { createRng } from './rng';
-import type { FriendState, GameState, SaveV3, SaveV4, SaveV5 } from './types';
+import type { BikeSave, FriendState, GameState, SaveV3, SaveV4, SaveV5, SaveV6 } from './types';
 
 const record = <K extends string, V>(keys: readonly K[], make: () => V): Record<K, V> =>
   Object.fromEntries(keys.map((k) => [k, make()])) as Record<K, V>;
@@ -41,13 +42,36 @@ export function initialV5Fields(): Pick<SaveV5, 'appel' | 'appelReceipts' | 'bik
   return { appel: {}, appelReceipts: [], bike: null };
 }
 
-/** Initial state per spec (RES-7e): 120 Buck, 3 tickets, everything else at zero. */
-export function createInitialState(now: number, seed: number): GameState {
+/** Initial bike object at migration and at new game (NV6-01): day from maxSeenAt, empty counters. */
+export function initialBikeState(maxSeenAt: number): BikeSave {
   return {
-    schemaVersion: 5,
+    day: localDay(maxSeenAt),
+    earnedTodayCents: 0,
+    best: null,
+    receipts: [],
+    progressRulesVersion: 1,
+    successes: 0,
+    failures: 0,
+  };
+}
+
+/** v6 fields: deterministic gameId is the caller's job (migration vs fresh UUID). */
+export function initialV6Fields(
+  maxSeenAt: number,
+  gameId: string,
+): Pick<SaveV6, 'gameId' | 'bike'> {
+  return { gameId, bike: initialBikeState(maxSeenAt) };
+}
+
+/** Initial state per spec (RES-7e): 120 Buck, 3 tickets, everything else at zero. Schema v6. */
+export function createInitialState(now: number, seed: number, gameId?: string): GameState {
+  const id = gameId ?? fallbackGameId(now, seed);
+  return {
+    schemaVersion: 6,
     ...initialV3Fields(now),
     ...initialV4Fields(),
     ...initialV5Fields(),
+    ...initialV6Fields(now, id),
     revision: 0,
     createdAt: now,
     lastSeenAt: now,
@@ -73,4 +97,13 @@ export function createInitialState(now: number, seed: number): GameState {
     backup: { lastExportAt: null, reminderDismissedAt: null },
     settings: { lang: 'fr', sound: true, reducedMotion: 'auto' },
   };
+}
+
+/** Deterministic fallback when crypto.randomUUID is unavailable (tests / old runtimes). */
+function fallbackGameId(now: number, seed: number): string {
+  const minted = gameIdFromCreatedAt(now);
+  if (minted.ok && seed === 0) return minted.gameId;
+  // Mix seed into createdAt so two calls with the same now still differ in tests that pass a seed.
+  const mixed = gameIdFromCreatedAt(Math.abs(Math.trunc(now) ^ (Math.trunc(seed) * 0x9e3779b9)));
+  return mixed.ok ? mixed.gameId : '00000000-0000-8000-8000-000000000000';
 }

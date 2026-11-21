@@ -3,7 +3,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { GameState } from '../core/types';
 import { migrateToCurrent, type CurrentSave } from './migrations';
 import { DOWNGRADE_SLOT, restoreWorkAfterDowngrade } from './downgrade';
-import { CURRENT_SCHEMA_VERSION, validateSaveV5 } from './schema';
+import { CURRENT_SCHEMA_VERSION, validateSaveV6 } from './schema';
 
 /**
  * IndexedDB persistence (ARCHITECTURE, SPEC-ADDENDUM RES-2, RES-3, RES-7d).
@@ -21,6 +21,8 @@ export type Slot =
   | 'backup-before-migration-v3'
   /** Associés v11 / v5: raw v4 record before v4 → v5 (R-MV5-02). */
   | 'backup-before-migration-v4'
+  /** 0.6.0 / v6: raw v5 record before v5 → v6. Written only if the slot is empty. */
+  | 'backup-before-migration-v5'
   /** Lot 3 (R12): current state before a manual restore; one copy, replaced each time. */
   | 'backup-before-restore'
   /** OD-18 / R-L4-17: raw v4 record kept by the 0.3.2 app before it downgraded `current`. */
@@ -81,7 +83,12 @@ export type LoadResult =
   | {
       kind: 'ok';
       save: CurrentSave;
-      from: 'current' | 'previous' | 'backup-before-migration-v3' | 'backup-before-migration';
+      from:
+        | 'current'
+        | 'previous'
+        | 'backup-before-migration-v5'
+        | 'backup-before-migration-v3'
+        | 'backup-before-migration';
     }
   | { kind: 'corrupt'; reason: string }
   /** `current` comes from a newer app: refused, nothing is written (MVP v1.3 step 7). */
@@ -94,7 +101,8 @@ const versionOf = (v: unknown): number => {
 
 /**
  * Loads `current`, falls back to `previous` (re-migrated when older), then to
- * `backup-before-migration-v3`, then to `backup-before-migration` (both re-migrated).
+ * `backup-before-migration-v5`, then `backup-before-migration-v3`, then
+ * `backup-before-migration` (re-migrated). Does not open `-v4`.
  * A future version in `current` is refused without fallback, so no older state can overwrite
  * it. Never throws on bad data (recovery screen).
  */
@@ -109,9 +117,10 @@ export async function loadSave(db: IDBPDatabase<TgsDB>): Promise<LoadResult> {
 }
 
 async function loadSaveRaw(db: IDBPDatabase<TgsDB>): Promise<LoadResult> {
-  const [cur, prev, mig3, mig] = await Promise.all([
+  const [cur, prev, mig5, mig3, mig] = await Promise.all([
     db.get('saves', 'current'),
     db.get('saves', 'previous'),
+    db.get('saves', 'backup-before-migration-v5'),
     db.get('saves', 'backup-before-migration-v3'),
     db.get('saves', 'backup-before-migration'),
   ]);
@@ -124,13 +133,17 @@ async function loadSaveRaw(db: IDBPDatabase<TgsDB>): Promise<LoadResult> {
     if (versionOf(cur) === 3) {
       const kept = await db.get('saves', DOWNGRADE_SLOT);
       const r = restoreWorkAfterDowngrade(c.value, cur, kept);
-      const v = r.restored ? validateSaveV5(r.save) : null;
+      const v = r.restored ? validateSaveV6(r.save) : null;
       if (v?.ok) return { kind: 'ok', save: v.value, from: 'current' };
     }
     return { kind: 'ok', save: c.value, from: 'current' };
   }
   const p = migrateToCurrent(prev);
   if (p.ok) return { kind: 'ok', save: p.value, from: 'previous' };
+  if (mig5 !== undefined) {
+    const m = migrateToCurrent(mig5);
+    if (m.ok) return { kind: 'ok', save: m.value, from: 'backup-before-migration-v5' };
+  }
   if (mig3 !== undefined) {
     const m = migrateToCurrent(mig3);
     if (m.ok) return { kind: 'ok', save: m.value, from: 'backup-before-migration-v3' };
@@ -184,9 +197,16 @@ const sameRecord = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JS
 
 /** Slot that keeps a raw record of `version` before migration (R-L4-1: one slot per source). */
 export function migrationSlotFor(version: number): Slot {
+  if (version === 5) return 'backup-before-migration-v5';
   if (version === 4) return 'backup-before-migration-v4';
   if (version === 3) return 'backup-before-migration-v3';
   return 'backup-before-migration';
+}
+
+/** v5 → v6: write `-v5` only if the slot is empty, never if present (even if different). */
+function shouldWriteMigrationBackup(version: number, kept: unknown): boolean {
+  if (version === 5) return kept === undefined;
+  return true; // older slots still use the empty-or-different rule at the call site
 }
 
 /**
@@ -204,7 +224,8 @@ export async function backupBeforeMigration(db: IDBPDatabase<TgsDB>): Promise<bo
   if (cur !== undefined && v < CURRENT_SCHEMA_VERSION) {
     const slot = migrationSlotFor(v);
     const kept = await tx.store.get(slot);
-    if (!sameRecord(cur, kept)) {
+    const allowed = v === 5 ? shouldWriteMigrationBackup(v, kept) : !sameRecord(cur, kept);
+    if (allowed) {
       await tx.store.put(cur, slot);
       wrote = true;
     }
@@ -241,7 +262,8 @@ export async function migrateCurrentSameTx(db: IDBPDatabase<TgsDB>): Promise<Cur
   // Backup raw source (v4 preferred slot; older versions use their slots) if empty/different.
   const slot = migrationSlotFor(ver);
   const kept = await tx.store.get(slot);
-  if (!sameRecord(cur, kept)) {
+  const allowed = ver === 5 ? shouldWriteMigrationBackup(ver, kept) : !sameRecord(cur, kept);
+  if (allowed) {
     await tx.store.put(cur, slot);
   }
   const migrated = migrateToCurrent(cur);

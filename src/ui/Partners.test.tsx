@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ManualClock } from '../core/clock';
 import { openSaveDb } from '../save/db';
 import { createGameStore } from '../store/gameStore';
@@ -15,6 +15,10 @@ beforeAll(() => {
     this.open = false;
   };
 });
+let dbRun = 0;
+beforeEach(() => {
+  dbRun += 1;
+});
 afterEach(() => {
   cleanup();
   localStorage.clear();
@@ -25,7 +29,8 @@ afterEach(() => {
 async function app(name: string, tab = 'Associés') {
   const store = createGameStore({
     clock: new ManualClock(Date.UTC(2026, 9, 25)),
-    openDb: () => openSaveDb(name),
+    // Unique per test invocation so --repeat-each does not reuse a written save.
+    openDb: () => openSaveDb(`${name}#${dbRun}`),
     newSeed: () => 7,
     acquireWriterLock: async () => true,
     debounceMs: 5,
@@ -39,19 +44,28 @@ async function app(name: string, tab = 'Associés') {
 describe('draw screen', () => {
   it('reveals only after the draw is written, then a long press skips the animation', async () => {
     const store = await app('ui-draw-1');
-    let resolve!: () => void;
-    const gate = new Promise<void>((r) => (resolve = r));
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    let finishPull!: (v: unknown) => void;
+    const pulled = new Promise((r) => (finishPull = r));
     const real = store.getState().pull;
-    store.setState({ pull: async () => (await gate, real()) });
+    store.setState({
+      pull: async () => {
+        await gate;
+        const result = await real();
+        finishPull(result);
+        return result;
+      },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Tirer · 1 ticket' }));
     await act(async () => {});
     expect(screen.queryByText('Tirage en cours…')).toBeNull(); // not saved yet: no reveal
     await act(async () => {
-      resolve();
-      await gate;
-      await new Promise((r) => setTimeout(r, 20));
+      release();
+      await pulled;
     });
-    expect(screen.getByText('Tirage en cours…')).toBeTruthy();
+    // Wait for the reveal to be committed, not a fixed timeout (DEF-GS-45).
+    expect(await screen.findByText('Tirage en cours…')).toBeTruthy();
     expect(store.getState().game!.gacha.pulls).toBe(1);
     vi.useFakeTimers();
     fireEvent.pointerDown(screen.getByTestId('reveal'));
@@ -75,7 +89,7 @@ describe('draw screen', () => {
     const draw = screen.getByRole('button', { name: 'Tirer · 1 ticket' });
     draw.focus();
     fireEvent.click(draw);
-    await act(() => new Promise((r) => setTimeout(r, 30)));
+    await screen.findByText('Tirage en cours…');
     fireEvent.click(screen.getByRole('button', { name: 'Passer' }));
     fireEvent.click(screen.getByRole('button', { name: 'Continuer' }));
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Tirer · 1 ticket' }));
@@ -85,8 +99,7 @@ describe('draw screen', () => {
   it('shows the saved last draw once after a reload during the reveal, without a new draw (DEF-GS-08)', async () => {
     const store = await app('ui-draw-4');
     fireEvent.click(screen.getByRole('button', { name: 'Tirer · 1 ticket' }));
-    await act(() => new Promise((r) => setTimeout(r, 30)));
-    expect(screen.getByText('Tirage en cours…')).toBeTruthy();
+    expect(await screen.findByText('Tirage en cours…')).toBeTruthy();
     const tickets = store.getState().game!.tickets;
     cleanup(); // "reload" during the animation
     const again = await app('ui-draw-4', '');

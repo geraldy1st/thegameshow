@@ -13,10 +13,15 @@ import {
   STAT_IDS,
 } from '../data/balance';
 import { isAmount } from '../core/numbers';
-import type { SaveV1, SaveV2, SaveV3, SaveV4, SaveV5 } from '../core/types';
+import type { SaveV1, SaveV2, SaveV3, SaveV4, SaveV5, SaveV6 } from '../core/types';
+import { isCalendarDay } from '../core/clock';
+import { isCanonicalUuid } from '../core/gameId';
 import { WORK_CURSOR_MAX } from '../data/workTexts';
 
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
+
+/** Inclusive ECMA-262 Date bound (NV6-16 / NV6-20). */
+export const ECMA_DATE_MAX = 8.64e15;
 
 export type ValidationResult<T> = { ok: true; value: T } | { ok: false; reason: string };
 
@@ -343,6 +348,113 @@ export function validateSaveV5(input: unknown): ValidationResult<SaveV5> {
     const v4 = validateSaveV4({ ...rest, schemaVersion: 4 });
     if (!v4.ok) return v4;
     return { ok: true, value: structuredClone(input) as SaveV5 };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Invalid ? e.message : 'invalid save' };
+  }
+}
+
+function previousCivilDay(day: string): string {
+  const y = Number(day.slice(0, 4));
+  const m = Number(day.slice(5, 7));
+  const d = Number(day.slice(8, 10));
+  const dt = new Date(Date.UTC(y, m - 1, d - 1));
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${String(dt.getUTCFullYear()).padStart(4, '0')}-${p(dt.getUTCMonth() + 1)}-${p(dt.getUTCDate())}`;
+}
+
+function instant(v: unknown, path: string): number {
+  return int(v, path, ECMA_DATE_MAX, 0);
+}
+
+/** Validates SaveV6: v5 rules (with bike:null) plus gameId and the bike object. Never throws. */
+export function validateSaveV6(input: unknown): ValidationResult<SaveV6> {
+  try {
+    const s = obj(input, 'save', [
+      ...V2_KEYS,
+      'profile',
+      'energy',
+      'stats',
+      'wardrobe',
+      'work',
+      'appel',
+      'appelReceipts',
+      'bike',
+      'gameId',
+    ]);
+    if (s.schemaVersion !== 6) throw new Invalid('save.schemaVersion: 6 expected');
+    if (typeof s.gameId !== 'string' || !isCanonicalUuid(s.gameId)) {
+      throw new Invalid('save.gameId: canonical UUID expected');
+    }
+    instant(s.createdAt, 'save.createdAt');
+    instant(s.lastSeenAt, 'save.lastSeenAt');
+    instant(s.maxSeenAt, 'save.maxSeenAt');
+    const bike = obj(s.bike, 'save.bike', [
+      'day',
+      'earnedTodayCents',
+      'best',
+      'receipts',
+      'progressRulesVersion',
+      'successes',
+      'failures',
+    ]);
+    if (typeof bike.day !== 'string' || !isCalendarDay(bike.day)) {
+      throw new Invalid('save.bike.day: calendar day expected');
+    }
+    int(bike.earnedTodayCents, 'save.bike.earnedTodayCents', 100_000);
+    if (bike.progressRulesVersion !== 1) {
+      throw new Invalid('save.bike.progressRulesVersion: 1 expected');
+    }
+    int(bike.successes, 'save.bike.successes');
+    int(bike.failures, 'save.bike.failures');
+    if (bike.best === null) {
+      /* ok */
+    } else {
+      const best = obj(bike.best, 'save.bike.best', ['coins', 'distanceM']);
+      int(best.coins, 'save.bike.best.coins', 20);
+      int(best.distanceM, 'save.bike.best.distanceM', 160);
+    }
+    if (!Array.isArray(bike.receipts)) throw new Invalid('save.bike.receipts: array expected');
+    if (bike.receipts.length > 200) throw new Invalid('save.bike.receipts: too many');
+    const runIds = new Set<string>();
+    let recentReceipts = 0;
+    const prevDay = previousCivilDay(bike.day as string);
+    for (let i = 0; i < bike.receipts.length; i++) {
+      const r = obj(bike.receipts[i], `save.bike.receipts[${i}]`, [
+        'runId',
+        'gameId',
+        'day',
+        'paidCents',
+        'outcome',
+        'at',
+      ]);
+      if (typeof r.runId !== 'string' || !isCanonicalUuid(r.runId)) {
+        throw new Invalid(`save.bike.receipts[${i}].runId: canonical UUID expected`);
+      }
+      if (runIds.has(r.runId)) throw new Invalid(`save.bike.receipts[${i}].runId: duplicate`);
+      runIds.add(r.runId);
+      if (typeof r.gameId !== 'string' || r.gameId.length < 1) {
+        throw new Invalid(`save.bike.receipts[${i}].gameId: missing`);
+      }
+      if (typeof r.day !== 'string' || !isCalendarDay(r.day)) {
+        throw new Invalid(`save.bike.receipts[${i}].day: calendar day expected`);
+      }
+      int(r.paidCents, `save.bike.receipts[${i}].paidCents`, 14_000);
+      oneOf(r.outcome, `save.bike.receipts[${i}].outcome`, ['success', 'fail'] as const);
+      instant(r.at, `save.bike.receipts[${i}].at`);
+      if (r.day === bike.day || r.day === prevDay) recentReceipts += 1;
+    }
+    const scored = (bike.successes as number) + (bike.failures as number);
+    if (scored < recentReceipts) {
+      throw new Invalid(
+        'save.bike: successes + failures must cover current and previous day receipts',
+      );
+    }
+    const { gameId: _g, bike: _b, ...rest } = s;
+    void _g;
+    void _b;
+    const v5 = validateSaveV5({ ...rest, schemaVersion: 5, bike: null });
+    if (!v5.ok) return v5;
+    return { ok: true, value: structuredClone(input) as SaveV6 };
   } catch (e) {
     return { ok: false, reason: e instanceof Invalid ? e.message : 'invalid save' };
   }

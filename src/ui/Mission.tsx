@@ -4,20 +4,28 @@ import type { GameStoreState } from '../store/gameStore';
 import { Tile } from './Home';
 
 /**
- * Patch 0.4.3 (P2): « Mission » screen. Both missions are locked: « bientôt », no date, no
- * state write (ethics rule 7, R-P43-14).
+ * Patch 0.4.3 (P2): « Mission » screen. Dice stays locked (« bientôt »).
+ * I2: when the tab is read-only, the official v13 copy is shown exactly
+ * (« Cette manche ne rapporte rien. ») — no Buck, no skills.
  */
 export function Mission({ store }: { store: StoreApi<GameStoreState> }) {
+  const readonly = store.getState().status === 'readonly';
   return (
     <section className="mission" aria-labelledby="mission-title">
       <h1 id="mission-title" className="screen-title" tabIndex={-1}>
         {t('missionTitle')}
       </h1>
       <p className="mission-intro">{t('missionIntro')}</p>
-      <p className="small" id="mission-soon">
-        {t('missionSoonNote')}
-      </p>
-      <div className="mission-grid" aria-describedby="mission-soon">
+      {readonly ? (
+        <p className="small bike-reader-note" data-testid="bike-reader-note">
+          {t('bikeReaderNoReward')}
+        </p>
+      ) : (
+        <p className="small" id="mission-soon">
+          {t('missionSoonNote')}
+        </p>
+      )}
+      <div className="mission-grid" aria-describedby={readonly ? undefined : 'mission-soon'}>
         <Tile store={store} id="tileBike" />
         <Tile store={store} id="tileDice" />
       </div>

@@ -464,6 +464,49 @@ describe('historical I1 survivors (Crypto 50da75b)', () => {
     expect(during.obstacles.filter((o) => o.hit).map((o) => o.id)).toEqual([0]);
   });
 
+  it('counts a swept collision when the end point is already past the obstacle (B03, DEF-GS-61)', () => {
+    // z0 is still inside the obstacle; z1 is past the rear by more than halfDepth
+    // so an end-point test misses, but the swept interval hits. Max step is
+    // 9.4 × 0.05 = 0.47 m, enough to leave a 0.45 m travaux block.
+    const dt = BIKE.maxDt;
+    const zObst = 10;
+    const depth = BIKE.depths.travaux;
+    const zClear = zObst + depth + BIKE.halfDepth;
+    const z0 = zClear - 0.02;
+    const t0 = timeToZ(z0);
+    const z1 = z0 + speedAt(t0) * dt;
+    expect(z0).toBeLessThan(zClear);
+    expect(z1).toBeGreaterThanOrEqual(zClear);
+    const n = step(
+      bare({ z: z0, t: t0, x: laneX(1), lane: 1, obstacles: [obst(1, zObst, depth, 'travaux')] }),
+      dt,
+      idle,
+    );
+    expect(n.lives).toBe(BIKE.lives - 1);
+    expect(n.obstacles[0]!.hit).toBe(true);
+  });
+
+  it('keeps invulnerability for 0.6 s, not 0.3 s (N45, DEF-GS-61)', () => {
+    // Hardcoded 0.4 / 0.65 s: a test that uses BIKE.invuln still passes if the
+    // constant is shortened to 0.3.
+    const z0 = 10;
+    const first = obst(1, z0 + 0.05, 1);
+    const second: BikeObstacle = { ...obst(1, z0 + 2.4, 3), id: 1 };
+    const hit = step(bare({ z: z0, t: timeToZ(z0), obstacles: [first, second] }), 0.05, idle);
+    expect(hit.lives).toBe(BIKE.lives - 1);
+    expect(hit.obstacles.filter((o) => o.hit).map((o) => o.id)).toEqual([0]);
+    const during = drive(hit, 0.4);
+    expect(during.z).toBeGreaterThan(second.z);
+    expect(during.invuln).toBeGreaterThan(0);
+    expect(during.lives).toBe(hit.lives);
+    expect(during.obstacles.filter((o) => o.hit).map((o) => o.id)).toEqual([0]);
+    const after = drive(hit, 0.65);
+    // Invuln is refreshed by the second hit; do not assert it is 0.
+    expect(after.lives).toBe(hit.lives - 1);
+    expect(after.obstacles.filter((o) => o.hit).map((o) => o.id)).toEqual([0, 1]);
+    expect(after.invuln).toBeGreaterThan(0);
+  });
+
   it('counts at most one collision per step (B08)', () => {
     const z0 = 10;
     const a = obst(1, z0 + 0.05, 3.4);
@@ -585,5 +628,28 @@ describe('historical I1 survivors (Crypto 50da75b)', () => {
     }
     expect(runs).toBe(200);
     expect(collected).toBe(200 * BIKE.maxCoins);
+  });
+});
+
+describe('coin placement spacing (N43, DEF-GS-64)', () => {
+  it('keeps a minimum same-lane gap and a last coin near the finish', () => {
+    // N43 still emits 20 coins but places a pair 1 m apart at each of 10 slots
+    // (last coin median ~35 m). The original keeps >= ~1.82 m and a last coin
+    // around 70–96 m (median ~86 m). Do not change placement for OBS-I1-08.
+    let minSameLane = Infinity;
+    let lastMin = Infinity;
+    for (let seed = 0; seed < 2000; seed++) {
+      const course = generateCourse(seed);
+      expect(course.pickups.length, `seed=${seed}`).toBe(BIKE.maxCoins);
+      const ordered = [...course.pickups].sort((a, b) => a.z - b.z || a.lane - b.lane);
+      lastMin = Math.min(lastMin, ordered[ordered.length - 1]!.z);
+      for (let i = 1; i < ordered.length; i++) {
+        if (ordered[i]!.lane === ordered[i - 1]!.lane) {
+          minSameLane = Math.min(minSameLane, ordered[i]!.z - ordered[i - 1]!.z);
+        }
+      }
+    }
+    expect(minSameLane).toBeGreaterThanOrEqual(1.5);
+    expect(lastMin).toBeGreaterThanOrEqual(60);
   });
 });

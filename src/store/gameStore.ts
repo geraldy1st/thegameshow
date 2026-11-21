@@ -15,6 +15,8 @@ import {
   visitFriend,
 } from '../core/quests';
 import { createInitialState } from '../core/state';
+import { applyDailyCapOnReplace } from '../core/dailyCap';
+import { applyBikeCommit, type BikeCommitInput } from '../core/bikeCommit';
 import { rechargeEnergy } from '../core/energy';
 import { t } from '../i18n/fr';
 import type { GameState, LastPull } from '../core/types';
@@ -40,6 +42,10 @@ import {
   makeActivationId,
 } from '../core/appel';
 import { parseImport, serializeExport } from '../save/exportImport';
+
+function localCopies(current: GameState | null): readonly GameState[] {
+  return current ? [current] : [];
+}
 
 function applyAppelCooldownCap(g: GameState): GameState {
   return { ...g, appel: capAppelCooldowns(g.appel) };
@@ -88,6 +94,8 @@ export interface GameStoreState {
   exportSave(): string | null;
   importSave(text: string): Promise<{ ok: true } | { ok: false; reason: string }>;
   newGame(): Promise<void>;
+  /** I2: persist a settled bike run (counters, +1 stats, receipt, local pay). */
+  commitBikeRun(input: Omit<BikeCommitInput, 'now'>): Promise<boolean>;
   /** Raw stored save (even unreadable), for download before a reset. */
   rawCurrentSave(): Promise<string | null>;
   /** One draw, written and awaited BEFORE the caller starts the reveal (RES-2). */
@@ -298,12 +306,14 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
       await backupBeforeRestore(db);
       persistedRevision = await storedRevision();
       const now = deps.clock.now();
+      // G-4 / today-anchor stub first; then the existing min(maxSeenAt, now) (order is normative).
+      const merged = applyDailyCapOnReplace(b.save, get().game, now, localCopies(get().game));
       set({
         game: applyAppelCooldownCap({
-          ...b.save,
-          maxSeenAt: Math.min(b.save.maxSeenAt, now),
-          lastSeenAt: Math.min(b.save.lastSeenAt, now),
-          energy: { ...b.save.energy, updatedAt: Math.min(b.save.energy.updatedAt, now) },
+          ...merged,
+          maxSeenAt: Math.min(merged.maxSeenAt, now),
+          lastSeenAt: Math.min(merged.lastSeenAt, now),
+          energy: { ...merged.energy, updatedAt: Math.min(merged.energy.updatedAt, now) },
         }),
         status: 'ready',
         recoveryReason: null,
@@ -549,17 +559,19 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         // An imported save may come from another device clock: never let it block settlement.
         // Patch 0.4.2 (R-P42-4): a 0.4.1 export in `presse` comes back as `roman`, written once.
         const value = normalizeWorkMode(parsed.value);
-        const maxSeen = Math.min(value.maxSeenAt, now);
+        // G-4 / today-anchor stub first; then the existing min(maxSeenAt, now) (order is normative).
+        const merged = applyDailyCapOnReplace(value, get().game, now, localCopies(get().game));
+        const maxSeen = Math.min(merged.maxSeenAt, now);
         const imported: GameState = {
-          ...value,
+          ...merged,
           maxSeenAt: maxSeen,
-          lastSeenAt: Math.min(value.lastSeenAt, now),
+          lastSeenAt: Math.min(merged.lastSeenAt, now),
           // R-MV5-04 / DEF-GS-31: clamp calls to local maxSeenAt and real wall time.
           appel: clampAppelForImport(
-            value.appel,
+            merged.appel,
             maxSeen,
             typeof Date !== 'undefined' ? Date.now() : maxSeen,
-            value.gacha.stars,
+            merged.gacha.stars,
           ),
         };
         set({ game: imported, status: 'ready', recoveryReason: null, recoveryKind: null });
@@ -572,13 +584,26 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         await chain;
         persistedRevision = await storedRevision();
         await backupBeforeReset(db);
+        const now = deps.clock.now();
+        const freshId =
+          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : undefined;
+        const incoming = createInitialState(now, deps.newSeed(), freshId);
         set({
-          game: createInitialState(deps.clock.now(), deps.newSeed()),
+          game: applyDailyCapOnReplace(incoming, get().game, now, localCopies(get().game)),
           status: 'ready',
           recoveryReason: null,
           recoveryKind: null,
         });
         await persistNow();
+      },
+
+      async commitBikeRun(input) {
+        return committed((g) => {
+          const r = applyBikeCommit(g, { ...input, now: deps.clock.now() });
+          return r.ok ? r.next : g;
+        });
       },
 
       async rawCurrentSave() {

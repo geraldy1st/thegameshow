@@ -175,6 +175,16 @@ export const BALANCE = {
   quiz: { midnightRule: 'end-day' as const },
   /** G-7: metro mini-game daily cap. Lot 6. */
   metro: { paidRunsPerDay: 5, maxYenPerDay: 1000 },
+  /**
+   * Bike economy (I2, R-060-17). Units are cents. Not part of the dea1985 hash
+   * (BALANCE without fx *or* bike). Identifier coinBuckCents is not persisted (OBS-I1-09).
+   */
+  bike: {
+    coinBuckCents: 200,
+    maxCoins: 20,
+    successBonusCents: 10_000,
+    dailyCapCents: 100_000,
+  },
 } as const;
 
 /** XP needed to go from `level` to `level + 1` (mockup curve, not used before lot 4). */

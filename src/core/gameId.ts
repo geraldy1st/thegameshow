@@ -1,6 +1,6 @@
 /**
  * Deterministic v6 gameId (NV6-09 / NV6-01). Pure and synchronous: SHA-256 in
- * TypeScript, no WebCrypto, no network. Not wired to migrations (I2).
+ * TypeScript, no WebCrypto, no network. Wired to MIGRATIONS[5] via gameIdFromV5 (I2).
  *
  * Payload: ASCII "thegameshow.v6.gameId" + NUL + createdAt as 8-byte big-endian.
  * UUID v8, RFC 4122 variant, canonical lowercase.
@@ -119,4 +119,16 @@ export function gameIdFromCreatedAt(createdAt: number): GameIdResult {
   payload[prefix.length] = 0;
   payload.set(be64(createdAt), prefix.length + 1);
   return { ok: true, gameId: uuidFromDigest16(sha256(payload)) };
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** Canonical lowercase UUID (any version), as stored on SaveV6.gameId and receipts. */
+export function isCanonicalUuid(s: string): boolean {
+  return UUID_RE.test(s);
+}
+
+/** NV6-01 / NV6-09: mint the v6 gameId from a validated v5 save (pure, synchronous). */
+export function gameIdFromV5(save: { createdAt: number }): GameIdResult {
+  return gameIdFromCreatedAt(save.createdAt);
 }

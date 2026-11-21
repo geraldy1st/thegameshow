@@ -12,7 +12,7 @@ describe('reloadNeeded banner (R-MV5-01 / versionchange)', () => {
     const clock = new ManualClock(T0);
     const db = await openSaveDb(name);
     const base = await writeSave(db, createInitialState(T0, 1), -1);
-    await db.put('saves', { ...base, schemaVersion: 6, revision: base.revision + 1 }, 'current');
+    await db.put('saves', { ...base, schemaVersion: 7, revision: base.revision + 1 }, 'current');
     db.close();
     const store = createGameStore({
       clock,

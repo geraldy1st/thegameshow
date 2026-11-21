@@ -3,7 +3,7 @@ import * as M from './balance';
 
 /**
  * Patch 0.4.3 (R-P43-6): only BALANCE.fx may change. Everything else exported by the balance
- * module (rates, pity, costs, quests, BALANCE without fx) must hash exactly as on dea1985.
+ * module (rates, pity, costs, quests, BALANCE without fx or bike) must hash exactly as on dea1985.
  */
 const stable = (v: unknown): string =>
   Array.isArray(v)
@@ -16,7 +16,9 @@ const stable = (v: unknown): string =>
       : JSON.stringify(v);
 
 async function balanceHashWithoutFx(mod: typeof M): Promise<string> {
-  const rest = Object.fromEntries(Object.entries(mod.BALANCE).filter(([k]) => k !== 'fx'));
+  const rest = Object.fromEntries(
+    Object.entries(mod.BALANCE).filter(([k]) => k !== 'fx' && k !== 'bike'),
+  );
   const all = { ...mod, BALANCE: rest, xpNeed: [1, 2, 3, 10].map(mod.xpNeed) };
   const bytes = new TextEncoder().encode(stable(all));
   const digest = await crypto.subtle.digest('SHA-256', bytes);
@@ -38,4 +40,13 @@ it('R-P43-2: the pool covers a sliding 1 s cap of 15 taps over the whole float',
   const cap = M.BALANCE.work.maxTapsPerSecond;
   const longest = Math.max(M.BALANCE.fx.floatMs, M.BALANCE.fx.reducedMs);
   expect(M.BALANCE.fx.poolSize).toBeGreaterThanOrEqual(cap * Math.ceil(longest / 1000));
+});
+
+it('R-060-17: BALANCE.bike is a separate snapshot in cents (excluded from dea1985)', () => {
+  expect(M.BALANCE.bike).toEqual({
+    coinBuckCents: 200,
+    maxCoins: 20,
+    successBonusCents: 10_000,
+    dailyCapCents: 100_000,
+  });
 });
