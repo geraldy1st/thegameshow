@@ -65,7 +65,7 @@ async function futureRecoveryApp(name: string) {
   await db.put(
     'saves',
     {
-      schemaVersion: 6,
+      schemaVersion: 7,
       revision: 1,
       createdAt: 1,
       lastSeenAt: 1,

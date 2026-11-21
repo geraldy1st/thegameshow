@@ -251,6 +251,10 @@ export const fr = {
   tileWork: 'Travailler',
   tileLearn: 'Apprendre',
   tileBike: 'Course à vélo',
+  /** Official v13 reader-tab copy (Mirage). Exact; no typographic apostrophe. */
+  bikeReaderNoReward: 'Cette manche ne rapporte rien.',
+  /** Official v13 offer CTA. Do not use the historical v9 « J'y vais ». */
+  bikeDepart: 'Partir',
   tileHouse: 'Maison',
   tileMission: 'Mission',
   missionTitle: 'Mission',

@@ -129,4 +129,40 @@ export interface SaveV5 extends Omit<SaveV4, 'schemaVersion'> {
   bike: null;
 }
 
-export type GameState = SaveV5;
+/** One settled bike run stored on the v6 save (R-060-08). */
+export interface BikeReceipt {
+  runId: string;
+  gameId: string;
+  day: string;
+  paidCents: number;
+  outcome: 'success' | 'fail';
+  at: number;
+}
+
+export interface BikeBest {
+  coins: number;
+  distanceM: number;
+}
+
+/** Persisted bike daily cap and counters (schema v6). */
+export interface BikeSave {
+  day: string;
+  earnedTodayCents: number;
+  best: BikeBest | null;
+  receipts: readonly BikeReceipt[];
+  progressRulesVersion: 1;
+  successes: number;
+  failures: number;
+}
+
+/**
+ * Save schema v6 (course à vélo): v5 fields kept as-is, plus `gameId` and a bike object
+ * (no longer null).
+ */
+export interface SaveV6 extends Omit<SaveV5, 'schemaVersion' | 'bike'> {
+  schemaVersion: 6;
+  gameId: string;
+  bike: BikeSave;
+}
+
+export type GameState = SaveV6;

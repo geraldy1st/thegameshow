@@ -7,6 +7,12 @@ it('freezes the validated v5 balance values', () => {
   expect({ BALANCE, OFFLINE_CAP_MS, stats: STAT_IDS, xp1: xpNeed(1) }).toMatchInlineSnapshot(`
     {
       "BALANCE": {
+        "bike": {
+          "coinBuckCents": 200,
+          "dailyCapCents": 100000,
+          "maxCoins": 20,
+          "successBonusCents": 10000,
+        },
         "boost": {
           "durationMs": 5000,
           "hiddenTab": "lost",

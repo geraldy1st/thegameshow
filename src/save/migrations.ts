@@ -1,5 +1,6 @@
-import { initialV3Fields, initialV4Fields, initialV5Fields } from '../core/state';
-import type { SaveV5 } from '../core/types';
+import { initialV3Fields, initialV4Fields, initialV5Fields, initialV6Fields } from '../core/state';
+import type { SaveV6 } from '../core/types';
+import { gameIdFromV5 } from '../core/gameId';
 import {
   CURRENT_SCHEMA_VERSION,
   validateSaveV1,
@@ -7,11 +8,12 @@ import {
   validateSaveV3,
   validateSaveV4,
   validateSaveV5,
+  validateSaveV6,
   type ValidationResult,
 } from './schema';
 
 /** Current save type. Bump together with CURRENT_SCHEMA_VERSION. */
-export type CurrentSave = SaveV5;
+export type CurrentSave = SaveV6;
 
 /**
  * Migration chain (RES-7a): MIGRATIONS[n] turns a valid vN object into vN+1.
@@ -38,6 +40,16 @@ export const MIGRATIONS: Readonly<Record<number, Step>> = {
   3: (s) => ({ ...s, schemaVersion: 4, ...initialV4Fields() }),
   // v4 -> v5 (Associés): appel empty, bike null (R-MV5-04).
   4: (s) => ({ ...s, schemaVersion: 5, ...initialV5Fields() }),
+  // v5 -> v6 (vélo): deterministic gameId from createdAt, bike from maxSeenAt (NV6-01).
+  5: (s) => {
+    const minted = gameIdFromV5({ createdAt: s.createdAt as number });
+    if (!minted.ok) throw new Error('migration failed: invalid createdAt');
+    return {
+      ...s,
+      schemaVersion: 6,
+      ...initialV6Fields(s.maxSeenAt as number, minted.gameId),
+    };
+  },
 };
 
 const VALIDATORS: Readonly<Record<number, (v: unknown) => ValidationResult<unknown>>> = {
@@ -45,6 +57,7 @@ const VALIDATORS: Readonly<Record<number, (v: unknown) => ValidationResult<unkno
   2: validateSaveV2,
   3: validateSaveV3,
   4: validateSaveV4,
+  5: validateSaveV5,
 };
 
 /** Migrates any supported version to the current one and validates the result. Never throws. */
@@ -72,5 +85,5 @@ export function migrateToCurrent(input: unknown): ValidationResult<CurrentSave> 
   } catch {
     return { ok: false, reason: 'migration failed' };
   }
-  return validateSaveV5(data);
+  return validateSaveV6(data);
 }

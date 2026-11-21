@@ -130,7 +130,7 @@ describe('Q5: no schema bump; a 0.5.1 tab rewriting 24 h is capped on the next 0
         }),
       },
     };
-    expect(v51.schemaVersion).toBe(5);
+    expect(v51.schemaVersion).toBe(6);
     await writeSave(db, v51, -1);
     db.close();
 
@@ -144,7 +144,7 @@ describe('Q5: no schema bump; a 0.5.1 tab rewriting 24 h is capped on the next 0
     });
     await store.getState().init();
     const g = store.getState().game!;
-    expect(g.schemaVersion).toBe(5);
+    expect(g.schemaVersion).toBe(6);
     expect(g.appel.omar!.cooldownUntil).toBe(act + FOUR);
     expect(g.appel.omar!.wallCooldownUntil).toBe(act + FOUR);
     expect(remainingMs(toCoreEntry(g.appel.omar!), T0 + H, T0 + H).cool).toBe(3 * H);
@@ -180,7 +180,7 @@ describe('Q5: no schema bump; a 0.5.1 tab rewriting 24 h is capped on the next 0
     });
     await store2.getState().init();
     const g2 = store2.getState().game!;
-    expect(g2.schemaVersion).toBe(5);
+    expect(g2.schemaVersion).toBe(6);
     expect(g2.appel.omar!.cooldownUntil).toBe(act + FOUR);
     expect(g2.appel.omar!.wallCooldownUntil).toBe(act + FOUR);
   });

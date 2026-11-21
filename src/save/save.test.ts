@@ -5,14 +5,16 @@ import {
   initialV3Fields,
   initialV4Fields,
   initialV5Fields,
+  initialV6Fields,
 } from '../core/state';
+import { gameIdFromV5 } from '../core/gameId';
 import { createRng, nextFloat } from '../core/rng';
 import {
   CURRENT_SCHEMA_VERSION,
   validateSaveV2,
   validateSaveV3,
   validateSaveV4,
-  validateSaveV5,
+  validateSaveV6,
 } from './schema';
 import { migrateToCurrent } from './migrations';
 import { MAX_IMPORT_BYTES, fnv1a, parseImport, serializeExport } from './exportImport';
@@ -46,6 +48,12 @@ const withV3 = <T extends { maxSeenAt: number }>(v2: T) => ({
 const toV4 = <T extends object>(v3: T) => ({ ...v3, schemaVersion: 4, ...initialV4Fields() });
 /** Associés v11: the v4 → v5 step adds appel / receipts / bike:null. */
 const toV5 = <T extends object>(v4: T) => ({ ...v4, schemaVersion: 5, ...initialV5Fields() });
+/** 0.6.0: v5 → v6 adds deterministic gameId from createdAt and the bike object from maxSeenAt. */
+const toV6 = <T extends { createdAt: number; maxSeenAt: number }>(v5: T) => {
+  const minted = gameIdFromV5({ createdAt: v5.createdAt });
+  if (!minted.ok) throw new Error('toV6: invalid createdAt');
+  return { ...v5, schemaVersion: 6 as const, ...initialV6Fields(v5.maxSeenAt, minted.gameId) };
+};
 
 const T0 = Date.UTC(2026, 9, 25, 12, 0, 0);
 let dbCounter = 0;
@@ -58,7 +66,7 @@ describe('golden saves and migration chain (RES-7a)', () => {
   ])('%s migrates to v5 keeping every v4 value (R-MV5)', (_name, fixture) => {
     const r = migrateToCurrent(fixture);
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.value).toEqual(toV5(fixture));
+    if (r.ok) expect(r.value).toEqual(toV6(toV5(fixture)));
   });
   it.each([
     ['v3-initial', initialV3],
@@ -66,16 +74,17 @@ describe('golden saves and migration chain (RES-7a)', () => {
   ])('%s migrates to v4 keeping every v3 value (OD-4, GS-V5-50)', (_name, fixture) => {
     const r = migrateToCurrent(fixture);
     if (!r.ok) throw new Error(r.reason);
-    expect(r.value).toEqual(toV5(toV4(fixture)));
-    const { work, appel, appelReceipts, bike, ...v3Part } = r.value;
+    expect(r.value).toEqual(toV6(toV5(toV4(fixture))));
+    const { work, appel, appelReceipts, bike, gameId: _gid, ...v3Part } = r.value;
     expect(appel).toEqual({});
     expect(appelReceipts).toEqual([]);
-    expect(bike).toBeNull();
+    expect(bike.day).toBeTruthy();
+    expect(_gid).toMatch(/^[0-9a-f-]{36}$/);
     expect({ ...v3Part, schemaVersion: 3 }).toEqual(fixture);
     expect(work).toEqual({ mode: 'roman', points: 0, pointsTotal: 0, cursor: 0, taps: 0 });
   });
   it('v3-initial migrates to exactly toV5(v4-initial)', () => {
-    expect(migrateToCurrent(initialV3)).toEqual({ ok: true, value: toV5(initialV4) });
+    expect(migrateToCurrent(initialV3)).toEqual({ ok: true, value: toV6(toV5(initialV4)) });
   });
   it.each([
     ['v2-initial', initial],
@@ -83,7 +92,7 @@ describe('golden saves and migration chain (RES-7a)', () => {
   ])('%s migrates to v4 keeping every v2 value (GS-V5-05, chain v2→v3→v4)', (_name, fixture) => {
     const r = migrateToCurrent(fixture);
     if (!r.ok) throw new Error(r.reason);
-    expect(r.value).toEqual(toV5(toV4(withV3(fixture))));
+    expect(r.value).toEqual(toV6(toV5(toV4(withV3(fixture)))));
     const {
       profile,
       energy,
@@ -93,12 +102,14 @@ describe('golden saves and migration chain (RES-7a)', () => {
       appel: _a,
       appelReceipts: _r,
       bike: _b,
+      gameId: _gid,
       ...v2Part
     } = r.value;
     void _a;
     void _r;
     void _b;
     void _w;
+    void _gid;
     expect({ ...v2Part, schemaVersion: 2 }).toEqual(fixture);
     expect([profile, energy.value, wardrobe.outfit]).toEqual([{ level: 1, xp: 0 }, 50, 'jean']);
     expect(Object.values(stats)).toEqual(Array(10).fill(0));
@@ -110,20 +121,22 @@ describe('golden saves and migration chain (RES-7a)', () => {
     const r = migrateToCurrent(fixture);
     if (!r.ok) throw new Error(r.reason);
     expect(r.value).toEqual(
-      toV5(
-        toV4(
-          withV3({
-            ...fixture,
-            schemaVersion: 2,
-            gacha: { ...fixture.gacha, last: null },
-            quests: { ...fixture.quests, quizChoice: null },
-          }),
+      toV6(
+        toV5(
+          toV4(
+            withV3({
+              ...fixture,
+              schemaVersion: 2,
+              gacha: { ...fixture.gacha, last: null },
+              quests: { ...fixture.quests, quizChoice: null },
+            }),
+          ),
         ),
       ),
     );
   });
   it('v1-initial migrates to exactly toV5(v4-initial) (through v2..v4)', () => {
-    expect(migrateToCurrent(initialV1)).toEqual({ ok: true, value: toV5(initialV4) });
+    expect(migrateToCurrent(initialV1)).toEqual({ ok: true, value: toV6(toV5(initialV4)) });
   });
   it('refuses an invalid v1 before migrating it', () => {
     expect(migrateToCurrent({ ...midgameV1, tickets: -1 }).ok).toBe(false);
@@ -151,7 +164,8 @@ describe('golden saves and migration chain (RES-7a)', () => {
     expect(migrateToCurrent({ ...midgame, schemaVersion: '1' }).ok).toBe(false);
   });
   it('the initial fixture equals the spec initial state', () => {
-    expect(toV5(initialV4)).toEqual(createInitialState(T0, 20261025));
+    const expected = toV6(toV5(initialV4));
+    expect(createInitialState(T0, 20261025, expected.gameId)).toEqual(expected);
   });
 });
 
@@ -204,7 +218,7 @@ describe('validation bounds (RES-7c)', () => {
 describe('export / import (GS-CA5)', () => {
   it('round-trips to an identical state', () => {
     const r = parseImport(serializeExport(midgameV4 as never));
-    expect(r).toEqual({ ok: true, value: toV5(midgameV4) });
+    expect(r).toEqual({ ok: true, value: toV6(toV5(midgameV4)) });
   });
   it('detects accidental corruption via checksum', () => {
     const text = serializeExport(midgame as never).replace('"tickets": 4', '"tickets": 5');
@@ -242,7 +256,7 @@ describe('loader fuzz (RES-7b): never throws, never accepts garbage', () => {
         t = t.slice(0, pos) + chars[Math.floor(rand() * chars.length)] + t.slice(pos + 1);
       }
       const r = parseImport(t);
-      if (r.ok) expect(validateSaveV5(r.value).ok).toBe(true);
+      if (r.ok) expect(validateSaveV6(r.value).ok).toBe(true);
       expect(() => migrateToCurrent(safeParse(t))).not.toThrow();
     }
   });
@@ -351,15 +365,15 @@ describe('migration backups (lot 3, MVP v1.3 steps 2, 6, 7, 8 and R12)', () => {
     const r = await loadSave(db);
     expect(r).toEqual({
       kind: 'ok',
-      save: toV5(toV4(withV3(midgame))),
+      save: toV6(toV5(toV4(withV3(midgame)))),
       from: 'backup-before-migration',
     });
   });
   it('refuses a future version without falling back', async () => {
     const db = await freshDb();
     await db.put('saves', midgame, 'previous');
-    await db.put('saves', { ...midgameV4, schemaVersion: 6 }, 'current');
-    expect(await loadSave(db)).toEqual({ kind: 'future', version: 6 });
+    await db.put('saves', { ...midgameV4, schemaVersion: CURRENT_SCHEMA_VERSION + 1 }, 'current');
+    expect(await loadSave(db)).toEqual({ kind: 'future', version: CURRENT_SCHEMA_VERSION + 1 });
     expect(await db.get('saves', 'backup-before-migration-v3')).toBeUndefined();
   });
   it('backup-before-restore copies current and leaves backup-before-import unchanged (R12)', async () => {
@@ -413,7 +427,7 @@ describe('schema v4 and the -v3 slot (lot 4, OD-4, R-L4-1, GS-V5-50)', () => {
     await db.put('saves', { garbage: true }, 'current');
     expect(await loadSave(db)).toEqual({
       kind: 'ok',
-      save: toV5(toV4(midgameV3)),
+      save: toV6(toV5(toV4(midgameV3))),
       from: 'previous',
     });
   });
@@ -425,18 +439,18 @@ describe('schema v4 and the -v3 slot (lot 4, OD-4, R-L4-1, GS-V5-50)', () => {
     await db.put('saves', 'nope', 'previous');
     expect(await loadSave(db)).toEqual({
       kind: 'ok',
-      save: toV5(toV4(midgameV3)),
+      save: toV6(toV5(toV4(midgameV3))),
       from: 'backup-before-migration-v3',
     });
     await db.put('saves', 'nope', 'backup-before-migration-v3');
     const r = await loadSave(db);
     expect(r.kind === 'ok' && r.from).toBe('backup-before-migration');
   });
-  it('a future version (v6) is refused without any write', async () => {
+  it('a future version (v7) is refused without any write', async () => {
     const db = await freshDb();
-    const future = { ...midgameV4, schemaVersion: 6 };
+    const future = { ...midgameV4, schemaVersion: CURRENT_SCHEMA_VERSION + 1 };
     await db.put('saves', future, 'current');
-    expect(await loadSave(db)).toEqual({ kind: 'future', version: 6 });
+    expect(await loadSave(db)).toEqual({ kind: 'future', version: CURRENT_SCHEMA_VERSION + 1 });
     expect(await backupBeforeMigration(db)).toBe(false);
     expect(await db.getAllKeys('saves')).toEqual(['current']);
     expect(migrateToCurrent(future).ok).toBe(false);
@@ -453,7 +467,11 @@ describe('R-MV5-01 writeSave refuses a future schema (0.4.4)', () => {
     const written = await writeSave(db, createInitialState(T0, 1), -1);
     expect(written.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
 
-    const future = { ...written, schemaVersion: 6, revision: written.revision + 1 };
+    const future = {
+      ...written,
+      schemaVersion: CURRENT_SCHEMA_VERSION + 1,
+      revision: written.revision + 1,
+    };
     const tx = db.transaction('saves', 'readwrite');
     await tx.store.put(future, 'current');
     await tx.done;
@@ -465,7 +483,7 @@ describe('R-MV5-01 writeSave refuses a future schema (0.4.4)', () => {
 
     const after = await db.get('saves', 'current');
     expect(after).toEqual(before);
-    expect((after as { schemaVersion: number }).schemaVersion).toBe(6);
+    expect((after as { schemaVersion: number }).schemaVersion).toBe(CURRENT_SCHEMA_VERSION + 1);
     expect((after as { tickets: number }).tickets).not.toBe(99);
   });
 
@@ -489,14 +507,15 @@ describe('R-MV5-01 writeSave refuses a future schema (0.4.4)', () => {
 });
 
 describe('R-MV5-02/03 migration oracles (v4 fixtures)', () => {
-  it('O1: v4→v5 keeps every v4 field; appel {}; bike null', () => {
+  it('O1: v4→v6 keeps every v4 field; appel {}; bike initial', () => {
     const r = migrateToCurrent(midgameV4);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.value).toEqual(toV5(midgameV4));
+    expect(r.value).toEqual(toV6(toV5(midgameV4)));
     expect(r.value.appel).toEqual({});
     expect(r.value.appelReceipts).toEqual([]);
-    expect(r.value.bike).toBeNull();
+    expect(r.value.bike.earnedTodayCents).toBe(0);
+    expect(r.value.bike.receipts).toEqual([]);
   });
 
   it('O2/O3: same-tx backup-v4 immutable; revision +1 once', async () => {
@@ -504,7 +523,7 @@ describe('R-MV5-02/03 migration oracles (v4 fixtures)', () => {
     const { migrateCurrentSameTx } = await import('./db');
     await db.put('saves', midgameV4, 'current');
     const once = await migrateCurrentSameTx(db);
-    expect(once?.schemaVersion).toBe(5);
+    expect(once?.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(once?.revision).toBe((midgameV4 as { revision: number }).revision + 1);
     const backup = await db.get('saves', 'backup-before-migration-v4');
     expect(backup).toEqual(midgameV4);
