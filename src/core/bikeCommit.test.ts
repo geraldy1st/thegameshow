@@ -10,11 +10,14 @@ const GID = '01234567-89ab-4def-8012-3456789abcde';
 const RUN = '0a0a0a0a-0b0b-4c0c-8d0d-0e0e0e0e0e0e';
 const RUN2 = '1a1a1a1a-1b1b-4c1c-8d1d-1e1e1e1e1e1e';
 
-describe('applyDailyCapOnReplace stub', () => {
-  it('returns incoming unchanged (G-4 / today anchor not implemented)', () => {
+describe('applyDailyCapOnReplace', () => {
+  it('is the single G-4 entry point and returns a result object', () => {
     const incoming = createInitialState(T0, 1, GID);
     const replaced = createInitialState(T0, 2, RUN);
-    expect(applyDailyCapOnReplace(incoming, replaced, T0, [replaced])).toBe(incoming);
+    const r = applyDailyCapOnReplace(incoming, replaced, T0, [replaced]);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.bike.day).toBe(incoming.bike.day);
   });
 });
 

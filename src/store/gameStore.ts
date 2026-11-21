@@ -34,6 +34,7 @@ import {
   backupBeforeRestore,
   migrateCurrentSameTx,
   readRawSlot,
+  loadPathCopies,
 } from '../save/db';
 import {
   activateAppelOnState,
@@ -42,10 +43,6 @@ import {
   makeActivationId,
 } from '../core/appel';
 import { parseImport, serializeExport } from '../save/exportImport';
-
-function localCopies(current: GameState | null): readonly GameState[] {
-  return current ? [current] : [];
-}
 
 function applyAppelCooldownCap(g: GameState): GameState {
   return { ...g, appel: capAppelCooldowns(g.appel) };
@@ -306,14 +303,21 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
       await backupBeforeRestore(db);
       persistedRevision = await storedRevision();
       const now = deps.clock.now();
-      // G-4 / today-anchor stub first; then the existing min(maxSeenAt, now) (order is normative).
-      const merged = applyDailyCapOnReplace(b.save, get().game, now, localCopies(get().game));
+      const current = get().game;
+      const copies = db ? await loadPathCopies(db, current) : current ? [current] : [];
+      const applied = applyDailyCapOnReplace(b.save, current, now, copies);
+      if (!applied.ok) {
+        set({ writeError: true });
+        get().announce(t('writeFailed'));
+        return false;
+      }
       set({
         game: applyAppelCooldownCap({
-          ...merged,
-          maxSeenAt: Math.min(merged.maxSeenAt, now),
-          lastSeenAt: Math.min(merged.lastSeenAt, now),
-          energy: { ...merged.energy, updatedAt: Math.min(merged.energy.updatedAt, now) },
+          ...applied.value,
+          energy: {
+            ...applied.value.energy,
+            updatedAt: Math.min(applied.value.energy.updatedAt, now),
+          },
         }),
         status: 'ready',
         recoveryReason: null,
@@ -371,8 +375,21 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
           }
         }
         const now = deps.clock.now();
-        const base =
+        const rawBase =
           loadedOk.kind === 'ok' ? loadedOk.save : createInitialState(now, deps.newSeed());
+        const copies = await loadPathCopies(db, loadedOk.kind === 'ok' ? loadedOk.save : null);
+        const capped = applyDailyCapOnReplace(
+          rawBase,
+          loadedOk.kind === 'ok' ? loadedOk.save : null,
+          now,
+          copies,
+        );
+        if (!capped.ok) {
+          set({ writeError: true, status: isWriter ? 'ready' : 'readonly' });
+          get().announce(t('writeFailed'));
+          return;
+        }
+        const base = capped.value;
         persistedRevision = await storedRevision();
         const r = settle(applyAppelCooldownCap(base), now);
         set({
@@ -559,19 +576,20 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
         // An imported save may come from another device clock: never let it block settlement.
         // Patch 0.4.2 (R-P42-4): a 0.4.1 export in `presse` comes back as `roman`, written once.
         const value = normalizeWorkMode(parsed.value);
-        // G-4 / today-anchor stub first; then the existing min(maxSeenAt, now) (order is normative).
-        const merged = applyDailyCapOnReplace(value, get().game, now, localCopies(get().game));
-        const maxSeen = Math.min(merged.maxSeenAt, now);
+        const copies = await loadPathCopies(db, get().game);
+        const applied = applyDailyCapOnReplace(value, get().game, now, copies);
+        if (!applied.ok) {
+          set({ writeError: true });
+          return { ok: false, reason: t('writeFailed') };
+        }
         const imported: GameState = {
-          ...merged,
-          maxSeenAt: maxSeen,
-          lastSeenAt: Math.min(merged.lastSeenAt, now),
+          ...applied.value,
           // R-MV5-04 / DEF-GS-31: clamp calls to local maxSeenAt and real wall time.
           appel: clampAppelForImport(
-            merged.appel,
-            maxSeen,
-            typeof Date !== 'undefined' ? Date.now() : maxSeen,
-            merged.gacha.stars,
+            applied.value.appel,
+            applied.value.maxSeenAt,
+            typeof Date !== 'undefined' ? Date.now() : applied.value.maxSeenAt,
+            applied.value.gacha.stars,
           ),
         };
         set({ game: imported, status: 'ready', recoveryReason: null, recoveryKind: null });
@@ -590,8 +608,15 @@ export function createGameStore(deps: GameStoreDeps): StoreApi<GameStoreState> {
             ? crypto.randomUUID()
             : undefined;
         const incoming = createInitialState(now, deps.newSeed(), freshId);
+        const copies = await loadPathCopies(db, get().game);
+        const applied = applyDailyCapOnReplace(incoming, get().game, now, copies);
+        if (!applied.ok) {
+          set({ writeError: true });
+          get().announce(t('writeFailed'));
+          return;
+        }
         set({
-          game: applyDailyCapOnReplace(incoming, get().game, now, localCopies(get().game)),
+          game: applied.value,
           status: 'ready',
           recoveryReason: null,
           recoveryKind: null,
