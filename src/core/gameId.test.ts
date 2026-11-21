@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { gameIdFromCreatedAt, sha256, uuidFromDigest16 } from './gameId';
 
@@ -53,17 +52,27 @@ describe('gameIdFromCreatedAt (NV6-09, SHA-256 sync)', () => {
     le[prefix.length + 1] = 1; // little-endian 1
     expect(uuidFromDigest16(sha256(le))).not.toBe('be360fea-6686-8003-af84-5b10cba296b5');
   });
-  it('matches node crypto SHA-256 when padding needs a second block (≥ 56 bytes, N32)', () => {
-    // The gameId payload is 31 bytes, so it never reaches the FIPS case where
-    // the 0x80 pad and the 8-byte bit length do not fit in the same block.
-    // Lengths 56..63 (and 119, 120) force that extra block and kill N32.
-    // N33 (bitLenHi forced to 0) is equivalent for every input shorter than
-    // 2^29 bytes; a 512 MiB vector is out of scope for this suite.
-    const hex = (u: Uint8Array) => [...u].map((b) => b.toString(16).padStart(2, '0')).join('');
-    const nodeSha = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
-    for (const len of [0, 55, 56, 57, 63, 64, 65, 119, 120]) {
+  it.each([
+    [0, 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'],
+    [55, 'e7313d333c272e639f790978283f9eb392e843d0f29b7016828bb1daa4aac70b'],
+    [56, '4324d65f3c103567f5589c710bc08f8523f929a9272e3af36fc968e52abc6c27'],
+    [57, '35df609437dcfea3279283ab79fd554e2bf78f8f7ae2de532d8ee300b09e8f73'],
+    [63, '81c80242132f230c3bd41b3e63bbcff16107339549214a99614ff26664625055'],
+    [64, '39e3d7b6b5d075d37d053ad89b24b41bef4f3c29760c84447cab3f3be1882241'],
+    [65, 'aacca6ff74fdbb296d165a45cecfa04e5127bc008770fbbdd48006f2d2fae95e'],
+    [119, '9ce7368e4daf32341631b492e80359dc9f594b48453cd0dd5bf0b19279cc177e'],
+    [120, '7836b787757e95e58b3ca5aec90b1b004e8deba1e50e9675af9cabf1a13a04b5'],
+  ] as const)(
+    'matches FIPS SHA-256 for a %s-byte input (N32, second padding block at ≥ 56)',
+    (len, digest) => {
+      // The gameId payload is 31 bytes, so it never reaches the FIPS case
+      // where the 0x80 pad and the 8-byte bit length do not fit in one block.
+      // Lengths 56..63 (and 119, 120) force that extra block and kill N32.
+      // N33 (bitLenHi forced to 0) is equivalent for every input shorter than
+      // 2^29 bytes; a 512 MiB vector is out of scope for this suite.
       const bytes = Uint8Array.from({ length: len }, (_, i) => (i * 7 + 3) & 0xff);
-      expect(hex(sha256(bytes)), `len=${len}`).toBe(nodeSha(bytes));
-    }
-  });
+      const hex = [...sha256(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('');
+      expect(hex).toBe(digest);
+    },
+  );
 });
