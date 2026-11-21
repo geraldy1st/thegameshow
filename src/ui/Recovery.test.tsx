@@ -179,4 +179,24 @@ describe('DEF-GS-52 / DEF-GS-53 future export envelope and announcements', () =>
     expect(store.getState().announcement).toBe('Sauvegarde exportée.');
     spy.mockRestore();
   });
+
+  it('announces a failure when the disk read rejects, without a false success (DEF-GS-60)', async () => {
+    const captured: string[] = [];
+    const spy = vi.spyOn(helpers, 'download').mockImplementation((text) => {
+      captured.push(text);
+    });
+    const { store } = await futureRecoveryApp('ui-recovery-export-fail');
+    store.setState({
+      rawCurrentSave: async () => {
+        throw new Error('idb');
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Exporter la sauvegarde' }));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    expect(captured).toHaveLength(0);
+    expect(store.getState().announcement).toBe('La sauvegarde n’a pas pu être exportée.');
+    spy.mockRestore();
+  });
 });

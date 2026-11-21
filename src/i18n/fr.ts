@@ -36,6 +36,7 @@ export const fr = {
   saveWriteFailed:
     'L’import n’a pas pu être enregistré. Ta partie actuelle n’a pas changé : réessaie.',
   exportDone: 'Sauvegarde exportée.',
+  exportFailed: 'La sauvegarde n’a pas pu être exportée.',
   checksumNote: 'Le contrôle détecte un fichier abîmé, pas une modification volontaire.',
   reset: 'Nouvelle partie',
   resetTitle: 'Recommencer de zéro ?',

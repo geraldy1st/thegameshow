@@ -98,6 +98,19 @@ function Invest({ store }: { store: Store }) {
   );
 }
 
+function announceExport(store: Store, pending: Promise<string | null>) {
+  void pending
+    .then((text) => {
+      if (text) {
+        download(text);
+        store.getState().announce(t('exportDone'));
+      }
+    })
+    .catch(() => {
+      store.getState().announce(t('exportFailed'));
+    });
+}
+
 function ImportButton({ store }: { store: Store }) {
   const input = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<string | null>(null);
@@ -162,15 +175,7 @@ function SaveMenu({ store }: { store: Store }) {
           type="button"
           className="btn btn-ghost"
           onClick={() => {
-            void store
-              .getState()
-              .exportSave()
-              .then((text) => {
-                if (text) {
-                  download(text);
-                  store.getState().announce(t('exportDone'));
-                }
-              });
+            announceExport(store, store.getState().exportSave());
           }}
         >
           {t('exportSave')}
@@ -245,16 +250,16 @@ function Recovery({ store }: { store: Store }) {
               type="button"
               className="btn btn-ghost"
               onClick={() =>
-                void store
-                  .getState()
-                  .rawCurrentSave()
-                  .then((raw) => {
-                    if (raw) {
+                announceExport(
+                  store,
+                  store
+                    .getState()
+                    .rawCurrentSave()
+                    .then((raw) => {
                       // DEF-GS-52: standard envelope so 0.6.0 can import this file.
-                      download(envelopeFromRawJson(raw));
-                      store.getState().announce(t('exportDone'));
-                    }
-                  })
+                      return raw ? envelopeFromRawJson(raw) : null;
+                    }),
+                )
               }
             >
               {t('exportSave')}
