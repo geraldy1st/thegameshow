@@ -26,12 +26,16 @@ export function localDay(now: number): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-/** True calendar date YYYY-MM-DD (rejects 2026-02-30). Shared with validateSaveV6 later (NV6-08). */
+/** True calendar date YYYY-MM-DD (rejects 2026-02-30). Shared with validateSaveV6 later (NV6-08).
+ * Civil existence is timezone-independent (DEF-GS-63): some zones skip a local
+ * midnight (1994-12-31 in Pacific/Kiritimati, 2011-12-30 in Pacific/Apia,
+ * 1993-08-21 in Pacific/Kwajalein), so the date is built with Date.UTC / getUTC*.
+ */
 export function isCalendarDay(s: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
   const y = Number(s.slice(0, 4));
   const m = Number(s.slice(5, 7));
   const d = Number(s.slice(8, 10));
-  const dt = new Date(y, m - 1, d);
-  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
 }

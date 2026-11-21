@@ -630,3 +630,26 @@ describe('historical I1 survivors (Crypto 50da75b)', () => {
     expect(collected).toBe(200 * BIKE.maxCoins);
   });
 });
+
+describe('coin placement spacing (N43, DEF-GS-64)', () => {
+  it('keeps a minimum same-lane gap and a last coin near the finish', () => {
+    // N43 still emits 20 coins but places a pair 1 m apart at each of 10 slots
+    // (last coin median ~35 m). The original keeps >= ~1.82 m and a last coin
+    // around 70–96 m (median ~86 m). Do not change placement for OBS-I1-08.
+    let minSameLane = Infinity;
+    let lastMin = Infinity;
+    for (let seed = 0; seed < 2000; seed++) {
+      const course = generateCourse(seed);
+      expect(course.pickups.length, `seed=${seed}`).toBe(BIKE.maxCoins);
+      const ordered = [...course.pickups].sort((a, b) => a.z - b.z || a.lane - b.lane);
+      lastMin = Math.min(lastMin, ordered[ordered.length - 1]!.z);
+      for (let i = 1; i < ordered.length; i++) {
+        if (ordered[i]!.lane === ordered[i - 1]!.lane) {
+          minSameLane = Math.min(minSameLane, ordered[i]!.z - ordered[i - 1]!.z);
+        }
+      }
+    }
+    expect(minSameLane).toBeGreaterThanOrEqual(1.5);
+    expect(lastMin).toBeGreaterThanOrEqual(60);
+  });
+});

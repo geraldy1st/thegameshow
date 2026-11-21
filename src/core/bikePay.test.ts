@@ -345,41 +345,18 @@ describe('bikePay day rule mutants and invalid dates (R-I1-05, P05, P07)', () =>
     expect(r.ok && r.newState.day).toBe(localDay(now));
   });
 
-  it('isCalendarDay year+month already reject an overflow, so dropping getDate is equivalent (N19)', () => {
-    // JS Date overflow of an invalid YYYY-MM-DD (month/day 00–99) always
-    // changes the month or the year, so dt.getDate() === d is redundant.
-    for (const y of [1900, 2000, 2024, 2026, 2100]) {
-      for (let m = 0; m <= 99; m++) {
-        for (let d = 0; d <= 99; d++) {
-          const dt = new Date(y, m - 1, d);
-          const ym = dt.getFullYear() === y && dt.getMonth() === m - 1;
-          const ymd = ym && dt.getDate() === d;
-          const s = `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-          expect(ymd, s).toBe(ym);
-          expect(isCalendarDay(s), s).toBe(ymd);
-        }
-      }
-    }
+  // The former N19/N22 "equivalence proofs" sampled 5 years and assumed local
+  // midnight always exists. They are replaced by timezone-independent oracles
+  // (DEF-GS-63 / DEF-GS-64). The Kiritimati / Juneau / Apia / Kwajalein CI
+  // steps also run this file.
+  it('accepts civil days that some zones skip at local midnight (N22, DEF-GS-63)', () => {
+    expect(isCalendarDay('1994-12-31')).toBe(true); // Pacific/Kiritimati
+    expect(isCalendarDay('2011-12-30')).toBe(true); // Pacific/Apia
+    expect(isCalendarDay('1993-08-21')).toBe(true); // Pacific/Kwajalein
   });
 
-  it('isCalendarDay local vs UTC construction agrees on Gregorian existence (N22)', () => {
-    // Date.UTC and local Date accept the same civil dates when midnight exists
-    // (Juneau / Kiritimati CI steps exercise this file under those zones).
-    for (const y of [1900, 2000, 2024, 2026, 2100]) {
-      for (let m = 0; m <= 99; m++) {
-        for (let d = 0; d <= 99; d++) {
-          const s = `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-          const local = new Date(y, m - 1, d);
-          const utc = new Date(Date.UTC(y, m - 1, d));
-          const localOk =
-            local.getFullYear() === y && local.getMonth() === m - 1 && local.getDate() === d;
-          const utcOk =
-            utc.getUTCFullYear() === y && utc.getUTCMonth() === m - 1 && utc.getUTCDate() === d;
-          expect(localOk, s).toBe(utcOk);
-          expect(isCalendarDay(s), s).toBe(localOk);
-        }
-      }
-    }
+  it("rejects '1995-01-00' under any TZ including Kiritimati (N19, DEF-GS-64)", () => {
+    expect(isCalendarDay('1995-01-00')).toBe(false);
   });
 });
 

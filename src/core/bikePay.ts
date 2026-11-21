@@ -12,7 +12,7 @@ import { isCalendarDay, localDay } from './clock';
  * I2 writes it in the same transaction as the receipt. No UI here.
  */
 export const BIKE_PAY = {
-  coinYenCents: 200,
+  coinBuckCents: 200, // was coinYenCents; not persisted (OBS-I1-09)
   maxCoins: 20,
   successBonusCents: 10_000,
   dailyCapCents: 100_000,
@@ -45,7 +45,7 @@ export function initialBikePayState(nowCal: number): BikePayState {
 
 export function grossCents(outcome: BikePayOutcome, coins: number): number {
   if (outcome === 'abandon') return 0;
-  const collected = BIKE_PAY.coinYenCents * coins;
+  const collected = BIKE_PAY.coinBuckCents * coins;
   return outcome === 'success' ? collected + BIKE_PAY.successBonusCents : collected;
 }
 
