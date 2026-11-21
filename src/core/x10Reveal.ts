@@ -41,16 +41,6 @@ export type X10Event =
 
 export type X10OpenFlags = { reduced?: boolean; resumed?: boolean; threeStarCount?: number };
 
-const PRE_RECAP: ReadonlySet<X10Phase> = new Set([
-  'arrive',
-  'sealed',
-  'break',
-  'fan',
-  'grid',
-  'flip',
-  'flash',
-]);
-
 /** Best base rarity of an already-committed batch. */
 export function bestRarity(rarities: readonly Rarity[]): Rarity {
   if (rarities.length === 0) return 1;
@@ -162,6 +152,8 @@ export function reduceX10Phase(
 ): X10Phase {
   if (event === 'UNMOUNT') return 'closed';
   if (event === 'OPEN') {
+    // DEF-GS-67: OPEN is accepted only from `closed`.
+    if (phase !== 'closed') return phase;
     if (flags.resumed) return 'recap';
     return 'arrive';
   }
@@ -187,7 +179,7 @@ export function reduceX10Phase(
       if (flags.reduced || (flags.threeStarCount ?? 0) < 1) return 'recap';
       return 'flash';
     case 'FLASH_DONE':
-      return phase === 'flash' || phase === 'flip' ? 'recap' : phase;
+      return phase === 'flash' ? 'recap' : phase;
     case 'RECAP_FOCUS':
       return phase;
     default:
@@ -221,8 +213,9 @@ const defaultClock = (): X10Clock => ({
 });
 
 /**
- * Drives the schedule with an injectable clock. Used by unit tests with fake
- * timers (0 ms tolerance). Does not call pull / pullTen.
+ * Drives the schedule with an injectable clock. Every phase change goes
+ * through `reduceX10Phase`. `autoBreak` defaults to false so production
+ * cannot break the seal by omission (DEF-GS-67, O-1, O-2).
  */
 export function createX10Runtime(
   rarities: readonly Rarity[],
@@ -236,7 +229,12 @@ export function createX10Runtime(
     reduced: flags.reduced,
     resumed: flags.resumed,
   });
-  let phase: X10Phase = reduceX10Phase('closed', 'OPEN', flags);
+  const reduceFlags: X10OpenFlags = {
+    reduced: flags.reduced,
+    resumed: flags.resumed,
+    threeStarCount: k,
+  };
+  let phase: X10Phase = reduceX10Phase('closed', 'OPEN', reduceFlags);
   const face = new Set<number>();
   let flashing: number | null = null;
   const timers = new Set<ReturnType<typeof setTimeout>>();
@@ -253,15 +251,29 @@ export function createX10Runtime(
     for (const id of timers) clock.clearTimeout(id);
     timers.clear();
   };
-  const goRecap = () => {
-    clearAll();
-    flashing = null;
+  const apply = (event: X10Event): X10Phase => {
+    phase = reduceX10Phase(phase, event, reduceFlags);
+    return phase;
+  };
+  const revealAll = () => {
     for (let i = 0; i < rarities.length; i++) face.add(i);
-    phase = 'recap';
+  };
+  const enterRecapVia = (event: X10Event): void => {
+    const next = reduceX10Phase(phase, event, reduceFlags);
+    if (next === 'recap' && phase !== 'recap') {
+      clearAll();
+      flashing = null;
+      revealAll();
+    }
+    if (next === 'closed' && phase !== 'closed') {
+      clearAll();
+      flashing = null;
+    }
+    phase = next;
   };
 
   const startFlips = () => {
-    phase = 'flip';
+    // Caller has just applied GRID_DONE; phase is `flip`.
     for (let i = 0; i < order.length; i++) {
       const card = order[i]!;
       later(sched.tUpByOrder[i]! - X10_PRE_FLIP, () => {
@@ -272,63 +284,52 @@ export function createX10Runtime(
     if (sched.flashStartAt != null) {
       const lastCard = order[order.length - 1]!;
       later(sched.flashStartAt - X10_PRE_FLIP, () => {
-        if (phase !== 'flip' && phase !== 'flash') return;
-        phase = 'flash';
+        if (apply('FLIP_DONE') !== 'flash') return;
         flashing = lastCard;
       });
       later(sched.flashEndAt! - X10_PRE_FLIP, () => {
-        if (phase !== 'flash') return;
-        flashing = null;
-        phase = 'recap';
-        for (let i = 0; i < rarities.length; i++) face.add(i);
+        enterRecapVia('FLASH_DONE');
       });
     } else {
       later(sched.recapVisibleAt - X10_PRE_FLIP, () => {
-        if (phase !== 'flip') return;
-        phase = 'recap';
-        for (let i = 0; i < rarities.length; i++) face.add(i);
+        enterRecapVia('FLIP_DONE');
       });
     }
   };
 
-  const afterArrive = () => {
-    if (phase !== 'arrive') return;
-    if (flags.reduced) {
-      goRecap();
-      return;
-    }
-    phase = 'sealed';
-    if (flags.autoBreak !== false) {
-      // Tests measure sealed-wait-excluded totals; auto-break is the default.
-      // Production will wait for BREAK_REQUEST instead (autoBreak: false).
-    }
+  const startBreak = () => {
+    if (apply('BREAK_REQUEST') !== 'break') return;
+    later(X10_T.break, () => {
+      if (apply('BREAK_DONE') !== 'fan') return;
+      later(X10_T.fan, () => {
+        if (apply('FAN_DONE') !== 'grid') return;
+        later(X10_T.grid, () => {
+          if (apply('GRID_DONE') !== 'flip') return;
+          startFlips();
+        });
+      });
+    });
   };
 
   if (flags.resumed) {
-    goRecap();
+    clearAll();
+    flashing = null;
+    revealAll();
   } else if (flags.reduced) {
-    for (let i = 0; i < rarities.length; i++) face.add(i);
+    revealAll();
     later(X10_T.fade, () => {
-      if (phase === 'arrive') goRecap();
+      enterRecapVia('ARRIVE_DONE');
     });
   } else {
     later(X10_T.arrive, () => {
-      afterArrive();
-      if (flags.autoBreak !== false && phase === 'sealed') {
-        phase = 'break';
-        later(X10_T.break, () => {
-          if (phase !== 'break') return;
-          phase = 'fan';
-          later(X10_T.fan, () => {
-            if (phase !== 'fan') return;
-            phase = 'grid';
-            later(X10_T.grid, () => {
-              if (phase !== 'grid') return;
-              startFlips();
-            });
-          });
-        });
+      apply('ARRIVE_DONE');
+      if (phase === 'recap') {
+        clearAll();
+        flashing = null;
+        revealAll();
+        return;
       }
+      if (flags.autoBreak === true && phase === 'sealed') startBreak();
     });
   }
 
@@ -338,43 +339,22 @@ export function createX10Runtime(
     faceUp: () => [...face],
     pendingTimeouts: () => timers.size,
     skip: () => {
-      if (phase === 'closed') return;
-      goRecap();
+      enterRecapVia('SKIP');
     },
     breakSeal: () => {
-      if (phase !== 'sealed') return;
-      clearAll();
-      phase = 'break';
-      later(X10_T.break, () => {
-        if (phase !== 'break') return;
-        phase = 'fan';
-        later(X10_T.fan, () => {
-          if (phase !== 'fan') return;
-          phase = 'grid';
-          later(X10_T.grid, () => {
-            if (phase !== 'grid') return;
-            startFlips();
-          });
-        });
-      });
+      startBreak();
     },
     close: () => {
-      if (phase !== 'recap') return;
-      clearAll();
-      flashing = null;
-      phase = 'closed';
+      enterRecapVia('CLOSE');
     },
     unmount: () => {
-      clearAll();
-      flashing = null;
-      phase = 'closed';
+      enterRecapVia('UNMOUNT');
     },
     openSheet: () => {
-      if (phase === 'closed') return;
-      if (PRE_RECAP.has(phase)) goRecap();
+      enterRecapVia('OPEN_SHEET');
     },
     hide: () => {
-      if (PRE_RECAP.has(phase)) goRecap();
+      enterRecapVia('HIDE');
     },
   };
 }

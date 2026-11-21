@@ -189,6 +189,55 @@ describe('reduceX10Phase (TC-MAE)', () => {
     const stale: X10Event[] = ['FAN_DONE', 'FLASH_DONE', 'GRID_DONE'];
     expect(reduceX10Phase('sealed', stale[0]!)).toBe('sealed');
   });
+
+  const EVENTS: X10Event[] = [
+    'OPEN',
+    'ARRIVE_DONE',
+    'BREAK_REQUEST',
+    'BREAK_DONE',
+    'FAN_DONE',
+    'GRID_DONE',
+    'FLIP_DONE',
+    'FLASH_DONE',
+    'RECAP_FOCUS',
+    'SKIP',
+    'CLOSE',
+    'UNMOUNT',
+    'OPEN_SHEET',
+    'HIDE',
+  ];
+
+  /** Valid transitions only (ARCH §4 / DEF-GS-67). Everything else is a no-op. */
+  function nextPhase(phase: X10Phase, event: X10Event): X10Phase {
+    if (event === 'UNMOUNT') return 'closed';
+    if (event === 'OPEN') return phase === 'closed' ? 'arrive' : phase;
+    if (event === 'SKIP' || event === 'OPEN_SHEET' || event === 'HIDE') {
+      return phase === 'closed' ? 'closed' : 'recap';
+    }
+    if (event === 'CLOSE') return phase === 'recap' ? 'closed' : phase;
+    const allowed: Partial<Record<X10Event, Partial<Record<X10Phase, X10Phase>>>> = {
+      ARRIVE_DONE: { arrive: 'sealed' },
+      BREAK_REQUEST: { sealed: 'break' },
+      BREAK_DONE: { break: 'fan' },
+      FAN_DONE: { fan: 'grid' },
+      GRID_DONE: { grid: 'flip' },
+      FLIP_DONE: { flip: 'flash' },
+      FLASH_DONE: { flash: 'recap' },
+    };
+    return allowed[event]?.[phase] ?? phase;
+  }
+
+  it('DEF-GS-67: 9 phases × 14 events = 126 pairs', () => {
+    expect(phases.length * EVENTS.length).toBe(126);
+  });
+
+  it.each(phases.flatMap((phase) => EVENTS.map((event) => [phase, event] as const)))(
+    'DEF-GS-67: %s + %s',
+    (phase, event) => {
+      const flags = { threeStarCount: 1 };
+      expect(reduceX10Phase(phase, event, flags)).toBe(nextPhase(phase, event));
+    },
+  );
 });
 
 describe('createX10Runtime with fake timers (0 ms)', () => {
@@ -332,5 +381,14 @@ describe('createX10Runtime with fake timers (0 ms)', () => {
     expect(threeStarCount(withK(0))).toBe(0);
     expect(threeStarCount(withK(1))).toBe(1);
     expect(threeStarCount(withK(7))).toBe(7);
+  });
+
+  it('autoBreak defaults to false: the seal waits after arrive (O-2)', () => {
+    const r = createX10Runtime(withK(1));
+    vi.advanceTimersByTime(900);
+    expect(r.phase()).toBe('sealed');
+    vi.advanceTimersByTime(10_000);
+    expect(r.phase()).toBe('sealed');
+    expect(r.flashing()).toBeNull();
   });
 });
