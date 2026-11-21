@@ -14,6 +14,7 @@ import type { LastPull } from '../core/types';
 import { t, type MessageKey } from '../i18n/fr';
 import type { GameStoreState } from '../store/gameStore';
 import { Modal, Portrait } from './common';
+import { FoilWrap } from './foil/FoilWrap';
 import { Rates } from './Rates';
 import { AssociateSheet } from './partners/AssociateSheet';
 import { AppelDialog } from './partners/AppelDialog';
@@ -122,7 +123,9 @@ function Reveal({
           <>
             <h2 id="reveal-title">{displayName(last.id)}</h2>
             {resumed && <p className="meta">{t('lastPullResumed')}</p>}
-            <Portrait id={last.id} alt="" className={`portrait frame-${def.rarity}`} />
+            <FoilWrap rarity={def.rarity} obtained={true}>
+              <Portrait id={last.id} alt="" className={`portrait frame-${def.rarity}`} />
+            </FoilWrap>
             <p className="stars-line" aria-hidden="true">
               {stars(last.stars)}
             </p>
@@ -238,7 +241,9 @@ function PartnerCard({
     <li className={`card acard r${a.rarity} ${s ? '' : 'lock'}`}>
       {s ? (
         <button type="button" className="acard-photo" onClick={() => onProfile(a)}>
-          <Portrait id={a.id} alt="" className="portrait" />
+          <FoilWrap rarity={a.rarity} obtained>
+            <Portrait id={a.id} alt="" className="portrait" />
+          </FoilWrap>
           <span className="visually-hidden">{t('bioOpen', { name: displayName(a.id) })}</span>
           {st === 'active' && (
             <span className="appel-badge active" aria-label={t('appelBadgeActive', { t: tlabel })}>
@@ -334,7 +339,9 @@ function TenReveal({
             if (!def) return null;
             return (
               <li key={r.pull} className={`ten-item r${def.rarity}`}>
-                <Portrait id={def.id} alt="" className={`portrait frame-${def.rarity}`} />
+                <FoilWrap rarity={def.rarity} obtained={true}>
+                  <Portrait id={def.id} alt="" className={`portrait frame-${def.rarity}`} />
+                </FoilWrap>
                 <span className="ten-name">{displayName(def.id)}</span>
                 <span className="num">{t('rarity', { n: def.rarity })}</span>
                 <span className="ten-meta">

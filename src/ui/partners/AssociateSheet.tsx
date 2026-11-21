@@ -16,6 +16,7 @@ import {
 import { callDurationLabel, formatAppelRemain, formatPercent } from '../format';
 import { t } from '../../i18n/fr';
 import { Modal, Portrait } from '../common';
+import { FoilWrap } from '../foil/FoilWrap';
 
 /**
  * Isolated associate sheet (Associés v11 core). Props-only: not wired to the store, save,
@@ -110,11 +111,13 @@ export function AssociateSheet({
         <h2 id={titleId} tabIndex={-1} className="assoc-sheet-title">
           {displayName(a.id)}
         </h2>
-        <Portrait
-          id={a.id}
-          alt=""
-          className={`portrait frame-${a.rarity}${owned ? '' : ' gray'}`}
-        />
+        <FoilWrap rarity={a.rarity} obtained={owned}>
+          <Portrait
+            id={a.id}
+            alt=""
+            className={`portrait frame-${a.rarity}${owned ? '' : ' gray'}`}
+          />
+        </FoilWrap>
         <p className="assoc-sheet-meta">
           <span aria-hidden="true">{'★'.repeat(a.rarity)}</span>
           <span className="visually-hidden">{t('rarity', { n: a.rarity })}</span>

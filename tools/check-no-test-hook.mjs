@@ -28,7 +28,28 @@ const FORBIDDEN = [
   ].map((k) => [`test harness entry point ${k}`, new RegExp(`\\b${k}\\b`)]),
   ['payment API (ethics rule 5)', /PaymentRequest|stripe|checkout\.js/i],
   ['push notifications (ethics rule 11)', /Notification\.requestPermission|pushManager/],
+  // R-X10-15 / GS-X10-15: ×10 proto hook, proto demo menu, and the iOS orientation
+  // permission API must never ship in the player bundle. These stay forbidden even
+  // if tools/x10-demo-allow.json later lists a named demo feature (e.g. "atelier").
+  ['x10 proto hook', /__x10/],
+  ['x10 proto demo menu', /Lot 1★|Démo \/ proto|forceBest/],
+  ['DeviceOrientationEvent.requestPermission', /DeviceOrientationEvent\.requestPermission/],
 ];
+
+// Explicit allow-list of *named* demo features (empty until QG-3). An id listed
+// here never lifts the always-forbidden patterns above.
+const ALLOW_PATH = process.env.X10_DEMO_ALLOW ?? 'tools/x10-demo-allow.json';
+const allowed = new Set(existsSync(ALLOW_PATH) ? JSON.parse(readFileSync(ALLOW_PATH, 'utf8')) : []);
+const OPTIONAL_DEMO = [
+  {
+    id: 'atelier',
+    checks: [['atelier demo copy', /Mode démo|Essai 1★|rien n'est gagné ni enregistré/]],
+  },
+];
+for (const feat of OPTIONAL_DEMO) {
+  if (allowed.has(feat.id)) continue;
+  FORBIDDEN.push(...feat.checks);
+}
 const files = [];
 const walk = (d) => {
   for (const f of readdirSync(d)) {

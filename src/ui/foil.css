@@ -1,0 +1,103 @@
+/* Rare-card foil (2★ sweep / 3★ holo). Labels stay outside the wrap (contrast AA). */
+.foil {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: inherit;
+  transform-style: preserve-3d;
+  transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+}
+.foil .portrait,
+.foil picture {
+  display: block;
+  width: 100%;
+}
+.foil-holo,
+.foil-spec {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.foil[data-foil='3'] .foil-holo {
+  color: var(--ink);
+  background: conic-gradient(
+    from var(--foil-a, 210deg),
+    var(--gold) 0deg,
+    var(--cream) 70deg,
+    var(--coral) 150deg,
+    var(--gold) 230deg,
+    var(--cream) 300deg,
+    var(--gold) 360deg
+  );
+  mix-blend-mode: soft-light;
+  opacity: 0.55;
+}
+.foil[data-foil='2'] .foil-holo {
+  display: none;
+}
+.foil-spec {
+  background: linear-gradient(
+    115deg,
+    transparent 36%,
+    rgba(255, 246, 230, 0.7) 48%,
+    transparent 60%
+  );
+  background-size: 220% 100%;
+  background-position: var(--spec, -40%) 0;
+  mix-blend-mode: overlay;
+  opacity: 0.55;
+}
+.foil[data-foil='2'] .foil-spec {
+  opacity: 0.4;
+}
+.acard-photo .foil,
+.assoc-sheet .foil,
+.ten-item .foil,
+dialog .reveal .foil {
+  border-radius: var(--r-md, 9px);
+}
+.ten-item .foil {
+  width: 56px;
+}
+dialog .reveal .foil {
+  width: 160px;
+  margin: var(--s-2) auto;
+}
+dialog .reveal .foil .portrait img {
+  width: 100%;
+  margin: 0;
+}
+
+/* Reduced motion: static gold rim, no tilt, no animated band (Q-M6 / Q-M8). */
+.foil.foil-still {
+  transform: none;
+  box-shadow: inset 0 0 0 3px var(--gold);
+}
+.foil.foil-still .foil-holo,
+.foil.foil-still .foil-spec {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) .foil {
+    transform: none !important;
+  }
+  :root:not([data-motion='full']) .foil-holo,
+  :root:not([data-motion='full']) .foil-spec {
+    display: none !important;
+  }
+  :root:not([data-motion='full']) .foil[data-foil] {
+    box-shadow: inset 0 0 0 3px var(--gold);
+  }
+}
+:root[data-motion='reduce'] .foil {
+  transform: none !important;
+}
+:root[data-motion='reduce'] .foil-holo,
+:root[data-motion='reduce'] .foil-spec {
+  display: none !important;
+}
+:root[data-motion='reduce'] .foil[data-foil] {
+  box-shadow: inset 0 0 0 3px var(--gold);
+}
