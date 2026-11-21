@@ -66,6 +66,8 @@ describe('dayAnchor helpers (DEF-BT-TA-03)', () => {
     expect(isUsableNow(-1)).toBe(false);
     expect(isUsableNow(Number.MAX_SAFE_INTEGER)).toBe(false);
     expect(isUsableNow(NOW_15)).toBe(true);
+    expect(isUsableNow(NOW_15 + 0.5)).toBe(false);
+    expect(isUsableNow(ECMA_DATE_MAX)).toBe(false);
     expect(isUsableForAnchor(ECMA_DATE_MAX, '2026-11-15')).toBe(false);
     expect(isUsableForAnchor(AT_2099, '2026-11-15')).toBe(false);
   });
@@ -81,6 +83,7 @@ describe('applyDailyCapOnReplace oracles (note v1.6, Crypto 46/0)', () => {
     expect(r.value.bike.day).toBe('2026-11-15');
     expect(r.value.bike.earnedTodayCents).toBe(80_000);
     expect(r.remainingCents).toBe(20_000);
+    expect(r.value.maxSeenAt).toBe(at(2026, 11, 14, 18));
   });
 
   it('V2: older same-day export does not restore the cap', () => {
@@ -351,13 +354,23 @@ describe('applyDailyCapOnReplace oracles (note v1.6, Crypto 46/0)', () => {
   });
 
   it('E9: unusable now refuses the write and leaves current unchanged', () => {
-    for (const now of [Number.NaN, -1, Number.MAX_SAFE_INTEGER]) {
+    for (const now of [Number.NaN, -1, Number.MAX_SAFE_INTEGER, ECMA_DATE_MAX]) {
       const r = applyDailyCapOnReplace(exportE(), atCap15(), now);
       expect(r.ok).toBe(false);
       if (!r.ok) expect(r.reason).toBe('unusable-now');
     }
   });
 
+  it('today can advance from a usable local maxSeenAt alone (NV6-19)', () => {
+    const r = written(
+      rec('2026-11-15', 10_000, NOW_15),
+      rec('2026-11-15', 50_000, at(2026, 11, 16, 10)),
+      NOW_15,
+    );
+    expect(r.today).toBe('2026-11-16');
+    expect(r.value.bike.day).toBe('2026-11-16');
+    expect(r.value.bike.earnedTodayCents).toBe(50_000);
+  });
   it('Nouvelle partie does not restore the cap (4a / E7 family)', () => {
     const np = written(rec('2026-11-15', 0, NOW_15, { gameId: GID2 }), atCap15(), NOW_15, [
       atCap15(),
