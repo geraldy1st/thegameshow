@@ -271,6 +271,23 @@ test.describe('DEF-GS-38 call button contrast on the sheet', () => {
   }
 });
 
+async function waitForAmsgExitStart(page: Page) {
+  // DEF-GS-62: wait until the exit animation has actually started, not a fixed 40 ms.
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() => {
+          const dlg = document.querySelector('dialog.amsg') as HTMLDialogElement | null;
+          const sheet = document.querySelector('.amsg-sheet') as HTMLElement | null;
+          if (!dlg || !sheet) return false;
+          const opacity = Number(getComputedStyle(sheet).opacity);
+          return dlg.classList.contains('out') && opacity > 0 && opacity < 1;
+        }),
+      { timeout: 1000, intervals: [16, 16, 32] },
+    )
+    .toBe(true);
+}
+
 test.describe('DEF-GS-40 exit animation', () => {
   test('pointer close keeps the panel above the sheet until the animation ends', async ({
     page,
@@ -280,7 +297,7 @@ test.describe('DEF-GS-40 exit animation', () => {
     await expect(page.locator('#amsg-bubble')).toBeVisible();
     await page.waitForTimeout(300);
     await page.locator('dialog.amsg').click();
-    await page.waitForTimeout(40);
+    await waitForAmsgExitStart(page);
     const snap = await page.evaluate(() => {
       const dlg = document.querySelector('dialog.amsg') as HTMLDialogElement | null;
       const sheet = document.querySelector('.amsg-sheet') as HTMLElement | null;
@@ -748,16 +765,19 @@ test.describe('OBS-052D-12 title focus ring', () => {
         titleTop: t.top,
         titleLeft: t.left,
         titleRight: t.right,
+        titleHeight: t.height,
         slotBottom: s.bottom,
         slotLeft: s.left,
         slotRight: s.right,
         outlineWidth: width,
         outlineOffset: offset,
+        outlineStyle: cs.outlineStyle,
         color: cs.outlineColor,
       };
     });
     expect(info.outlineWidth).toBe(3);
     expect(info.outlineOffset).toBe(2);
+    expect(info.outlineStyle, JSON.stringify(info)).toBe('solid');
     // Layout contract: 3 px stroke + 2 px offset need 5 px of clear space.
     expect(info.slotBottom, JSON.stringify(info)).toBeLessThanOrEqual(info.titleTop - 5 + 0.5);
     // Viewport screenshots and getBoundingClientRect do not share an origin
@@ -766,13 +786,15 @@ test.describe('OBS-052D-12 title focus ring', () => {
     // where the sticky slot used to clip the upper 1 px.
     const x0 = Math.max(0, Math.floor(info.titleLeft - 6));
     const x1 = Math.ceil(Math.min(info.slotRight, info.titleRight) + 6);
-    // DEF-GS-55: a 1 px paint clip (R05 navy shadow) leaves a short first gold
-    // row then only 1–2 full rows under the slot. Require 3 full rows, as thick
-    // as outline-width, each at least 90 % of the bar's peak width. Chromium
-    // sometimes paints the third row a frame later: poll until it is solid.
+    // DEF-GS-55: measure the TOP gold bar independently, not the first full
+    // gold row in the band (that was the BOTTOM bar when a navy slot shadow
+    // fully covers the top stroke: R11 / R15). Require two solid bars,
+    // outline-width thick, separated by the title. Chromium sometimes paints
+    // a frame later: poll until both bars are present.
     await page.evaluate(
       () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))),
     );
+    type BarRun = { start: number; end: number; len: number };
     type Bar = {
       goldCounts: number[];
       navyCounts: number[];
@@ -780,8 +802,9 @@ test.describe('OBS-052D-12 title focus ring', () => {
       needWidth: number;
       peak: number;
       full: number;
-      first: number;
-      solid: number;
+      runs: BarRun[];
+      top: BarRun | null;
+      bottom: BarRun | null;
       around: { y: number; n: number }[];
     };
     let bar: Bar | undefined;
@@ -790,42 +813,86 @@ test.describe('OBS-052D-12 title focus ring', () => {
       const { goldCounts, navyCounts } = rows;
       const span = Math.min(rows.width, x1) - Math.max(0, x0);
       const needWidth = Math.max(40, Math.round(span * 0.5));
+      // Chromium isMobile screenshots and getBoundingClientRect can disagree
+      // by ~13–20 px. Keep a generous window around the title so we still
+      // see both strokes, but never pair the bottom stroke with gold later
+      // in the sheet (Convertir button, etc.).
+      const yMin = Math.max(
+        0,
+        Math.floor(
+          Math.min(info.slotBottom, info.titleTop - info.outlineOffset - info.outlineWidth) - 40,
+        ),
+      );
+      const yMax = Math.min(
+        goldCounts.length,
+        Math.ceil(info.titleTop + info.titleHeight + info.outlineOffset + info.outlineWidth + 40),
+      );
       const wide = goldCounts
         .map((n, y) => ({ y, n }))
-        .filter((r) => r.n >= needWidth && r.y < rows.height * 0.6);
+        .filter((r) => r.y >= yMin && r.y < yMax && r.n >= needWidth);
       const peak = wide.length ? Math.max(...wide.map((r) => r.n)) : 0;
       const full = Math.max(needWidth, Math.round(peak * 0.9));
-      const firstFull = wide.find((r) => r.n >= full);
-      const first = firstFull?.y ?? -1;
-      let solid = 0;
-      if (first >= 0) {
-        for (let y = first; y < rows.height && goldCounts[y]! >= full; y++) solid += 1;
+      const runs: BarRun[] = [];
+      let runStart = -1;
+      for (let y = yMin; y <= yMax; y++) {
+        const isFull = y < yMax && goldCounts[y]! >= full;
+        if (isFull && runStart < 0) runStart = y;
+        if (!isFull && runStart >= 0) {
+          runs.push({ start: runStart, end: y, len: y - runStart });
+          runStart = -1;
+        }
+      }
+      const thick = runs.filter((r) => r.len >= info.outlineWidth);
+      const minGap = Math.max(8, Math.round(info.titleHeight * 0.5));
+      const maxGap = Math.round(
+        info.titleHeight + 2 * info.outlineOffset + 2 * info.outlineWidth + 16,
+      );
+      let top: BarRun | null = null;
+      let bottom: BarRun | null = null;
+      for (let i = 0; i < thick.length; i++) {
+        for (let j = i + 1; j < thick.length; j++) {
+          const a = thick[i]!;
+          const b = thick[j]!;
+          const gap = b.start - a.end;
+          if (gap >= minGap && gap <= maxGap) {
+            top = a;
+            bottom = b;
+            break;
+          }
+        }
+        if (top) break;
       }
       const around = goldCounts
         .map((n, y) => ({ y, n }))
-        .filter((r) => first < 0 || (r.y >= first - 4 && r.y <= first + 8));
-      return { goldCounts, navyCounts, span, needWidth, peak, full, first, solid, around };
+        .filter((r) => !top || (r.y >= top.start - 4 && r.y <= (bottom?.end ?? top.end) + 2));
+      return { goldCounts, navyCounts, span, needWidth, peak, full, runs, top, bottom, around };
     };
     await expect
       .poll(
         async () => {
           bar = await measure();
-          return bar.solid;
+          return bar.top && bar.bottom ? bar.top.len : 0;
         },
         { timeout: 2000, intervals: [50, 100, 200] },
       )
       .toBeGreaterThanOrEqual(info.outlineWidth);
     if (!bar) throw new Error('ring bar not measured');
-    const { goldCounts, navyCounts, peak, full, first, solid, around } = bar;
+    const { goldCounts, navyCounts, peak, full, top, bottom, around } = bar;
     expect(
-      solid,
-      `top gold bar only ${solid} px thick at y=${first} (need ${info.outlineWidth}) ${JSON.stringify({ info, x0, x1, peak, full, around })}`,
+      top && bottom,
+      `need distinct top and bottom gold bars, got ${JSON.stringify({ info, x0, x1, peak, full, around, runs: bar.runs })}`,
+    ).toBeTruthy();
+    expect(
+      top!.len,
+      `top gold bar only ${top!.len} px thick at y=${top!.start} (need ${info.outlineWidth}) ${JSON.stringify({ info, x0, x1, peak, full, around })}`,
     ).toBeGreaterThanOrEqual(info.outlineWidth);
-    // At least 2 rows above the full bar that are not gold (clear space). Do
-    // not require a navy heuristic: Chromium's mobile screenshot origin can
-    // shift the slot band onto pixels that are dark but not "navy".
+    expect(
+      bottom!.len,
+      `bottom gold bar only ${bottom!.len} px thick at y=${bottom!.start} ${JSON.stringify({ info, x0, x1, peak, full, around })}`,
+    ).toBeGreaterThanOrEqual(info.outlineWidth);
+    // At least 2 rows above the top bar that are not gold (clear space).
     let clearAbove = 0;
-    for (let y = first - 1; y >= 0; y--) {
+    for (let y = top!.start - 1; y >= 0; y--) {
       if (goldCounts[y]! >= full) break;
       if (goldCounts[y]! >= Math.round(full * 0.3)) continue;
       clearAbove += 1;
@@ -833,12 +900,12 @@ test.describe('OBS-052D-12 title focus ring', () => {
     }
     expect(
       clearAbove,
-      `only ${clearAbove} clear rows above the ring at y=${first} gold=${goldCounts
-        .slice(Math.max(0, first - 8), first + solid + 2)
-        .map((n, i) => `${Math.max(0, first - 8) + i}:${n}`)
+      `only ${clearAbove} clear rows above the top ring at y=${top!.start} gold=${goldCounts
+        .slice(Math.max(0, top!.start - 8), (bottom?.end ?? top!.end) + 2)
+        .map((n, i) => `${Math.max(0, top!.start - 8) + i}:${n}`)
         .join(
           ',',
-        )} ${JSON.stringify({ info, x0, x1, around, navySample: navyCounts.slice(Math.max(0, first - 4), first) })}`,
+        )} ${JSON.stringify({ info, x0, x1, around, navySample: navyCounts.slice(Math.max(0, top!.start - 4), top!.start) })}`,
     ).toBeGreaterThanOrEqual(2);
   });
 });
@@ -846,7 +913,7 @@ test.describe('OBS-052D-12 title focus ring', () => {
 async function snapExitFade(page: Page) {
   await expect(page.locator('#amsg-bubble')).toBeVisible();
   await page.locator('dialog.amsg').click();
-  await page.waitForTimeout(40);
+  await waitForAmsgExitStart(page);
   return page.evaluate(() => {
     const dlg = document.querySelector('dialog.amsg') as HTMLDialogElement | null;
     const sheet = document.querySelector('.amsg-sheet') as HTMLElement | null;
