@@ -52,7 +52,17 @@ const toV5 = <T extends object>(v4: T) => ({ ...v4, schemaVersion: 5, ...initial
 const toV6 = <T extends { createdAt: number; maxSeenAt: number }>(v5: T) => {
   const minted = gameIdFromV5({ createdAt: v5.createdAt });
   if (!minted.ok) throw new Error('toV6: invalid createdAt');
-  return { ...v5, schemaVersion: 6 as const, ...initialV6Fields(v5.maxSeenAt, minted.gameId) };
+  const {
+    bike: _b,
+    schemaVersion: _sv,
+    ...rest
+  } = v5 as T & {
+    bike?: unknown;
+    schemaVersion?: unknown;
+  };
+  void _b;
+  void _sv;
+  return { ...rest, schemaVersion: 6 as const, ...initialV6Fields(v5.maxSeenAt, minted.gameId) };
 };
 
 const T0 = Date.UTC(2026, 9, 25, 12, 0, 0);

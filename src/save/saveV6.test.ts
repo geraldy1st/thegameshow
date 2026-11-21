@@ -108,10 +108,13 @@ describe('MIGRATIONS[5] v5 → v6', () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     const minted = gameIdFromV5({ createdAt: v5.createdAt });
-    expect(minted.ok && r.value.gameId).toBe(minted.ok && minted.gameId);
-    expect(r.value.gameId).toBe(
-      gameIdFromCreatedAt(v5.createdAt).ok ? gameIdFromCreatedAt(v5.createdAt).gameId : '',
-    );
+    expect(minted.ok).toBe(true);
+    if (!minted.ok) return;
+    expect(r.value.gameId).toBe(minted.gameId);
+    const again = gameIdFromCreatedAt(v5.createdAt);
+    expect(again.ok).toBe(true);
+    if (!again.ok) return;
+    expect(r.value.gameId).toBe(again.gameId);
     expect(r.value.schemaVersion).toBe(6);
     expect(r.value.bike).toEqual({
       day: localDay(v5.maxSeenAt),
