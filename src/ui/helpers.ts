@@ -14,9 +14,26 @@ export function download(text: string, prefix = 'thegameshow') {
 
 export const displayName = (id: string): string => id.charAt(0).toUpperCase() + id.slice(1);
 
-export const prefersReducedMotion = (): boolean =>
-  document.documentElement.dataset.motion === 'reduce' ||
-  (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+/**
+ * Q-M8 / R-X10-10: the in-game setting wins over the OS.
+ * `data-motion="reduce"` ← setting `'on'`; `data-motion="full"` ← `'off'`;
+ * unset ← `'auto'` (follows the media query).
+ */
+export function applyReducedMotionSetting(
+  setting: 'auto' | 'on' | 'off',
+  root: HTMLElement = document.documentElement,
+): void {
+  if (setting === 'on') root.dataset.motion = 'reduce';
+  else if (setting === 'off') root.dataset.motion = 'full';
+  else delete root.dataset.motion;
+}
+
+export const prefersReducedMotion = (): boolean => {
+  const flag = document.documentElement.dataset.motion;
+  if (flag === 'reduce') return true;
+  if (flag === 'full') return false;
+  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+};
 export const claimableCount = (g: GameState | null): number =>
   g ? QUEST_IDS.filter((q) => canClaim(g, q)).length : 0;
 

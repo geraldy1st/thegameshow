@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { DESC_TODO, Dot, DotDescription, Modal } from './common';
 import { pendingQuestsFor } from '../core/questTargets';
-import { download, claimableCount, revealPending } from './helpers';
+import { download, claimableCount, revealPending, applyReducedMotionSetting } from './helpers';
 import { Home } from './Home';
 import { currentRoute, goHome, navigate, replaceRoute, useRoute, type Route } from './router';
 import { Mission } from './Mission';
@@ -465,8 +465,7 @@ export function App({ store }: { store: Store }) {
   }, [route, shown]);
 
   useEffect(() => {
-    if (motion === 'on') document.documentElement.dataset.motion = 'reduce';
-    else delete document.documentElement.dataset.motion;
+    applyReducedMotionSetting(motion);
   }, [motion]);
 
   useEffect(() => {
