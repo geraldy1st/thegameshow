@@ -102,6 +102,18 @@ describe('x10Schedule (R-X10-13, tolerance 0 ms)', () => {
     expect(s.recapVisibleAt).toBe(0);
     expect(s.focusAt).toBe(0);
   });
+
+  it('DEF-GS-68 / M01: t_up(i) for k = 0…10 uses the 180 ms pause on every 3★, not only order 9', () => {
+    for (let k = 0; k <= 10; k++) {
+      const s = x10Schedule({ threeStarCount: k });
+      for (let i = 0; i < 10; i++) {
+        const pause = k >= 1 && i >= 10 - k ? 180 : 0;
+        const instant = 2440 + i * 90 + pause;
+        expect(tUp(i, k), `tUp k=${k} i=${i}`).toBe(instant);
+        expect(s.tUpByOrder[i], `schedule k=${k} i=${i}`).toBe(instant);
+      }
+    }
+  });
 });
 
 describe('reduceX10Phase (TC-MAE)', () => {
@@ -390,5 +402,35 @@ describe('createX10Runtime with fake timers (0 ms)', () => {
     vi.advanceTimersByTime(10_000);
     expect(r.phase()).toBe('sealed');
     expect(r.flashing()).toBeNull();
+  });
+
+  it('DEF-GS-68 / M28: hide() skips to recap and is a no-op once closed', () => {
+    const r = createX10Runtime(withK(2), { autoBreak: true });
+    vi.advanceTimersByTime(2440);
+    expect(r.phase()).toBe('flip');
+    r.hide();
+    expect(r.phase()).toBe('recap');
+    expect(r.pendingTimeouts()).toBe(0);
+    expect(r.flashing()).toBeNull();
+    expect(r.faceUp()).toHaveLength(10);
+    r.hide();
+    expect(r.phase()).toBe('recap');
+    r.close();
+    expect(r.phase()).toBe('closed');
+    r.hide();
+    expect(r.phase()).toBe('closed');
+  });
+
+  it('DEF-GS-68 / M31: skip() after close stays closed', () => {
+    const r = createX10Runtime(withK(1), { autoBreak: true });
+    vi.advanceTimersByTime(3930);
+    expect(r.phase()).toBe('recap');
+    r.close();
+    expect(r.phase()).toBe('closed');
+    r.skip();
+    expect(r.phase()).toBe('closed');
+    expect(r.pendingTimeouts()).toBe(0);
+    vi.advanceTimersByTime(10_000);
+    expect(r.phase()).toBe('closed');
   });
 });
