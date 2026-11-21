@@ -1,11 +1,6 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  FOIL_SPEC_REST,
-  FOIL_SWEEP_DURATION_MS,
-  FOIL_SWEEP_FROM,
-  FOIL_SWEEP_PERIOD_MS,
-  FOIL_SWEEP_SPAN,
   clampTilt,
   createFoilFX,
   offsetsFromRect,
@@ -14,7 +9,10 @@ import {
   type FoilSurface,
 } from './foilFx';
 
-function fakeEl(): FoilSurface['el'] & { props: Record<string, string> } {
+function fakeEl(): FoilSurface['el'] & {
+  props: Record<string, string>;
+  getBoundingClientRect: ReturnType<typeof vi.fn>;
+} {
   const props: Record<string, string> = {};
   return {
     props,
@@ -23,6 +21,19 @@ function fakeEl(): FoilSurface['el'] & { props: Record<string, string> } {
         props[name] = value;
       },
     },
+    getBoundingClientRect: vi.fn(() => ({
+      left: 0,
+      top: 0,
+      width: 100,
+      height: 100,
+      right: 100,
+      bottom: 100,
+      x: 0,
+      y: 0,
+      toJSON() {
+        return {};
+      },
+    })),
   };
 }
 
@@ -31,20 +42,20 @@ function surface(kind: 2 | 3, el: FoilSurface['el']): FoilSurface {
 }
 
 describe('sweepSpec / pointerFoil (pure)', () => {
-  it('rests at FROM between 900 ms sweeps every 4 s', () => {
-    expect(sweepSpec(0)).toBe(FOIL_SWEEP_FROM);
-    expect(sweepSpec(FOIL_SWEEP_DURATION_MS / 2)).toBe(FOIL_SWEEP_FROM + FOIL_SWEEP_SPAN / 2);
-    expect(sweepSpec(FOIL_SWEEP_DURATION_MS)).toBe(FOIL_SWEEP_FROM);
-    expect(sweepSpec(FOIL_SWEEP_PERIOD_MS)).toBe(FOIL_SWEEP_FROM);
+  it('DEF-GS-69 / F11: sweep is 900 ms every 4000 ms (SPEC literals, not code constants)', () => {
+    expect(sweepSpec(0)).toBe(-40);
+    expect(sweepSpec(450)).toBe(50);
+    expect(sweepSpec(900)).toBe(-40);
+    expect(sweepSpec(4000)).toBe(-40);
   });
 
-  it('clamps tilt to ±8° and rests the 3★ band at 30%', () => {
+  it('DEF-GS-69 / F10: clamps tilt to ±8° and rests the 3★ band at 30%', () => {
     expect(clampTilt(99)).toBe(8);
     expect(clampTilt(-99)).toBe(-8);
     const rest = pointerFoil(0, 0);
     expect(rest.rx).toBe(0);
     expect(rest.ry).toBe(0);
-    expect(rest.spec).toBe(FOIL_SPEC_REST);
+    expect(rest.spec).toBe(30);
   });
 
   it('offsetsFromRect uses a cached rect, not a live measure', () => {
@@ -109,7 +120,7 @@ describe('FoilFX rAF (R-X10-05)', () => {
     expect(b.running).toBe(false);
   });
 
-  it('writes the 2★ sweep and the 3★ rest band without layout reads', () => {
+  it('DEF-GS-69 / F07: writes the 2★ sweep and the 3★ rest band without layout reads in the rAF', () => {
     const proto = HTMLElement.prototype;
     const spyRect = vi.spyOn(proto, 'getBoundingClientRect');
     const spyRects = vi.spyOn(proto, 'getClientRects');
@@ -119,14 +130,13 @@ describe('FoilFX rAF (R-X10-05)', () => {
     a.register(surface(2, two));
     a.register(surface(3, three));
     flush(0);
-    expect(two.props['--spec']).toBe(`${FOIL_SWEEP_FROM}%`);
-    expect(three.props['--spec']).toBe(`${FOIL_SPEC_REST.toFixed(1)}%`);
+    expect(two.props['--spec']).toBe('-40%');
+    expect(three.props['--spec']).toBe('30.0%');
     expect(three.props['--rx']).toBe('0.00deg');
-    flush(FOIL_SWEEP_DURATION_MS / 2);
-    expect(Number.parseFloat(two.props['--spec'] ?? '')).toBeCloseTo(
-      FOIL_SWEEP_FROM + FOIL_SWEEP_SPAN / 2,
-      5,
-    );
+    flush(450);
+    expect(Number.parseFloat(two.props['--spec'] ?? '')).toBe(50);
+    expect(two.getBoundingClientRect).not.toHaveBeenCalled();
+    expect(three.getBoundingClientRect).not.toHaveBeenCalled();
     expect(spyRect).not.toHaveBeenCalled();
     expect(spyRects).not.toHaveBeenCalled();
     a.stop();
@@ -149,8 +159,18 @@ describe('FoilFX rAF (R-X10-05)', () => {
     oriListeners[0]!({ gamma: 45, beta: 45 });
     flush(16);
     expect(a.orientation.hasOri).toBe(true);
-    expect(el.props['--spec']).toBe(`${FOIL_SPEC_REST.toFixed(1)}%`);
+    expect(el.props['--spec']).toBe('30.0%');
     expect(el.props['--ry']).toBe(`${(8).toFixed(2)}deg`);
+  });
+
+  it('DEF-GS-69 / F12: attachOri never calls requestPermission', () => {
+    const requestPermission = vi.fn(async () => 'granted');
+    vi.stubGlobal('DeviceOrientationEvent', { requestPermission });
+    const a = fx();
+    a.register(surface(3, fakeEl()));
+    expect(requestPermission).not.toHaveBeenCalled();
+    a.stop();
+    vi.unstubAllGlobals();
   });
 
   it('stops the rAF when the last surface unregisters', () => {

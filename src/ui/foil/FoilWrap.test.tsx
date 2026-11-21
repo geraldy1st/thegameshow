@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { applyReducedMotionSetting } from '../helpers';
-import { FOIL_DRAG_THRESHOLD_PX, foilFx } from './foilFx';
+import { foilFx } from './foilFx';
 import { FoilWrap } from './FoilWrap';
 
 afterEach(() => {
@@ -69,7 +69,7 @@ describe('FoilWrap', () => {
     expect(foilFx.running).toBe(false);
   });
 
-  it('does not open a click target after a drag past the tilt threshold', () => {
+  it('DEF-GS-69 / F04: a 9 px move is still a click; 10 px is a tilt and suppresses the click', () => {
     applyReducedMotionSetting('off');
     const onHostClick = vi.fn();
     const { getByTestId } = render(
@@ -81,16 +81,16 @@ describe('FoilWrap', () => {
     );
     const wrap = getByTestId('foil-wrap');
     fireEvent.pointerDown(wrap, { clientX: 10, clientY: 10, pointerType: 'touch' });
-    fireEvent.pointerMove(wrap, {
-      clientX: 10 + FOIL_DRAG_THRESHOLD_PX + 2,
-      clientY: 10,
-      pointerType: 'touch',
-    });
+    fireEvent.pointerMove(wrap, { clientX: 19, clientY: 10, pointerType: 'touch' });
+    fireEvent.pointerUp(wrap, { clientX: 19, clientY: 10, pointerType: 'touch' });
+    fireEvent.click(wrap);
+    expect(onHostClick).toHaveBeenCalledTimes(1);
+
+    onHostClick.mockClear();
+    fireEvent.pointerDown(wrap, { clientX: 10, clientY: 10, pointerType: 'touch' });
+    fireEvent.pointerMove(wrap, { clientX: 20, clientY: 10, pointerType: 'touch' });
+    fireEvent.pointerUp(wrap, { clientX: 20, clientY: 10, pointerType: 'touch' });
     fireEvent.click(wrap);
     expect(onHostClick).not.toHaveBeenCalled();
-    fireEvent.pointerDown(wrap, { clientX: 10, clientY: 10, pointerType: 'touch' });
-    fireEvent.pointerUp(wrap, { clientX: 10, clientY: 10, pointerType: 'touch' });
-    fireEvent.click(wrap);
-    expect(onHostClick).toHaveBeenCalled();
   });
 });
