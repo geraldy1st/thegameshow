@@ -196,7 +196,9 @@ describe('DEF-GS-52 / DEF-GS-53 future export envelope and announcements', () =>
       await new Promise((r) => setTimeout(r, 30));
     });
     expect(captured).toHaveLength(0);
-    expect(store.getState().announcement).toBe('La sauvegarde n’a pas pu être exportée.');
+    expect(store.getState().announcement).toBe(
+      'La sauvegarde n’a pas pu être exportée. Réessaie dans un instant.',
+    );
     spy.mockRestore();
   });
 });

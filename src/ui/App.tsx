@@ -14,7 +14,7 @@ import { useStore, type StoreApi } from 'zustand';
 import { INVESTMENT_IDS, INVESTMENTS, type InvestmentId } from '../data/balance';
 import { canBuy, nextCostBucks } from '../core/economy';
 import { centsToBucks } from '../core/numbers';
-import { t, type MessageKey } from '../i18n/fr';
+import { importRefusalMessage, t, type MessageKey } from '../i18n/fr';
 import type { GameStoreState } from '../store/gameStore';
 import { formatRate, formatBucks } from './format';
 
@@ -123,15 +123,7 @@ function ImportButton({ store }: { store: Store }) {
     if (pending === null) return;
     const r = await store.getState().importSave(pending);
     setPending(null);
-    store
-      .getState()
-      .announce(
-        r.ok
-          ? t('importDone')
-          : r.reason === 'write-failed'
-            ? t('saveWriteFailed')
-            : t('importFailed', { reason: r.reason }),
-      );
+    store.getState().announce(r.ok ? t('importDone') : importRefusalMessage(r.reason));
   };
   return (
     <>

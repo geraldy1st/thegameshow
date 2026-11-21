@@ -32,11 +32,19 @@ export const fr = {
   importConfirm:
     'Remplacer ta partie actuelle par ce fichier ? Une copie de ta partie actuelle est gardée.',
   importDone: 'Sauvegarde importée.',
-  importFailed: 'Fichier refusé : {reason}',
+  importFailed: 'Ce fichier n’a pas pu être importé. Ta partie actuelle n’a pas changé.',
+  importNotJson: 'Ce fichier n’a pas pu être lu. Ta partie actuelle n’a pas changé.',
+  importTooLarge: 'Ce fichier est trop lourd pour être importé. Ta partie actuelle n’a pas changé.',
+  importBadEnvelope:
+    'Ce fichier n’est pas une sauvegarde The Gameshow. Ta partie actuelle n’a pas changé.',
+  importChecksum:
+    'Ce fichier a été modifié ou abîmé, il ne peut pas être importé. Ta partie actuelle n’a pas changé.',
+  importNewerSchema:
+    'Cette partie vient d’une version plus récente du jeu. Recharge la page pour passer à la dernière version, puis réessaie l’import.',
   saveWriteFailed:
     'L’import n’a pas pu être enregistré. Ta partie actuelle n’a pas changé : réessaie.',
   exportDone: 'Sauvegarde exportée.',
-  exportFailed: 'La sauvegarde n’a pas pu être exportée.',
+  exportFailed: 'La sauvegarde n’a pas pu être exportée. Réessaie dans un instant.',
   checksumNote: 'Le contrôle détecte un fichier abîmé, pas une modification volontaire.',
   reset: 'Nouvelle partie',
   resetTitle: 'Recommencer de zéro ?',
@@ -297,4 +305,17 @@ export type MessageKey = keyof typeof fr;
 
 export function t(key: MessageKey, vars: Record<string, string | number> = {}): string {
   return fr[key].replace(/\{(\w+)\}/g, (_, k: string) => String(vars[k] ?? ''));
+}
+
+/** DEF-GS-59: player-facing copy for an import refusal. Never interpolates the technical reason. */
+export function importRefusalMessage(reason: string): string {
+  if (reason === 'write-failed') return t('saveWriteFailed');
+  if (reason === 'not JSON') return t('importNotJson');
+  if (reason === 'file too large') return t('importTooLarge');
+  if (reason === 'checksum mismatch') return t('importChecksum');
+  if (reason.startsWith('envelope:')) return t('importBadEnvelope');
+  if (reason === 'future-schema' || reason.includes('is newer than this app')) {
+    return t('importNewerSchema');
+  }
+  return t('importFailed');
 }
