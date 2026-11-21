@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isCalendarDay, ManualClock } from './clock';
+import { isCalendarDay, localDay, ManualClock } from './clock';
 import {
   BIKE_PAY,
   BIKE_STAT_IDS,
@@ -329,6 +329,57 @@ describe('bikePay day rule mutants and invalid dates (R-I1-05, P05, P07)', () =>
       reason: 'invalid-state',
     });
     expect(settle('success', 0, { day: '2026-02-29', earnedTodayCents: 0 }, T0, T0).ok).toBe(false);
+  });
+
+  it('resets the cap on a new calendar day even when maxSeenAt is still yesterday (N39, DEF-GS-61)', () => {
+    const yesterday = new Date(2026, 10, 14, 23, 0).getTime();
+    const now = new Date(2026, 10, 15, 10, 0).getTime();
+    const r = settle(
+      'success',
+      0,
+      { day: localDay(yesterday), earnedTodayCents: BIKE_PAY.dailyCapCents },
+      now,
+      yesterday,
+    );
+    expect(r.ok && r.paidCents).toBeGreaterThan(0);
+    expect(r.ok && r.newState.day).toBe(localDay(now));
+  });
+
+  it('isCalendarDay year+month already reject an overflow, so dropping getDate is equivalent (N19)', () => {
+    // JS Date overflow of an invalid YYYY-MM-DD (month/day 00–99) always
+    // changes the month or the year, so dt.getDate() === d is redundant.
+    for (const y of [1900, 2000, 2024, 2026, 2100]) {
+      for (let m = 0; m <= 99; m++) {
+        for (let d = 0; d <= 99; d++) {
+          const dt = new Date(y, m - 1, d);
+          const ym = dt.getFullYear() === y && dt.getMonth() === m - 1;
+          const ymd = ym && dt.getDate() === d;
+          const s = `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          expect(ymd, s).toBe(ym);
+          expect(isCalendarDay(s), s).toBe(ymd);
+        }
+      }
+    }
+  });
+
+  it('isCalendarDay local vs UTC construction agrees on Gregorian existence (N22)', () => {
+    // Date.UTC and local Date accept the same civil dates when midnight exists
+    // (Juneau / Kiritimati CI steps exercise this file under those zones).
+    for (const y of [1900, 2000, 2024, 2026, 2100]) {
+      for (let m = 0; m <= 99; m++) {
+        for (let d = 0; d <= 99; d++) {
+          const s = `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          const local = new Date(y, m - 1, d);
+          const utc = new Date(Date.UTC(y, m - 1, d));
+          const localOk =
+            local.getFullYear() === y && local.getMonth() === m - 1 && local.getDate() === d;
+          const utcOk =
+            utc.getUTCFullYear() === y && utc.getUTCMonth() === m - 1 && utc.getUTCDate() === d;
+          expect(localOk, s).toBe(utcOk);
+          expect(isCalendarDay(s), s).toBe(localOk);
+        }
+      }
+    }
   });
 });
 

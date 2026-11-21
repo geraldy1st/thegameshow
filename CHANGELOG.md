@@ -21,6 +21,10 @@ GO AVEC RÉSERVES Crypto (avis 15/11, 16:00 environ, Atlantic/Canary) : **I1 aut
 
 | `fmt` / bio Haru | `fmt()` compacte au-dessus d'un million : les milliards s'abrègent **Md** (plus « B », réservé au Buck). Tests fr / en / es (le 10¹² anglais/espagnol utilise « T », pas « B »). Bio de Haru : « chaque buck ». Aucun « 円 » dans le dépôt. | Relecture Mirage (Buck) | — | Padding bouton « Convertir en Buck » 8→4 px et `.pts` nowrap (DEF-GS-20/21, WebKit). |
 
+| `src/ui/Partners.test.tsx` | Tirage : identifiant IDB unique par invocation, `pull` cadencé, attente de « Tirage en cours… » au lieu d'un `setTimeout` fixe (DEF-GS-45). | Un « tué » qui ne repose que sur ce fichier instable est un faux tué (B03, N32). | — | — |
+| `src/core/bike.test.ts`, `bikePay.test.ts`, `gameId.test.ts` | Oracles I1 : collision balayée quand le point final est déjà derrière l'obstacle (B03) ; invulnérabilité mesurée à 0,4 s / 0,65 s et non via `BIKE.invuln` (N45) ; D1 prend le jour de `nowCal` (N39) ; SHA-256 sur entrées ≥ 56 octets, y compris un second bloc de bourrage (N32). Preuves d'équivalence N19 / N22 (débordement Date) et P04 / N43 laissés équivalents. | DEF-GS-61 ; survivants de la recette @ 183cc01 | — | N33 (bitLenHi) reste équivalent sous les entrées < 2²⁹ octets |
+| `src/ui/app.css` | Commentaire du padding « Convertir en Buck » : plus de mention d'un libellé Yen. | Résidu de relecture Buck | — | — |
+
 ## 0.5.2 — fiche Associés, recharge 4 h, Menu, roman, zoom (branche `release-052`, non publié)
 
 GO AVEC RÉSERVES Crypto (R-052-01 à 06). Périmètre validé par Geraldy (carte 10/11/2026, 19:32 Atlantic/Canary). Vélo et stats d'Aoi reportés en 0.6.0 / lot ultérieur. DEF-GS-32/35/36 restent ouverts. Aucune publication. Schéma **v5** inchangé.
